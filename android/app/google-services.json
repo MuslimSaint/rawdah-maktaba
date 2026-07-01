@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "594753521936",
+    "project_id": "rawdah-maktaba",
+    "storage_bucket": "rawdah-maktaba.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:594753521936:android:1c1013bb9767fb98c13d95",
+        "android_client_info": {
+          "package_name": "com.rawda.library"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "594753521936-7bm5abrq5a2lhbrs30tbep9l372gq978.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rawda.library",
+            "certificate_hash": "2bcc587a5523221205d195f16afd592619486711"
+          }
+        },
+        {
+          "client_id": "594753521936-udnjcp2q05rejl46hs8hrm9bv9dhlnnu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD11ytm4sVu84LSjZ_KCi8xkuqJaNttQIw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "594753521936-udnjcp2q05rejl46hs8hrm9bv9dhlnnu.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
