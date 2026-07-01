@@ -28,6 +28,37 @@ jobs:
           flutter-version: '3.24.0'
           cache: true
 
+      - name: Set up keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Using stored keystore from secrets..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ~/.android/debug.keystore
+          else
+            echo "No keystore secret found. Generating new keystore..."
+            mkdir -p ~/.android
+            keytool -genkey -v \
+              -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo ""
+            echo "=== COPY THIS BASE64 — SAVE AS GITHUB SECRET KEYSTORE_BASE64 ==="
+            base64 -w 0 ~/.android/debug.keystore
+            echo ""
+            echo "================================================================="
+            echo ""
+            echo "=== SHA-1 TO REGISTER IN FIREBASE ==="
+            keytool -list -v \
+              -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey \
+              -storepass android \
+              -keypass android | grep "SHA1:"
+            echo "====================================="
+          fi
+
       - name: Show Flutter version
         run: flutter --version
 
@@ -39,28 +70,6 @@ jobs:
 
       - name: Build universal release APK
         run: flutter build apk --release --no-tree-shake-icons
-
-      - name: Print SHA-1 fingerprint for Firebase
-        run: |
-          echo "=== SHA-1 FINGERPRINT FOR FIREBASE ==="
-          mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            echo "Keystore not found, creating one..."
-            keytool -genkey -v \
-              -keystore ~/.android/debug.keystore \
-              -alias androiddebugkey \
-              -keyalg RSA -keysize 2048 \
-              -validity 10000 \
-              -storepass android \
-              -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US"
-          fi
-          keytool -list -v \
-            -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey \
-            -storepass android \
-            -keypass android | grep -i "sha1"
-          echo "======================================"
 
       - name: Build split APKs per ABI
         run: flutter build apk --release --split-per-abi --no-tree-shake-icons
