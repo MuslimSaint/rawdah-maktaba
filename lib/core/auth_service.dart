@@ -84,9 +84,9 @@ class AuthService {
       await _auth.signInWithCredential(credential);
       return null; // success
     } on FirebaseAuthException catch (e) {
-      return _handleAuthError(e.code);
+      return 'Firebase error: ${e.code} — ${e.message}';
     } catch (e) {
-      return 'Google sign-in failed. Please try again.';
+      return 'Error: ${e.toString()}';
     }
   }
 
