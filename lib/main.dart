@@ -6,6 +6,7 @@ import 'core/app_state.dart';
 import 'core/theme.dart';
 import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
+import 'screens/auth_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +61,7 @@ class RawdahApp extends StatelessWidget {
 }
 
 /// Handles the initial routing:
-/// splash → welcome (first launch)
+/// splash → welcome (first launch only)
 /// splash → auth (not signed in)
 /// splash → main (signed in)
 class AppRouter extends StatefulWidget {
@@ -73,24 +74,30 @@ class AppRouter extends StatefulWidget {
 class _AppRouterState extends State<AppRouter> {
   bool _showSplash = true;
   bool _showWelcome = false;
+  bool _showAuth = false;
 
   @override
   Widget build(BuildContext context) {
     final state = AppState.of(context);
 
-    // Still showing splash
+    // ── Splash ──
     if (_showSplash) {
       return SplashScreen(
         onDone: () {
           setState(() {
             _showSplash = false;
-            _showWelcome = state.isFirstLaunch;
+            if (state.isFirstLaunch) {
+              _showWelcome = true;
+            } else if (!state.isSignedIn) {
+              _showAuth = true;
+            }
+            // else: go straight to main app
           });
         },
       );
     }
 
-    // First launch: show welcome
+    // ── Welcome (first launch only) ──
     if (_showWelcome) {
       return WelcomeScreen(
         language: state.language,
@@ -98,19 +105,31 @@ class _AppRouterState extends State<AppRouter> {
           await state.markFirstLaunchComplete();
           setState(() {
             _showWelcome = false;
+            _showAuth = true; // after welcome, always show auth
           });
         },
       );
     }
 
-    // Main app placeholder — will be replaced in future chapters
+    // ── Auth (not signed in) ──
+    if (_showAuth) {
+      return AuthScreen(
+        onAuthenticated: () async {
+          await state.setSignedIn(true);
+          setState(() {
+            _showAuth = false;
+          });
+        },
+      );
+    }
+
+    // ── Main App ──
     return const _MainPlaceholder();
   }
 }
 
 /// Temporary placeholder for the main app.
-/// Shows current theme and language, with buttons to test toggling.
-/// Will be replaced with real Home tab in Chapter 3+.
+/// Will be replaced with real navigation shell in Chapter 4.
 class _MainPlaceholder extends StatelessWidget {
   const _MainPlaceholder();
 
@@ -155,7 +174,7 @@ class _MainPlaceholder extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Core shell is working ✓',
+                  'Authentication working ✓',
                   style: AppText.latin(
                     color: c.textMuted,
                     size: 14,
@@ -163,7 +182,7 @@ class _MainPlaceholder extends StatelessWidget {
                 ),
                 const SizedBox(height: 40),
 
-                // Theme toggle
+                // Theme + Language controls
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -201,8 +220,6 @@ class _MainPlaceholder extends StatelessWidget {
                       const SizedBox(height: 12),
                       Divider(color: c.divider, height: 1),
                       const SizedBox(height: 12),
-
-                      // Language selector
                       Row(
                         children: [
                           Icon(Icons.language_rounded, color: c.brand),
@@ -222,6 +239,44 @@ class _MainPlaceholder extends StatelessWidget {
                           const SizedBox(width: 6),
                           _LangButton(code: 'am', label: 'አ'),
                         ],
+                      ),
+                      const SizedBox(height: 12),
+                      Divider(color: c.divider, height: 1),
+                      const SizedBox(height: 12),
+
+                      // Sign out button for testing
+                      GestureDetector(
+                        onTap: () async {
+                          await state.setSignedIn(false);
+                          if (context.mounted) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (_) => const AppRouter(),
+                              ),
+                              (_) => false,
+                            );
+                          }
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: c.dangerBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: c.danger.withOpacity(0.3),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Sign Out (test)',
+                            style: AppText.latin(
+                              color: c.danger,
+                              size: 14,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
