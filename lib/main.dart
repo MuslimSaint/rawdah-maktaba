@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'core/app_state.dart';
 import 'core/theme.dart';
@@ -21,6 +22,9 @@ void main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
+
+  // Initialize Firebase
+  await Firebase.initializeApp();
 
   // Initialize app state (loads preferences from disk)
   final appState = AppState();
@@ -56,9 +60,9 @@ class RawdahApp extends StatelessWidget {
 }
 
 /// Handles the initial routing:
-/// splash → welcome (first launch) or splash → main (returning user)
-///
-/// For now, main is just a placeholder screen with a theme toggle.
+/// splash → welcome (first launch)
+/// splash → auth (not signed in)
+/// splash → main (signed in)
 class AppRouter extends StatefulWidget {
   const AppRouter({super.key});
 
