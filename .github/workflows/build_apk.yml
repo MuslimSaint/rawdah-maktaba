@@ -34,20 +34,22 @@ jobs:
       - name: Get Flutter packages
         run: flutter pub get
 
+      - name: Generate app icons
+        run: dart run flutter_launcher_icons
+
+      - name: Build universal release APK
+        run: flutter build apk --release --no-tree-shake-icons
+
       - name: Print SHA-1 fingerprint for Firebase
         run: |
+          echo "=== SHA-1 FINGERPRINT FOR FIREBASE ==="
           keytool -list -v \
             -keystore ~/.android/debug.keystore \
             -alias androiddebugkey \
             -storepass android \
             -keypass android \
             2>/dev/null | grep "SHA1:"
-
-      - name: Generate app icons
-        run: dart run flutter_launcher_icons
-
-      - name: Build universal release APK
-        run: flutter build apk --release --no-tree-shake-icons
+          echo "======================================"
 
       - name: Build split APKs per ABI
         run: flutter build apk --release --split-per-abi --no-tree-shake-icons
