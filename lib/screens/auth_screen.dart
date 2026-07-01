@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
 import '../core/app_state.dart';
 import '../core/auth_service.dart';
 import '../core/theme.dart';
 
 /// Mandatory authentication screen.
 /// No guest mode. No skip button.
-/// Supports: Email/Password + Google Sign-In.
 class AuthScreen extends StatefulWidget {
   final VoidCallback onAuthenticated;
 
@@ -21,12 +18,10 @@ class _AuthScreenState extends State<AuthScreen> {
   final _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  // State
   bool _isSignIn = true;
   bool _isLoading = false;
   bool _isGoogleLoading = false;
@@ -40,8 +35,6 @@ class _AuthScreenState extends State<AuthScreen> {
     _passwordController.dispose();
     super.dispose();
   }
-
-  // ─── Actions ────────────────────────────────────────
 
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
@@ -92,6 +85,11 @@ class _AuthScreenState extends State<AuthScreen> {
       widget.onAuthenticated();
     } else if (error == 'cancelled') {
       setState(() => _isGoogleLoading = false);
+    } else if (error == 'google_unavailable') {
+      setState(() {
+        _isGoogleLoading = false;
+        _errorMessage = 'Google sign-in is coming soon. Please use email for now.';
+      });
     } else {
       setState(() {
         _isGoogleLoading = false;
@@ -109,8 +107,6 @@ class _AuthScreenState extends State<AuthScreen> {
       _passwordController.clear();
     });
   }
-
-  // ─── Build ──────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -140,10 +136,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       colors: [c.brand, c.brandHover],
                     ),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: c.goldLine,
-                      width: 1.5,
-                    ),
+                    border: Border.all(color: c.goldLine, width: 1.5),
                     boxShadow: [
                       BoxShadow(
                         color: c.brand.withOpacity(0.3),
@@ -152,16 +145,11 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ],
                   ),
-                  child: Icon(
-                    Icons.menu_book_rounded,
-                    size: 36,
-                    color: c.gold,
-                  ),
+                  child: Icon(Icons.menu_book_rounded, size: 36, color: c.gold),
                 ),
 
                 const SizedBox(height: 16),
 
-                // ── App Name ──
                 Text(
                   'مكتبة الروضة',
                   textDirection: TextDirection.rtl,
@@ -174,13 +162,9 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 const SizedBox(height: 6),
 
-                // ── Screen Title ──
                 Text(
                   _isSignIn ? 'Sign In to Continue' : 'Create Your Account',
-                  style: AppText.latin(
-                    color: c.textMuted,
-                    size: 14,
-                  ),
+                  style: AppText.latin(color: c.textMuted, size: 14),
                 ),
 
                 const SizedBox(height: 32),
@@ -213,7 +197,6 @@ class _AuthScreenState extends State<AuthScreen> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      // Full Name (signup only)
                       if (!_isSignIn) ...[
                         _FormField(
                           controller: _nameController,
@@ -231,7 +214,6 @@ class _AuthScreenState extends State<AuthScreen> {
                         const SizedBox(height: 14),
                       ],
 
-                      // Email
                       _FormField(
                         controller: _emailController,
                         label: 'Email Address',
@@ -254,7 +236,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
                       const SizedBox(height: 14),
 
-                      // Password
                       _FormField(
                         controller: _passwordController,
                         label: 'Password',
@@ -292,8 +273,6 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 8),
-
                 // ── Error Message ──
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 12),
@@ -306,25 +285,17 @@ class _AuthScreenState extends State<AuthScreen> {
                     decoration: BoxDecoration(
                       color: c.dangerBg,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: c.danger.withOpacity(0.3),
-                      ),
+                      border: Border.all(color: c.danger.withOpacity(0.3)),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.error_outline_rounded,
-                          color: c.danger,
-                          size: 16,
-                        ),
+                        Icon(Icons.error_outline_rounded,
+                            color: c.danger, size: 16),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _errorMessage!,
-                            style: AppText.latin(
-                              color: c.danger,
-                              size: 13,
-                            ),
+                            style: AppText.latin(color: c.danger, size: 13),
                           ),
                         ),
                       ],
@@ -344,7 +315,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 const SizedBox(height: 20),
 
-                // ── Switch Mode Link ──
                 GestureDetector(
                   onTap: _switchMode,
                   child: RichText(
@@ -354,10 +324,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           text: _isSignIn
                               ? "Don't have an account? "
                               : 'Already have an account? ',
-                          style: AppText.latin(
-                            color: c.textMuted,
-                            size: 13,
-                          ),
+                          style: AppText.latin(color: c.textMuted, size: 13),
                         ),
                         TextSpan(
                           text: _isSignIn ? 'Create one' : 'Sign in',
@@ -398,7 +365,6 @@ class _ModeToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return Container(
       height: 44,
       decoration: BoxDecoration(
@@ -410,17 +376,13 @@ class _ModeToggle extends StatelessWidget {
           _Tab(
             label: 'Sign In',
             active: isSignIn,
-            onTap: () {
-              if (!isSignIn) onToggle();
-            },
+            onTap: () { if (!isSignIn) onToggle(); },
             colors: c,
           ),
           _Tab(
             label: 'Create Account',
             active: !isSignIn,
-            onTap: () {
-              if (isSignIn) onToggle();
-            },
+            onTap: () { if (isSignIn) onToggle(); },
             colors: c,
           ),
         ],
@@ -445,7 +407,6 @@ class _Tab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -494,11 +455,9 @@ class _GoogleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return GestureDetector(
       onTap: isLoading ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 130),
+      child: Container(
         width: double.infinity,
         height: 52,
         decoration: BoxDecoration(
@@ -520,8 +479,14 @@ class _GoogleButton extends StatelessWidget {
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Google G logo using colored text
-                  _GoogleLogo(),
+                  const Text(
+                    'G',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF4285F4),
+                    ),
+                  ),
                   const SizedBox(width: 10),
                   Text(
                     'Continue with Google',
@@ -538,36 +503,13 @@ class _GoogleButton extends StatelessWidget {
   }
 }
 
-class _GoogleLogo extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 22,
-      height: 22,
-      decoration: const BoxDecoration(shape: BoxShape.circle),
-      child: const Text(
-        'G',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          color: Color(0xFF4285F4),
-          height: 1.4,
-        ),
-      ),
-    );
-  }
-}
-
 class _OrDivider extends StatelessWidget {
   final AppColors colors;
-
   const _OrDivider({required this.colors});
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return Row(
       children: [
         Expanded(child: Divider(color: c.divider, height: 1)),
@@ -575,10 +517,7 @@ class _OrDivider extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             'or use email',
-            style: AppText.latin(
-              color: c.textFaint,
-              size: 12,
-            ),
+            style: AppText.latin(color: c.textFaint, size: 12),
           ),
         ),
         Expanded(child: Divider(color: c.divider, height: 1)),
@@ -617,14 +556,10 @@ class _FormField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: AppText.label(color: c.textMuted),
-        ),
+        Text(label, style: AppText.label(color: c.textMuted)),
         const SizedBox(height: 6),
         TextFormField(
           controller: controller,
@@ -688,7 +623,6 @@ class _SubmitButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return GestureDetector(
       onTap: isLoading ? null : onTap,
       child: Container(
