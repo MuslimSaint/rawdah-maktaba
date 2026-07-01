@@ -70,9 +70,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     final lang = widget.language;
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
+  backgroundColor: const Color(0xFF03140D), // ← ADD THIS LINE
+  body: Container(
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [splashBg, splashDeep],
