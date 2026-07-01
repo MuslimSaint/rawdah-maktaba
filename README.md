@@ -1,2 +1,2 @@
-# -rawdah-maktaba
+# rawdah-maktaba
 learning platform
