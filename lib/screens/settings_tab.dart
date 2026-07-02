@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/auth_service.dart';
 import '../core/theme.dart';
+import 'main.dart';
 
 /// Settings tab — placeholder until Chapter 9.
 class SettingsTab extends StatelessWidget {
@@ -115,7 +116,10 @@ class SettingsTab extends StatelessWidget {
                         if (context.mounted) {
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
-                              builder: (_) => const _RestartApp(),
+                              builder: (_) => AppStateProvider(
+                                state: state,
+                                child: const AppRouter(),
+                              ),
                             ),
                             (_) => false,
                           );
@@ -151,7 +155,7 @@ class SettingsTab extends StatelessWidget {
               ),
             ),
 
-            // ── Placeholder content ──
+            // ── Placeholder ──
             Expanded(
               child: Center(
                 child: Column(
@@ -240,21 +244,6 @@ class _LangButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Restarts the app router after sign out.
-class _RestartApp extends StatelessWidget {
-  const _RestartApp();
-
-  @override
-  Widget build(BuildContext context) {
-    final state = AppState.of(context);
-    final c = AppColors(isDark: state.isDark);
-    return Scaffold(
-      backgroundColor: c.bg,
-      body: const SizedBox.shrink(),
     );
   }
 }
