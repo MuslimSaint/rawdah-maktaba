@@ -5,7 +5,7 @@ import '../core/models.dart';
 import '../core/theme.dart';
 
 /// PDF reader screen.
-/// Opens a locally downloaded PDF file.
+/// Tracks reading progress and saves last opened book.
 class PdfReaderScreen extends StatefulWidget {
   final Book book;
   final String filePath;
@@ -25,6 +25,44 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   int _totalPages = 0;
   bool _isReady = false;
   PDFViewController? _pdfController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Restore last page after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreLastPage();
+    });
+  }
+
+  void _restoreLastPage() {
+    final state = AppState.of(context);
+    if (state.lastBookId == widget.book.id &&
+        state.lastBookPage > 0) {
+      // Jump to last saved page
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted && _pdfController != null) {
+          _pdfController!.setPage(state.lastBookPage);
+        }
+      });
+    }
+  }
+
+  Future<void> _onPageChanged(int page, int total) async {
+    setState(() {
+      _currentPage = page;
+      _totalPages = total;
+    });
+
+    // Save progress to AppState
+    final state = AppState.of(context);
+    await state.setLastOpenedBook(
+      bookId: widget.book.id,
+      bookTitle: widget.book.titleAr,
+      page: page,
+      totalPages: total,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,29 +173,38 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                     _totalPages = pages ?? 0;
                     _isReady = true;
                   });
+
+                  // Record this book was opened
+                  final state = AppState.of(context);
+                  state.setLastOpenedBook(
+                    bookId: widget.book.id,
+                    bookTitle: widget.book.titleAr,
+                    page: _currentPage,
+                    totalPages: pages ?? 0,
+                  );
                 },
                 onViewCreated: (controller) {
                   _pdfController = controller;
+                  _restoreLastPage();
                 },
                 onPageChanged: (page, total) {
-                  setState(() {
-                    _currentPage = page ?? 0;
-                    _totalPages = total ?? 0;
-                  });
+                  _onPageChanged(page ?? 0, total ?? 0);
                 },
                 onError: (error) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Could not open PDF: $error',
-                        style: AppText.latin(
-                          color: Colors.white,
-                          size: 13,
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Could not open PDF: $error',
+                          style: AppText.latin(
+                            color: Colors.white,
+                            size: 13,
+                          ),
                         ),
+                        backgroundColor: c.danger,
                       ),
-                      backgroundColor: c.danger,
-                    ),
-                  );
+                    );
+                  }
                 },
               ),
             ),
@@ -165,7 +212,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
             // ── Bottom Page Indicator ──
             if (_isReady)
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: c.card,
                   border: Border(
