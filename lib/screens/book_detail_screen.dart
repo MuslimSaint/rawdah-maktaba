@@ -5,6 +5,7 @@ import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import 'lessons_screen.dart';
+import 'pdf_reader_screen.dart';
 
 /// Full book detail screen.
 class BookDetailScreen extends StatelessWidget {
@@ -66,7 +67,6 @@ class BookDetailScreen extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // ── Content ──
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
@@ -133,7 +133,6 @@ class _HeroCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Cover
               Container(
                 width: 80,
                 height: 108,
@@ -269,7 +268,6 @@ class _HeroCard extends StatelessWidget {
           Divider(color: c.divider, height: 1),
           const SizedBox(height: 14),
 
-          // ── AUTHOR ──
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -372,14 +370,30 @@ class _PdfSectionState extends State<_PdfSection> {
                 children: [
                   Row(
                     children: [
-                      // Download circle button
+                      // Download / Open button
                       GestureDetector(
                         onTap: isDownloading || !hasUrl
                             ? null
                             : () async {
-                                setState(() => _errorMessage = null);
+                                setState(
+                                  () => _errorMessage = null,
+                                );
                                 if (isDownloaded) {
-                                  // Open PDF — Chapter 8-3
+                                  final path = await widget
+                                      .downloadService
+                                      .localPath(_fileId);
+                                  if (path != null &&
+                                      context.mounted) {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            PdfReaderScreen(
+                                          book: widget.book,
+                                          filePath: path,
+                                        ),
+                                      ),
+                                    );
+                                  }
                                 } else {
                                   await widget.downloadService
                                       .download(
@@ -419,7 +433,8 @@ class _PdfSectionState extends State<_PdfSection> {
                           ),
                           child: isDownloading
                               ? Padding(
-                                  padding: const EdgeInsets.all(14),
+                                  padding:
+                                      const EdgeInsets.all(14),
                                   child: CircularProgressIndicator(
                                     value: progress > 0
                                         ? progress
@@ -432,7 +447,8 @@ class _PdfSectionState extends State<_PdfSection> {
                                   isDownloaded
                                       ? Icons.menu_book_rounded
                                       : !hasUrl
-                                          ? Icons.hourglass_empty_rounded
+                                          ? Icons
+                                              .hourglass_empty_rounded
                                           : Icons.download_rounded,
                                   size: 22,
                                   color: isDownloaded
@@ -526,7 +542,7 @@ class _PdfSectionState extends State<_PdfSection> {
                     ),
                   ],
 
-                  // Error message
+                  // Error
                   if (_errorMessage != null) ...[
                     const SizedBox(height: 10),
                     Container(
