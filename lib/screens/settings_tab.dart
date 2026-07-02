@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/auth_service.dart';
 import '../core/theme.dart';
-import 'main.dart';
+import '../main.dart';
 
 /// Settings tab — placeholder until Chapter 9.
 class SettingsTab extends StatelessWidget {
