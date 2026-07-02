@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
+import '../core/models.dart';
 import '../core/theme.dart';
+import 'branch_screen.dart';
 
 /// Home tab — full implementation.
 class HomeTab extends StatelessWidget {
@@ -95,41 +97,49 @@ class _StatsStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = AppState.of(context);
     final c = colors;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: c.card,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: c.goldLine, width: 1.5),
-        ),
-        child: Row(
-          children: [
-            _StatItem(
-              label: 'Completed',
-              value: '0',
-              icon: Icons.check_circle_outline_rounded,
-              colors: c,
+      child: ListenableBuilder(
+        listenable: state.catalogService,
+        builder: (context, _) {
+          final total = state.catalogService.books.length;
+
+          return Container(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              color: c.card,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: c.goldLine, width: 1.5),
             ),
-            _StatDivider(colors: c),
-            _StatItem(
-              label: 'Library',
-              value: '8',
-              icon: Icons.menu_book_rounded,
-              colors: c,
+            child: Row(
+              children: [
+                _StatItem(
+                  label: 'Completed',
+                  value: '0',
+                  icon: Icons.check_circle_outline_rounded,
+                  colors: c,
+                ),
+                _StatDivider(colors: c),
+                _StatItem(
+                  label: 'Library',
+                  value: '$total',
+                  icon: Icons.menu_book_rounded,
+                  colors: c,
+                ),
+                _StatDivider(colors: c),
+                _StatItem(
+                  label: 'Downloads',
+                  value: '0',
+                  icon: Icons.download_rounded,
+                  colors: c,
+                ),
+              ],
             ),
-            _StatDivider(colors: c),
-            _StatItem(
-              label: 'Downloads',
-              value: '0',
-              icon: Icons.download_rounded,
-              colors: c,
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -167,10 +177,7 @@ class _StatItem extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: AppText.latin(
-              color: c.textMuted,
-              size: 11,
-            ),
+            style: AppText.latin(color: c.textMuted, size: 11),
           ),
         ],
       ),
@@ -221,16 +228,13 @@ class _ContinueReading extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // Book cover placeholder
                 Container(
                   width: 56,
                   height: 72,
                   decoration: BoxDecoration(
                     color: c.brand.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: c.brand.withOpacity(0.25),
-                    ),
+                    border: Border.all(color: c.brand.withOpacity(0.25)),
                   ),
                   child: Icon(
                     Icons.menu_book_rounded,
@@ -307,8 +311,7 @@ class _DailyHadith extends StatelessWidget {
       'source': 'صحيح مسلم',
     },
     {
-      'text':
-          'خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ.',
+      'text': 'خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ.',
       'source': 'صحيح البخاري',
     },
     {
@@ -437,53 +440,18 @@ class _BranchesGrid extends StatelessWidget {
   final AppColors colors;
   const _BranchesGrid({required this.colors});
 
-  static const List<Map<String, dynamic>> _branches = [
-    {
-      'id': 'hadith',
-      'icon': Icons.menu_book_rounded,
-      'en': 'Hadith',
-      'ar': 'حديث',
-      'count': 2,
-    },
-    {
-      'id': 'aqeedah',
-      'icon': Icons.verified_rounded,
-      'en': 'Aqeedah',
-      'ar': 'عقيدة',
-      'count': 3,
-    },
-    {
-      'id': 'fiqh',
-      'icon': Icons.balance_rounded,
-      'en': 'Fiqh',
-      'ar': 'فقه',
-      'count': 4,
-    },
-    {
-      'id': 'seerah',
-      'icon': Icons.auto_stories_rounded,
-      'en': 'Seerah',
-      'ar': 'سيرة',
-      'count': 0,
-    },
-    {
-      'id': 'tafseer',
-      'icon': Icons.lightbulb_outline_rounded,
-      'en': 'Tafseer',
-      'ar': 'تفسير',
-      'count': 0,
-    },
-    {
-      'id': 'arabic',
-      'icon': Icons.translate_rounded,
-      'en': 'Arabic',
-      'ar': 'اللغة العربية',
-      'count': 0,
-    },
+  static const List<Map<String, dynamic>> _branchIcons = [
+    {'id': 'hadith', 'icon': Icons.menu_book_rounded},
+    {'id': 'aqeedah', 'icon': Icons.verified_rounded},
+    {'id': 'fiqh', 'icon': Icons.balance_rounded},
+    {'id': 'seerah', 'icon': Icons.auto_stories_rounded},
+    {'id': 'tafseer', 'icon': Icons.lightbulb_outline_rounded},
+    {'id': 'arabic', 'icon': Icons.translate_rounded},
   ];
 
   @override
   Widget build(BuildContext context) {
+    final state = AppState.of(context);
     final c = colors;
 
     return Padding(
@@ -500,20 +468,45 @@ class _BranchesGrid extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.55,
-            ),
-            itemCount: _branches.length,
-            itemBuilder: (context, index) {
-              final branch = _branches[index];
-              return _BranchCard(branch: branch, colors: c);
+          ListenableBuilder(
+            listenable: state.catalogService,
+            builder: (context, _) {
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.55,
+                ),
+                itemCount: Catalog.branches.length,
+                itemBuilder: (context, index) {
+                  final branch = Catalog.branches[index];
+                  final iconData = _branchIcons[index]['icon'] as IconData;
+                  final count = state.catalogService
+                      .bookCountForBranch(branch.id);
+
+                  return _BranchCard(
+                    branch: branch,
+                    icon: iconData,
+                    count: count,
+                    colors: c,
+                    language: state.language,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => BranchScreen(
+                            branch: branch,
+                            catalogService: state.catalogService,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
             },
           ),
         ],
@@ -523,29 +516,35 @@ class _BranchesGrid extends StatelessWidget {
 }
 
 class _BranchCard extends StatelessWidget {
-  final Map<String, dynamic> branch;
+  final Branch branch;
+  final IconData icon;
+  final int count;
   final AppColors colors;
+  final String language;
+  final VoidCallback onTap;
 
-  const _BranchCard({required this.branch, required this.colors});
+  const _BranchCard({
+    required this.branch,
+    required this.icon,
+    required this.count,
+    required this.colors,
+    required this.language,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    final hasBooks = (branch['count'] as int) > 0;
-    final icon = branch['icon'] as IconData;
+    final hasBooks = count > 0;
 
     return GestureDetector(
-      onTap: () {
-        // Branch screen coming in Chapter 6
-      },
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: c.card,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: hasBooks ? c.divider : c.divider,
-          ),
+          border: Border.all(color: c.divider),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,7 +553,6 @@ class _BranchCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Styled icon container
                 Container(
                   width: 36,
                   height: 36,
@@ -575,7 +573,6 @@ class _BranchCard extends StatelessWidget {
                     color: hasBooks ? c.brand : c.textFaint,
                   ),
                 ),
-
                 if (!hasBooks)
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -595,7 +592,6 @@ class _BranchCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
                 if (hasBooks)
                   Icon(
                     Icons.chevron_right_rounded,
@@ -604,12 +600,11 @@ class _BranchCard extends StatelessWidget {
                   ),
               ],
             ),
-
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  branch['en'] as String,
+                  branch.nameFor(language),
                   style: AppText.latin(
                     color: hasBooks ? c.textPrimary : c.textMuted,
                     size: 13,
@@ -618,9 +613,7 @@ class _BranchCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  hasBooks
-                      ? '${branch['count']} books'
-                      : 'Coming soon',
+                  hasBooks ? '$count books' : 'Coming soon',
                   style: AppText.latin(
                     color: hasBooks ? c.brand : c.textFaint,
                     size: 11,
