@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import 'audio_player_screen.dart';
 
-/// Lessons screen — shows all audio parts for a book taught by a specific teacher.
+/// Lessons screen — shows all audio parts for a book by a specific teacher.
 class LessonsScreen extends StatefulWidget {
   final Book book;
   final Teacher teacher;
@@ -19,7 +20,6 @@ class LessonsScreen extends StatefulWidget {
 }
 
 class _LessonsScreenState extends State<LessonsScreen> {
-  // Track which lessons are completed (placeholder — real data in Chapter 9)
   late List<bool> _completed;
 
   @override
@@ -30,10 +30,9 @@ class _LessonsScreenState extends State<LessonsScreen> {
 
   int get _completedCount => _completed.where((c) => c).length;
 
-  double get _progress =>
-      widget.book.audioParts > 0
-          ? _completedCount / widget.book.audioParts
-          : 0;
+  double get _progress => widget.book.audioParts > 0
+      ? _completedCount / widget.book.audioParts
+      : 0;
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +137,6 @@ class _LessonsScreenState extends State<LessonsScreen> {
 
                         const SizedBox(width: 14),
 
-                        // Info
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,7 +162,7 @@ class _LessonsScreenState extends State<LessonsScreen> {
                           ),
                         ),
 
-                        // Lesson count badge
+                        // Parts count
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -202,7 +200,7 @@ class _LessonsScreenState extends State<LessonsScreen> {
 
                     const SizedBox(height: 14),
 
-                    // Progress bar
+                    // Progress
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -252,7 +250,8 @@ class _LessonsScreenState extends State<LessonsScreen> {
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                 itemCount: widget.book.audioParts,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final lessonNum = index + 1;
                   final isDone = _completed[index];
@@ -262,7 +261,15 @@ class _LessonsScreenState extends State<LessonsScreen> {
                     isDone: isDone,
                     colors: c,
                     onTap: () {
-                      // Audio player — Step 7-2
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AudioPlayerScreen(
+                            book: widget.book,
+                            teacher: widget.teacher,
+                            lessonNumber: lessonNum,
+                          ),
+                        ),
+                      );
                     },
                     onCompletedToggle: () {
                       setState(() {
@@ -302,14 +309,12 @@ class _LessonRow extends StatefulWidget {
 }
 
 class _LessonRowState extends State<_LessonRow> {
-  // Download states: none, downloading, downloaded
   String _downloadState = 'none';
 
   @override
   Widget build(BuildContext context) {
     final c = widget.colors;
 
-    // Arabic lesson title: الجزء الأول, الجزء الثاني, etc.
     final arabicNumbers = [
       'الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس',
       'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر',
@@ -325,7 +330,7 @@ class _LessonRowState extends State<_LessonRow> {
     final lessonTitle = 'الجزء $arabicNum';
 
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: _downloadState == 'downloaded' ? widget.onTap : null,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -339,7 +344,7 @@ class _LessonRowState extends State<_LessonRow> {
         ),
         child: Row(
           children: [
-            // ── Completion indicator ──
+            // Completion indicator
             GestureDetector(
               onTap: widget.onCompletedToggle,
               child: AnimatedContainer(
@@ -348,13 +353,9 @@ class _LessonRowState extends State<_LessonRow> {
                 height: 36,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: widget.isDone
-                      ? c.brand
-                      : c.surface2,
+                  color: widget.isDone ? c.brand : c.surface2,
                   border: Border.all(
-                    color: widget.isDone
-                        ? c.brand
-                        : c.divider,
+                    color: widget.isDone ? c.brand : c.divider,
                   ),
                 ),
                 alignment: Alignment.center,
@@ -377,7 +378,7 @@ class _LessonRowState extends State<_LessonRow> {
 
             const SizedBox(width: 14),
 
-            // ── Lesson info ──
+            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -418,12 +419,11 @@ class _LessonRowState extends State<_LessonRow> {
 
             const SizedBox(width: 12),
 
-            // ── Telegram-style download button ──
+            // Download / Play button
             GestureDetector(
               onTap: () {
                 if (_downloadState == 'none') {
                   setState(() => _downloadState = 'downloading');
-                  // Simulate download — real download in Chapter 8
                   Future.delayed(const Duration(seconds: 2), () {
                     if (mounted) {
                       setState(() => _downloadState = 'downloaded');
