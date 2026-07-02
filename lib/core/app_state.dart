@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'catalog_service.dart';
 import 'download_service.dart';
 import 'audio_service.dart';
+import 'firestore_service.dart';
 
 /// Central app state for theme, language, and user preferences.
 class AppState extends ChangeNotifier {
@@ -14,7 +15,7 @@ class AppState extends ChangeNotifier {
   static const _keyLastBookId = 'last_book_id';
   static const _keyLastBookPage = 'last_book_page';
   static const _keyLastBookTitle = 'last_book_title';
-  static const _keyDownloadedCount = 'downloaded_count';
+  static const _keyLastBookTotalPages = 'last_book_total_pages';
 
   late SharedPreferences _prefs;
 
@@ -23,7 +24,7 @@ class AppState extends ChangeNotifier {
   bool _isFirstLaunch = true;
   bool _isSignedIn = false;
 
-  // ─── Last opened book (for Continue Reading) ───────
+  // ─── Last opened book ──────────────────────────────
   String? _lastBookId;
   String? _lastBookTitle;
   int _lastBookPage = 0;
@@ -33,6 +34,7 @@ class AppState extends ChangeNotifier {
   final CatalogService catalogService = CatalogService();
   final DownloadService downloadService = DownloadService();
   final AudioService audioService = AudioService();
+  final FirestoreService firestoreService = FirestoreService();
 
   // ─── Getters ───────────────────────────────────────
   bool get isDark => _isDark;
@@ -47,12 +49,10 @@ class AppState extends ChangeNotifier {
   bool get hasLastBook =>
       _lastBookId != null && _lastBookId!.isNotEmpty;
 
-  double get lastBookProgress =>
-      _lastBookTotalPages > 0
-          ? _lastBookPage / _lastBookTotalPages
-          : 0;
+  double get lastBookProgress => _lastBookTotalPages > 0
+      ? _lastBookPage / _lastBookTotalPages
+      : 0;
 
-  // Always LTR — Arabic text widgets handle their own direction
   TextDirection get textDirection => TextDirection.ltr;
 
   // ─── Initialization ────────────────────────────────
@@ -73,28 +73,78 @@ class AppState extends ChangeNotifier {
     _isFirstLaunch = _prefs.getBool(_keyFirstLaunch) ?? true;
     _isSignedIn = _prefs.getBool(_keyUserSignedIn) ?? false;
 
-    // Load last opened book
+    // Load last opened book from local storage
     _lastBookId = _prefs.getString(_keyLastBookId);
     _lastBookTitle = _prefs.getString(_keyLastBookTitle);
     _lastBookPage = _prefs.getInt(_keyLastBookPage) ?? 0;
+    _lastBookTotalPages =
+        _prefs.getInt(_keyLastBookTotalPages) ?? 0;
 
     // Initialize services
     await downloadService.init();
     catalogService.load();
+
+    // Sync from Firestore if signed in
+    if (_isSignedIn) {
+      _syncFromCloud();
+    }
+  }
+
+  // ─── Cloud Sync ────────────────────────────────────
+
+  /// Syncs reading progress from Firestore.
+  /// Cloud data wins only if local has no data.
+  Future<void> _syncFromCloud() async {
+    try {
+      final cloudData =
+          await firestoreService.syncOnLogin();
+      if (cloudData == null) return;
+
+      // Only use cloud data if local has nothing
+      if (_lastBookId == null || _lastBookId!.isEmpty) {
+        final bookId =
+            cloudData['lastBookId'] as String? ?? '';
+        final bookTitle =
+            cloudData['lastBookTitle'] as String? ?? '';
+        final page = cloudData['lastPage'] as int? ?? 0;
+        final total =
+            cloudData['totalPages'] as int? ?? 0;
+
+        if (bookId.isNotEmpty) {
+          _lastBookId = bookId;
+          _lastBookTitle = bookTitle;
+          _lastBookPage = page;
+          _lastBookTotalPages = total;
+
+          // Save to local
+          await _prefs.setString(_keyLastBookId, bookId);
+          await _prefs.setString(
+              _keyLastBookTitle, bookTitle);
+          await _prefs.setInt(_keyLastBookPage, page);
+          await _prefs.setInt(
+              _keyLastBookTotalPages, total);
+          notifyListeners();
+        }
+      }
+    } catch (_) {
+      // Silently fail — local data is fine
+    }
   }
 
   // ─── Theme ─────────────────────────────────────────
 
   Future<void> toggleTheme() async {
     _isDark = !_isDark;
-    await _prefs.setString(_keyThemeMode, _isDark ? 'dark' : 'light');
+    await _prefs.setString(
+        _keyThemeMode, _isDark ? 'dark' : 'light');
     notifyListeners();
   }
 
   Future<void> setDark(bool value) async {
     if (_isDark == value) return;
     _isDark = value;
-    await _prefs.setString(_keyThemeMode, _isDark ? 'dark' : 'light');
+    await _prefs.setString(
+        _keyThemeMode, _isDark ? 'dark' : 'light');
     notifyListeners();
   }
 
@@ -121,12 +171,15 @@ class AppState extends ChangeNotifier {
   Future<void> setSignedIn(bool value) async {
     _isSignedIn = value;
     await _prefs.setBool(_keyUserSignedIn, value);
+    if (value) {
+      // Sync from cloud after sign in
+      _syncFromCloud();
+    }
     notifyListeners();
   }
 
   // ─── Reading Progress ──────────────────────────────
 
-  /// Called when user opens a book.
   Future<void> setLastOpenedBook({
     required String bookId,
     required String bookTitle,
@@ -137,17 +190,41 @@ class AppState extends ChangeNotifier {
     _lastBookTitle = bookTitle;
     _lastBookPage = page;
     _lastBookTotalPages = totalPages;
+
+    // Save locally
     await _prefs.setString(_keyLastBookId, bookId);
     await _prefs.setString(_keyLastBookTitle, bookTitle);
     await _prefs.setInt(_keyLastBookPage, page);
+    await _prefs.setInt(_keyLastBookTotalPages, totalPages);
+
+    // Sync to cloud (non-blocking)
+    firestoreService.saveReadingProgress(
+      bookId: bookId,
+      bookTitle: bookTitle,
+      page: page,
+      totalPages: totalPages,
+    );
+
     notifyListeners();
   }
 
-  /// Called when user turns a page.
-  Future<void> updateReadingPage(int page, int totalPages) async {
+  Future<void> updateReadingPage(
+      int page, int totalPages) async {
     _lastBookPage = page;
     _lastBookTotalPages = totalPages;
     await _prefs.setInt(_keyLastBookPage, page);
+    await _prefs.setInt(_keyLastBookTotalPages, totalPages);
+
+    // Sync to cloud (non-blocking)
+    if (_lastBookId != null) {
+      firestoreService.saveReadingProgress(
+        bookId: _lastBookId!,
+        bookTitle: _lastBookTitle ?? '',
+        page: page,
+        totalPages: totalPages,
+      );
+    }
+
     notifyListeners();
   }
 
