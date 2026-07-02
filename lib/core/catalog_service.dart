@@ -10,7 +10,7 @@ import 'models.dart';
 class CatalogService extends ChangeNotifier {
   static const _cacheKey = 'catalog_json';
   static const _catalogUrl =
-      'https://raw.githubusercontent.com/MuslimSaint/rawdah-maktaba/main/catalog.json';
+    'https://raw.githubusercontent.com/MuslimSaint/rawdah-catalog/main/catalog.json';
 
   Catalog? _catalog;
   bool _isLoading = false;
