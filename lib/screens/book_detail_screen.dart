@@ -177,10 +177,8 @@ class _HeroCard extends StatelessWidget {
                               color: c.brand.withOpacity(0.3),
                             ),
                           ),
-                          child: Text(
-                            'NEW',
-                            style: AppText.label(color: c.brand),
-                          ),
+                          child:
+                              Text('NEW', style: AppText.label(color: c.brand)),
                         ),
                       ),
                     Text(
@@ -236,18 +234,13 @@ class _HeroCard extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Icon(
-                          Icons.menu_book_outlined,
-                          size: 13,
-                          color: c.textFaint,
-                        ),
+                        Icon(Icons.menu_book_outlined,
+                            size: 13, color: c.textFaint),
                         const SizedBox(width: 4),
                         Text(
                           '${book.pages} pages',
-                          style: AppText.latin(
-                            color: c.textFaint,
-                            size: 12,
-                          ),
+                          style:
+                              AppText.latin(color: c.textFaint, size: 12),
                         ),
                       ],
                     ),
@@ -262,10 +255,7 @@ class _HeroCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'AUTHOR',
-                style: AppText.label(color: c.textFaint),
-              ),
+              Text('AUTHOR', style: AppText.label(color: c.textFaint)),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -285,10 +275,7 @@ class _HeroCard extends StatelessWidget {
                     Text(
                       book.authorEn,
                       textAlign: TextAlign.right,
-                      style: AppText.latin(
-                        color: c.textMuted,
-                        size: 12,
-                      ),
+                      style: AppText.latin(color: c.textMuted, size: 12),
                     ),
                   ],
                 ),
@@ -324,18 +311,32 @@ class _PdfSectionState extends State<_PdfSection> {
   String get _fileId => DownloadService.pdfId(widget.book.id);
 
   Future<void> _openBook(BuildContext context) async {
+    // First check DownloadService
+    if (!widget.downloadService.isDownloaded(_fileId)) {
+      setState(() => _errorMessage =
+          'File not found. Please download again.');
+      return;
+    }
+
     final path =
         await widget.downloadService.localPath(_fileId);
-    if (path != null && context.mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PdfReaderScreen(
-            book: widget.book,
-            filePath: path,
-          ),
-        ),
-      );
+
+    if (!context.mounted) return;
+
+    if (path == null) {
+      setState(() => _errorMessage =
+          'Could not open file. Please download again.');
+      return;
     }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PdfReaderScreen(
+          book: widget.book,
+          filePath: path,
+        ),
+      ),
+    );
   }
 
   Future<void> _startDownload() async {
@@ -343,8 +344,14 @@ class _PdfSectionState extends State<_PdfSection> {
     await widget.downloadService.download(
       fileId: _fileId,
       url: widget.book.pdfUrl,
-      onError: (e) => setState(() => _errorMessage = e),
-      onComplete: () => setState(() {}),
+      displayName: widget.book.titleAr,
+      bookId: widget.book.id,
+      onError: (e) {
+        if (mounted) setState(() => _errorMessage = e);
+      },
+      onComplete: () {
+        if (mounted) setState(() {});
+      },
     );
   }
 
@@ -376,13 +383,14 @@ class _PdfSectionState extends State<_PdfSection> {
             ),
             const SizedBox(height: 10),
 
-            // ── Entire card is tappable when downloaded ──
             GestureDetector(
-              onTap: isDownloaded && !isDownloading
-                  ? () => _openBook(context)
-                  : (!isDownloading && hasUrl)
-                      ? _startDownload
-                      : null,
+              onTap: () {
+                if (isDownloaded && !isDownloading) {
+                  _openBook(context);
+                } else if (!isDownloading && hasUrl) {
+                  _startDownload();
+                }
+              },
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -399,7 +407,7 @@ class _PdfSectionState extends State<_PdfSection> {
                   children: [
                     Row(
                       children: [
-                        // Status icon circle
+                        // Status circle
                         Container(
                           width: 52,
                           height: 52,
@@ -479,7 +487,7 @@ class _PdfSectionState extends State<_PdfSection> {
                                 ),
                               ),
                               if (isDownloaded) ...[
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 2),
                                 Text(
                                   'Downloaded · Tap anywhere to read',
                                   style: AppText.latin(
@@ -492,31 +500,58 @@ class _PdfSectionState extends State<_PdfSection> {
                           ),
                         ),
 
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: c.brand.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: c.brand.withOpacity(0.25),
+                        // Cancel button when downloading
+                        if (isDownloading)
+                          GestureDetector(
+                            onTap: () {
+                              widget.downloadService
+                                  .cancelDownload(_fileId);
+                            },
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: c.dangerBg,
+                                borderRadius:
+                                    BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: c.danger.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 16,
+                                color: c.danger,
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: c.brand.withOpacity(0.1),
+                              borderRadius:
+                                  BorderRadius.circular(8),
+                              border: Border.all(
+                                color: c.brand.withOpacity(0.25),
+                              ),
+                            ),
+                            child: Text(
+                              'Free',
+                              style: AppText.latin(
+                                color: c.brand,
+                                size: 12,
+                                weight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                          child: Text(
-                            'Free',
-                            style: AppText.latin(
-                              color: c.brand,
-                              size: 12,
-                              weight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
 
-                    // Progress bar
+                    // Progress bar + speed
                     if (isDownloading) ...[
                       const SizedBox(height: 12),
                       ClipRRect(
@@ -529,15 +564,29 @@ class _PdfSectionState extends State<_PdfSection> {
                           minHeight: 4,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        progress > 0
-                            ? '${(progress * 100).toInt()}%'
-                            : 'Connecting...',
-                        style: AppText.latin(
-                          color: c.textFaint,
-                          size: 11,
-                        ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            progress > 0
+                                ? '${(progress * 100).toInt()}%'
+                                : 'Connecting...',
+                            style: AppText.latin(
+                              color: c.brand,
+                              size: 11,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            'Tap × to cancel',
+                            style: AppText.latin(
+                              color: c.textFaint,
+                              size: 10,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
 
@@ -568,6 +617,15 @@ class _PdfSectionState extends State<_PdfSection> {
                                   color: c.danger,
                                   size: 12,
                                 ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => setState(
+                                  () => _errorMessage = null),
+                              child: Icon(
+                                Icons.close_rounded,
+                                color: c.danger,
+                                size: 14,
                               ),
                             ),
                           ],
@@ -617,10 +675,8 @@ class _TeachersSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'TEACHING SCHOLARS',
-          style: AppText.label(color: c.textFaint),
-        ),
+        Text('TEACHING SCHOLARS',
+            style: AppText.label(color: c.textFaint)),
         const SizedBox(height: 6),
         Text(
           'These scholars provide audio explanations for this book.',
@@ -711,10 +767,8 @@ class _TeacherCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     teacher.nameFor(language),
-                    style: AppText.latin(
-                      color: c.textMuted,
-                      size: 12,
-                    ),
+                    style:
+                        AppText.latin(color: c.textMuted, size: 12),
                   ),
                 ],
               ),
@@ -725,13 +779,11 @@ class _TeacherCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: c.goldLine,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: c.goldText.withOpacity(0.3)),
+                border: Border.all(
+                    color: c.goldText.withOpacity(0.3)),
               ),
-              child: Icon(
-                Icons.headphones_rounded,
-                size: 16,
-                color: c.goldText,
-              ),
+              child: Icon(Icons.headphones_rounded,
+                  size: 16, color: c.goldText),
             ),
           ],
         ),
