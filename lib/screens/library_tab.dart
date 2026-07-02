@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
-import '../core/catalog_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import 'book_detail_screen.dart';
 
-/// Library tab — full book catalog with search.
+/// Library tab — uses shared CatalogService from AppState.
 class LibraryTab extends StatefulWidget {
   const LibraryTab({super.key});
 
@@ -14,20 +13,12 @@ class LibraryTab extends StatefulWidget {
 }
 
 class _LibraryTabState extends State<LibraryTab> {
-  final _catalogService = CatalogService();
   final _searchController = TextEditingController();
   String _searchQuery = '';
 
   @override
-  void initState() {
-    super.initState();
-    _catalogService.load();
-  }
-
-  @override
   void dispose() {
     _searchController.dispose();
-    _catalogService.dispose();
     super.dispose();
   }
 
@@ -125,11 +116,11 @@ class _LibraryTabState extends State<LibraryTab> {
             // ── Book List ──
             Expanded(
               child: ListenableBuilder(
-                listenable: _catalogService,
+                listenable: state.catalogService,
                 builder: (context, _) {
-                  // Loading state
-                  if (_catalogService.isLoading &&
-                      !_catalogService.hasData) {
+                  // Loading
+                  if (state.catalogService.isLoading &&
+                      !state.catalogService.hasData) {
                     return Center(
                       child: CircularProgressIndicator(
                         color: c.brand,
@@ -138,9 +129,9 @@ class _LibraryTabState extends State<LibraryTab> {
                     );
                   }
 
-                  // Error state (no cache + no network)
-                  if (_catalogService.error != null &&
-                      !_catalogService.hasData) {
+                  // Error
+                  if (state.catalogService.error != null &&
+                      !state.catalogService.hasData) {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32),
@@ -163,7 +154,7 @@ class _LibraryTabState extends State<LibraryTab> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Please connect to the internet to load the book catalog.',
+                              'Please connect to load the book catalog.',
                               textAlign: TextAlign.center,
                               style: AppText.latin(
                                 color: c.textMuted,
@@ -172,7 +163,8 @@ class _LibraryTabState extends State<LibraryTab> {
                             ),
                             const SizedBox(height: 24),
                             GestureDetector(
-                              onTap: () => _catalogService.refresh(),
+                              onTap: () =>
+                                  state.catalogService.refresh(),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 24,
@@ -180,7 +172,8 @@ class _LibraryTabState extends State<LibraryTab> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: c.brand,
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius:
+                                      BorderRadius.circular(12),
                                 ),
                                 child: Text(
                                   'Try Again',
@@ -198,8 +191,8 @@ class _LibraryTabState extends State<LibraryTab> {
                     );
                   }
 
-                  // Book list
-                  final books = _catalogService.search(_searchQuery);
+                  final books =
+                      state.catalogService.search(_searchQuery);
 
                   if (books.isEmpty) {
                     return Center(
@@ -234,21 +227,23 @@ class _LibraryTabState extends State<LibraryTab> {
                   }
 
                   return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                    padding:
+                        const EdgeInsets.fromLTRB(20, 0, 20, 24),
                     itemCount: books.length,
                     separatorBuilder: (_, __) =>
                         const SizedBox(height: 12),
                     itemBuilder: (context, index) {
+                      final book = books[index];
                       return _BookCard(
-                        book: books[index],
-                        catalogService: _catalogService,
+                        book: book,
                         colors: c,
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => BookDetailScreen(
-                                book: books[index],
-                                catalogService: _catalogService,
+                                book: book,
+                                catalogService:
+                                    state.catalogService,
                               ),
                             ),
                           );
@@ -270,13 +265,11 @@ class _LibraryTabState extends State<LibraryTab> {
 
 class _BookCard extends StatelessWidget {
   final Book book;
-  final CatalogService catalogService;
   final AppColors colors;
   final VoidCallback onTap;
 
   const _BookCard({
     required this.book,
-    required this.catalogService,
     required this.colors,
     required this.onTap,
   });
@@ -296,17 +289,39 @@ class _BookCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // ── Cover ──
-            _BookCover(book: book, colors: c),
+            // Cover
+            Container(
+              width: 58,
+              height: 78,
+              decoration: BoxDecoration(
+                color: c.brand.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+                border:
+                    Border.all(color: c.brand.withOpacity(0.2)),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  book.localCoverAsset,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Center(
+                    child: Icon(
+                      Icons.menu_book_rounded,
+                      size: 26,
+                      color: c.brand,
+                    ),
+                  ),
+                ),
+              ),
+            ),
 
             const SizedBox(width: 14),
 
-            // ── Info ──
+            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // NEW badge
                   if (book.isNew || book.isRecentlyAdded)
                     Container(
                       margin: const EdgeInsets.only(bottom: 6),
@@ -327,7 +342,6 @@ class _BookCard extends StatelessWidget {
                       ),
                     ),
 
-                  // Arabic title
                   Text(
                     book.titleAr,
                     textDirection: TextDirection.rtl,
@@ -341,7 +355,6 @@ class _BookCard extends StatelessWidget {
 
                   const SizedBox(height: 4),
 
-                  // Author
                   Text(
                     book.authorShort,
                     textDirection: TextDirection.rtl,
@@ -353,12 +366,10 @@ class _BookCard extends StatelessWidget {
 
                   const SizedBox(height: 8),
 
-                  // Tags row
                   Wrap(
                     spacing: 6,
                     runSpacing: 4,
                     children: [
-                      // Branch tags
                       ...book.branches.map((branchId) {
                         final branch = Catalog.branches.firstWhere(
                           (b) => b.id == branchId,
@@ -375,8 +386,6 @@ class _BookCard extends StatelessWidget {
                           isGold: false,
                         );
                       }),
-
-                      // Audio tag
                       if (book.hasAudio)
                         _Tag(
                           label: 'Audio',
@@ -404,45 +413,6 @@ class _BookCard extends StatelessWidget {
   }
 }
 
-class _BookCover extends StatelessWidget {
-  final Book book;
-  final AppColors colors;
-
-  const _BookCover({required this.book, required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-
-    return Container(
-      width: 58,
-      height: 78,
-      decoration: BoxDecoration(
-        color: c.brand.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: c.brand.withOpacity(0.2)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Image.asset(
-          book.localCoverAsset,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) {
-            // Fallback: show book number placeholder
-            return Center(
-              child: Icon(
-                Icons.menu_book_rounded,
-                size: 26,
-                color: c.brand,
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
 class _Tag extends StatelessWidget {
   final String label;
   final AppColors colors;
@@ -461,7 +431,8 @@ class _Tag extends StatelessWidget {
     final c = colors;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         color: isGold
             ? c.goldLine
