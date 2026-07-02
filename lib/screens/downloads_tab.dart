@@ -26,10 +26,8 @@ class _DownloadsTabState extends State<DownloadsTab> {
 
   Future<void> _loadData() async {
     final state = AppState.of(context);
-    final storage =
-        await state.downloadService.totalStorageMb();
-    final files =
-        await state.downloadService.downloadedFiles();
+    final storage = await state.downloadService.totalStorageMb();
+    final files = await state.downloadService.downloadedFiles();
     if (mounted) {
       setState(() {
         _totalStorageMb = storage;
@@ -48,7 +46,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
   Future<void> _deleteAll() async {
     final state = AppState.of(context);
 
-    // Confirm dialog
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) {
@@ -75,7 +72,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
           ),
           actions: [
             TextButton(
-              onTap: () => Navigator.of(ctx).pop(false),
+              onPressed: () => Navigator.of(ctx).pop(false),
               child: Text(
                 'Cancel',
                 style: AppText.latin(
@@ -83,7 +80,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
                   size: 14,
                 ),
               ),
-              onPressed: () => Navigator.of(ctx).pop(false),
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
@@ -211,14 +207,10 @@ class _DownloadsTabState extends State<DownloadsTab> {
 
                             const SizedBox(height: 10),
 
-                            // ── File List ──
                             ..._downloadedFiles.map((file) {
-                              final fileId =
-                                  file['id'] as String;
+                              final fileId = file['id'] as String;
                               final sizeMb =
                                   file['sizeMb'] as double;
-
-                              // Get book from catalog
                               final book = _bookForFileId(
                                 fileId,
                                 state.catalogService.books,
@@ -264,7 +256,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
   }
 
   Book? _bookForFileId(String fileId, List<Book> books) {
-    // fileId format: pdf_bookId or audio_bookId_teacherId_part
     String bookId;
     if (fileId.startsWith('pdf_')) {
       bookId = fileId.replaceFirst('pdf_', '');
@@ -355,7 +346,6 @@ class _StorageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    // Assume max reasonable storage = 500MB
     final progress = (totalMb / 500).clamp(0.0, 1.0);
     final display = totalMb < 1
         ? '${(totalMb * 1024).toStringAsFixed(0)} KB'
@@ -373,11 +363,7 @@ class _StorageCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.storage_rounded,
-                size: 18,
-                color: c.brand,
-              ),
+              Icon(Icons.storage_rounded, size: 18, color: c.brand),
               const SizedBox(width: 8),
               Text(
                 'Storage Used',
@@ -459,9 +445,7 @@ class _DownloadedFileCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: c.brand.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(13),
-                border: Border.all(
-                  color: c.brand.withOpacity(0.2),
-                ),
+                border: Border.all(color: c.brand.withOpacity(0.2)),
               ),
               child: Icon(
                 isPdf
@@ -491,7 +475,7 @@ class _DownloadedFileCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                   ],
                   Row(
                     children: [
