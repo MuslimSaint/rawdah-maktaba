@@ -1,0 +1,192 @@
+{
+  "version": "1",
+  "teachers": [
+    {
+      "id": "samir",
+      "nameAr": "الشيخ الدكتور سمير سامي القاضي",
+      "nameEn": "Sheikh Dr. Samir Sami Al-Qadi",
+      "nameAm": "Sheikh Dr. Samir Sami Al-Qadi",
+      "initials": "سق"
+    },
+    {
+      "id": "misbah",
+      "nameAr": "الشيخ مصباح داود",
+      "nameEn": "Sheikh Misbah Dawud",
+      "nameAm": "ሸይኽ ሚስባሕ ዳውድ",
+      "initials": "مد"
+    },
+    {
+      "id": "amin",
+      "nameAr": "محمد أمين",
+      "nameEn": "Mohammed Amin",
+      "nameAm": "ኡስታዝ ሙሀመድ አሚን",
+      "initials": "مأ"
+    },
+    {
+      "id": "abubakr",
+      "nameAr": "الدكتور الشيخ أبو بكر سليمان",
+      "nameEn": "Dr. Sheikh Abubakr Suleiman",
+      "nameAm": "ዶክተር ሸይኽ አቡበክር ሱለይማን",
+      "initials": "أس"
+    },
+    {
+      "id": "qasim",
+      "nameAr": "قاسم حسين",
+      "nameEn": "Qasim Hussein",
+      "nameAm": "ኡስታዝ ቃሲም ሁሴን",
+      "initials": "قح"
+    },
+    {
+      "id": "ahmed",
+      "nameAr": "الشيخ أحمد محمد",
+      "nameEn": "Sheikh Ahmed Mohammed",
+      "nameAm": "ሸይኽ አሕመድ ሙሐመድ",
+      "initials": "أم"
+    },
+    {
+      "id": "ammash",
+      "nameAr": "الشيخ الدكتور عبد الرحمن عماش",
+      "nameEn": "Sheikh Dr. Abdul Rahman Ammash",
+      "nameAm": "Sheikh Dr. Abdul Rahman Ammash",
+      "initials": "عم"
+    }
+  ],
+  "books": [
+    {
+      "id": "arbaeen",
+      "titleAr": "متن الأربعين النووية",
+      "authorAr": "الإمام يحيى بن شرف النووي",
+      "authorEn": "Imam Yahya ibn Sharaf al-Nawawi",
+      "authorShort": "الإمام النووي",
+      "branches": ["hadith"],
+      "pages": 34,
+      "pdfSizeMb": 1.0,
+      "hasAudio": true,
+      "teacherIds": ["samir", "misbah", "amin"],
+      "isNew": true,
+      "audioParts": 10,
+      "pdfUrl": "",
+      "coverUrl": null,
+      "addedAt": "2025-01-01"
+    },
+    {
+      "id": "bulugh",
+      "titleAr": "بُلوغُ الْمَرَامِ مِنْ أَدِلَّةِ الْأَحْكَامِ",
+      "authorAr": "ابن حجر العسقلاني",
+      "authorEn": "Ibn Hajar al-Asqalani",
+      "authorShort": "ابن حجر",
+      "branches": ["hadith", "fiqh"],
+      "pages": 576,
+      "pdfSizeMb": 11.5,
+      "hasAudio": true,
+      "teacherIds": ["amin"],
+      "isNew": false,
+      "audioParts": 45,
+      "pdfUrl": "",
+      "coverUrl": null,
+      "addedAt": "2025-01-01"
+    },
+    {
+      "id": "risala",
+      "titleAr": "الرسالة المنجدة في حل ألفاظ العقيدة المرشدة",
+      "authorAr": "الشيخ علي بن عدنان الشافعي القادري",
+      "authorEn": "Sheikh Ali ibn Adnan al-Shafi'i al-Qadiri",
+      "authorShort": "علي القادري",
+      "branches": ["aqeedah"],
+      "pages": 25,
+      "pdfSizeMb": 2.5,
+      "hasAudio": true,
+      "teacherIds": ["abubakr"],
+      "isNew": false,
+      "audioParts": 8,
+      "pdfUrl": "",
+      "coverUrl": null,
+      "addedAt": "2025-01-01"
+    },
+    {
+      "id": "ilm",
+      "titleAr": "علم الحال",
+      "authorAr": "قسم الأبحاث والدراسات الإسلامية في الجمعية الإثيوبية الإسلامية للتعليم",
+      "authorEn": "Ethiopian Islamic Education Association",
+      "authorShort": "الجمعية الإثيوبية الإسلامية",
+      "branches": ["aqeedah", "fiqh"],
+      "pages": 36,
+      "pdfSizeMb": 5.0,
+      "hasAudio": true,
+      "teacherIds": ["qasim", "ahmed"],
+      "isNew": true,
+      "audioParts": 12,
+      "pdfUrl": "",
+      "coverUrl": null,
+      "addedAt": "2025-01-01"
+    },
+    {
+      "id": "safinat",
+      "titleAr": "سفينة النجا وسفينة الصلاة",
+      "authorAr": "سالم بن عبد الله بن سعد بن سمير الحضرمي",
+      "authorEn": "Salim ibn Abdullah ibn Sa'd ibn Sumayr al-Hadrami",
+      "authorShort": "سالم الحضرمي",
+      "branches": ["fiqh"],
+      "pages": 16,
+      "pdfSizeMb": 1.0,
+      "hasAudio": true,
+      "teacherIds": ["qasim", "amin"],
+      "isNew": false,
+      "audioParts": 5,
+      "pdfUrl": "",
+      "coverUrl": null,
+      "addedAt": "2025-01-01"
+    },
+    {
+      "id": "shuja",
+      "titleAr": "متن أبي شجاع",
+      "authorAr": "أبو شجاع أحمد بن الحسين الأصفهاني",
+      "authorEn": "Abu Shuja' Ahmad ibn al-Husayn al-Isfahani",
+      "authorShort": "أبو شجاع",
+      "branches": ["fiqh"],
+      "pages": 154,
+      "pdfSizeMb": 2.0,
+      "hasAudio": true,
+      "teacherIds": ["qasim", "amin"],
+      "isNew": false,
+      "audioParts": 20,
+      "pdfUrl": "",
+      "coverUrl": null,
+      "addedAt": "2025-01-01"
+    },
+    {
+      "id": "qawl",
+      "titleAr": "القول الجلي في حل ألفاظ مختصر عبد الله الهرري",
+      "authorAr": "محمد بن نزيه علم الدين، ومحمد بن علي الأطرش",
+      "authorEn": "Muhammad ibn Nazih Alam al-Din & Muhammad ibn Ali al-Atrash",
+      "authorShort": "علم الدين والأطرش",
+      "branches": ["aqeedah"],
+      "pages": 110,
+      "pdfSizeMb": 4.0,
+      "hasAudio": true,
+      "teacherIds": ["ammash"],
+      "isNew": false,
+      "audioParts": 15,
+      "pdfUrl": "",
+      "coverUrl": null,
+      "addedAt": "2025-01-01"
+    },
+    {
+      "id": "umdat",
+      "titleAr": "عمدة السالك وعدة الناسك",
+      "authorAr": "أحمد بن لؤلؤ بن عبد الله الرومي",
+      "authorEn": "Ahmad ibn Lu'lu' ibn Abdullah al-Rumi",
+      "authorShort": "أحمد الرومي",
+      "branches": ["fiqh"],
+      "pages": 600,
+      "pdfSizeMb": 15.0,
+      "hasAudio": true,
+      "teacherIds": ["amin"],
+      "isNew": true,
+      "audioParts": 50,
+      "pdfUrl": "",
+      "coverUrl": null,
+      "addedAt": "2025-01-01"
+    }
+  ]
+}
