@@ -20,19 +20,9 @@ class HomeTab extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: Text(
-                      'مكتبة الروضة',
-                      textDirection: TextDirection.rtl,
-                      style: AppText.arabic(
-                        color: c.goldText,
-                        size: 22,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  // Theme toggle
+                  // Theme toggle on the LEFT in LTR, RIGHT in RTL
                   GestureDetector(
                     onTap: () => state.toggleTheme(),
                     child: Container(
@@ -52,6 +42,20 @@ class HomeTab extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                  // App name centered
+                  Text(
+                    'مكتبة الروضة',
+                    textDirection: TextDirection.rtl,
+                    style: AppText.arabic(
+                      color: c.goldText,
+                      size: 22,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+
+                  // Empty space to balance the row
+                  const SizedBox(width: 38),
                 ],
               ),
             ),
