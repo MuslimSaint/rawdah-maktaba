@@ -29,8 +29,8 @@ class AppState extends ChangeNotifier {
   bool get isFirstLaunch => _isFirstLaunch;
   bool get isSignedIn => _isSignedIn;
 
-  TextDirection get textDirection =>
-      _language == 'ar' ? TextDirection.rtl : TextDirection.ltr;
+  // Always LTR — Arabic text widgets handle their own direction
+  TextDirection get textDirection => TextDirection.ltr;
 
   // ─── Initialization ────────────────────────────────
 
