@@ -78,7 +78,8 @@ class SettingsTab extends StatelessWidget {
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
                           children: [
                             Text(
                               userName,
@@ -102,8 +103,7 @@ class SettingsTab extends StatelessWidget {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () =>
-                            _signOut(context, state),
+                        onTap: () => _signOut(context, state),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
@@ -148,7 +148,7 @@ class SettingsTab extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      // Theme
+                      // Dark Mode
                       Row(
                         children: [
                           _IconBox(
@@ -241,14 +241,15 @@ class SettingsTab extends StatelessWidget {
 
               const SizedBox(height: 28),
 
-              // ── RAWDAH ON TELEGRAM ──
+              // ── CONNECT ──
               _SectionLabel(label: 'CONNECT', colors: c),
               const SizedBox(height: 10),
 
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: GestureDetector(
-                  onTap: () => _launchUrl('https://t.me/JUMadrasabot'),
+                  onTap: () =>
+                      _launchUrl('https://t.me/JUMadrasabot'),
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -258,7 +259,6 @@ class SettingsTab extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        // Telegram icon container
                         Container(
                           width: 48,
                           height: 48,
@@ -338,22 +338,25 @@ class SettingsTab extends StatelessWidget {
                   child: Column(
                     children: [
                       _FaqItem(
-                        question: 'Is everything in this app free?',
+                        question:
+                            'Is everything in this app free?',
                         answer:
                             'Yes. All books and audio lessons in مكتبة الروضة are completely free. There is no premium plan, no subscription, and no hidden charges. Everything will always be free.',
                         colors: c,
                         isFirst: true,
                       ),
                       _FaqItem(
-                        question: 'Do I need internet to use the app?',
+                        question:
+                            'Do I need internet to use the app?',
                         answer:
                             'You need internet to download books and audio for the first time. After downloading, everything works fully offline — reading, listening, and tracking your progress.',
                         colors: c,
                       ),
                       _FaqItem(
-                        question: 'How do I read a downloaded book?',
+                        question:
+                            'How do I read a downloaded book?',
                         answer:
-                            'Go to Library → tap a book → tap the PDF card area to download. Once downloaded, tap anywhere on the card to open and read the book.',
+                            'Go to Library → tap a book → tap the PDF card to download. Once downloaded, tap anywhere on the card to open and read the book.',
                         colors: c,
                       ),
                       _FaqItem(
@@ -363,7 +366,8 @@ class SettingsTab extends StatelessWidget {
                         colors: c,
                       ),
                       _FaqItem(
-                        question: 'Are the books scholar-verified?',
+                        question:
+                            'Are the books scholar-verified?',
                         answer:
                             'Yes. All books in مكتبة الروضة are authentic Islamic texts taught by qualified scholars. The audio explanations are provided by named scholars shown on each book\'s detail page.',
                         colors: c,
@@ -383,72 +387,45 @@ class SettingsTab extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
-                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: c.card,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(color: c.divider),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          _IconBox(
-                            icon: Icons.shield_outlined,
-                            colors: c,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Privacy Policy',
-                            style: AppText.latin(
-                              color: c.textPrimary,
-                              size: 14,
-                              weight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      Divider(color: c.divider, height: 1),
-                      const SizedBox(height: 14),
-
-                      _PrivacySection(
+                      _PrivacyItem(
                         title: 'What we collect',
                         content:
                             'We collect your name and email address when you create an account. This is the minimum required to provide you with a personal reading experience.',
                         colors: c,
+                        isFirst: true,
                       ),
-
-                      _PrivacySection(
+                      _PrivacyItem(
                         title: 'What we do NOT collect',
                         content:
                             'We do not collect your location, contacts, camera, microphone, or any personal device data. We do not sell or share your data with any third party.',
                         colors: c,
                       ),
-
-                      _PrivacySection(
+                      _PrivacyItem(
                         title: 'Authentication',
                         content:
                             'Your account is secured through Firebase Authentication by Google. We do not store your password — it is handled entirely by Firebase.',
                         colors: c,
                       ),
-
-                      _PrivacySection(
+                      _PrivacyItem(
                         title: 'Reading progress',
                         content:
                             'Your reading progress, downloaded files, and preferences are stored locally on your device. This data never leaves your phone without your knowledge.',
                         colors: c,
                       ),
-
-                      _PrivacySection(
+                      _PrivacyItem(
                         title: 'Downloaded files',
                         content:
                             'Books and audio files you download are stored privately in your app\'s internal storage. Only this app can access them. You can delete them anytime from the Downloads tab.',
                         colors: c,
                       ),
-
-                      _PrivacySection(
+                      _PrivacyItem(
                         title: 'Children',
                         content:
                             'This app is suitable for all ages. We do not knowingly collect data from children under 13 without parental consent.',
@@ -555,7 +532,6 @@ class SettingsTab extends StatelessWidget {
                       Divider(color: c.divider, height: 1),
                       const SizedBox(height: 16),
 
-                      // Description
                       Text(
                         'مكتبة الروضة is a free Islamic learning app built to make authentic knowledge accessible to every Muslim student. Browse verified PDF books, listen to scholar explanations, and track your learning — all offline after download.',
                         textAlign: TextAlign.center,
@@ -570,7 +546,6 @@ class SettingsTab extends StatelessWidget {
                       Divider(color: c.divider, height: 1),
                       const SizedBox(height: 16),
 
-                      // Stats
                       _AboutRow(
                         icon: Icons.menu_book_rounded,
                         label: 'Books in library',
@@ -612,9 +587,8 @@ class SettingsTab extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
-              // Footer
               Center(
                 child: Text(
                   'Made with ❤️ for the Muslim Ummah',
@@ -657,46 +631,44 @@ class SettingsTab extends StatelessWidget {
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: c.card,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Sign Out?',
+          style: AppText.latin(
+            color: c.textPrimary,
+            size: 16,
+            weight: FontWeight.w700,
           ),
-          title: Text(
-            'Sign Out?',
-            style: AppText.latin(
-              color: c.textPrimary,
-              size: 16,
-              weight: FontWeight.w700,
+        ),
+        content: Text(
+          'Are you sure you want to sign out?',
+          style: AppText.latin(color: c.textMuted, size: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: AppText.latin(color: c.textMuted, size: 14),
             ),
           ),
-          content: Text(
-            'Are you sure you want to sign out?',
-            style: AppText.latin(color: c.textMuted, size: 13),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text(
-                'Cancel',
-                style: AppText.latin(color: c.textMuted, size: 14),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Sign Out',
+              style: AppText.latin(
+                color: c.danger,
+                size: 14,
+                weight: FontWeight.w700,
               ),
             ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(
-                'Sign Out',
-                style: AppText.latin(
-                  color: c.danger,
-                  size: 14,
-                  weight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
 
     if (confirm == true && context.mounted) {
@@ -718,12 +690,16 @@ class SettingsTab extends StatelessWidget {
   }
 }
 
-// ─── Sub Widgets ─────────────────────────────────────────
+// ─── Section Label ───────────────────────────────────────
 
 class _SectionLabel extends StatelessWidget {
   final String label;
   final AppColors colors;
-  const _SectionLabel({required this.label, required this.colors});
+
+  const _SectionLabel({
+    required this.label,
+    required this.colors,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -737,9 +713,12 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+// ─── Icon Box ────────────────────────────────────────────
+
 class _IconBox extends StatelessWidget {
   final IconData icon;
   final AppColors colors;
+
   const _IconBox({required this.icon, required this.colors});
 
   @override
@@ -756,6 +735,8 @@ class _IconBox extends StatelessWidget {
     );
   }
 }
+
+// ─── Language Button ─────────────────────────────────────
 
 class _LangButton extends StatelessWidget {
   final String code;
@@ -801,6 +782,8 @@ class _LangButton extends StatelessWidget {
   }
 }
 
+// ─── About Row ───────────────────────────────────────────
+
 class _AboutRow extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -838,6 +821,8 @@ class _AboutRow extends StatelessWidget {
     );
   }
 }
+
+// ─── FAQ Item (collapsible) ───────────────────────────────
 
 class _FaqItem extends StatefulWidget {
   final String question;
@@ -928,48 +913,97 @@ class _FaqItemState extends State<_FaqItem> {
   }
 }
 
-class _PrivacySection extends StatelessWidget {
+// ─── Privacy Item (collapsible) ──────────────────────────
+
+class _PrivacyItem extends StatefulWidget {
   final String title;
   final String content;
   final AppColors colors;
+  final bool isFirst;
   final bool isLast;
 
-  const _PrivacySection({
+  const _PrivacyItem({
     required this.title,
     required this.content,
     required this.colors,
+    this.isFirst = false,
     this.isLast = false,
   });
 
   @override
+  State<_PrivacyItem> createState() => _PrivacyItemState();
+}
+
+class _PrivacyItemState extends State<_PrivacyItem> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    final c = colors;
+    final c = widget.colors;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: AppText.latin(
-            color: c.textPrimary,
-            size: 13,
-            weight: FontWeight.w700,
+        if (!widget.isFirst)
+          Divider(
+            color: c.divider,
+            height: 1,
+            indent: 16,
+            endIndent: 16,
+          ),
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 14,
+                      color: c.brand,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: AppText.latin(
+                          color: c.textPrimary,
+                          size: 13,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.25 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: c.textFaint,
+                      ),
+                    ),
+                  ],
+                ),
+                if (_expanded) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.content,
+                    style: AppText.latin(
+                      color: c.textMuted,
+                      size: 12,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          content,
-          style: AppText.latin(
-            color: c.textMuted,
-            size: 12,
-            height: 1.6,
-          ),
-        ),
-        if (!isLast) ...[
-          const SizedBox(height: 12),
-          Divider(color: c.divider, height: 1),
-          const SizedBox(height: 12),
-        ],
       ],
     );
   }
