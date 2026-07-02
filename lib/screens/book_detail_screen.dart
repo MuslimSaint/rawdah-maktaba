@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/catalog_service.dart';
+import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import 'lessons_screen.dart';
@@ -74,7 +75,11 @@ class BookDetailScreen extends StatelessWidget {
                   children: [
                     _HeroCard(book: book, colors: c),
                     const SizedBox(height: 20),
-                    _PdfSection(book: book, colors: c),
+                    _PdfSection(
+                      book: book,
+                      colors: c,
+                      downloadService: state.downloadService,
+                    ),
                     const SizedBox(height: 20),
                     if (book.hasAudio && book.teacherIds.isNotEmpty)
                       _TeachersSection(
@@ -155,7 +160,6 @@ class _HeroCard extends StatelessWidget {
 
               const SizedBox(width: 16),
 
-              // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -265,7 +269,7 @@ class _HeroCard extends StatelessWidget {
           Divider(color: c.divider, height: 1),
           const SizedBox(height: 14),
 
-          // ── AUTHOR — clearly labeled, never confused with teachers ──
+          // ── AUTHOR ──
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -313,144 +317,254 @@ class _HeroCard extends StatelessWidget {
 class _PdfSection extends StatefulWidget {
   final Book book;
   final AppColors colors;
+  final DownloadService downloadService;
 
-  const _PdfSection({required this.book, required this.colors});
+  const _PdfSection({
+    required this.book,
+    required this.colors,
+    required this.downloadService,
+  });
 
   @override
   State<_PdfSection> createState() => _PdfSectionState();
 }
 
 class _PdfSectionState extends State<_PdfSection> {
-  bool _isDownloaded = false;
-  bool _isDownloading = false;
-  double _progress = 0;
+  String? _errorMessage;
+
+  String get _fileId => DownloadService.pdfId(widget.book.id);
 
   @override
   Widget build(BuildContext context) {
     final c = widget.colors;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'PDF Book',
-          style: AppText.latin(
-            color: c.textPrimary,
-            size: 15,
-            weight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: c.card,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: c.goldLine, width: 1.5),
-          ),
-          child: Row(
-            children: [
-              // Download circle button
-              GestureDetector(
-                onTap: _isDownloading
-                    ? null
-                    : () {
-                        if (_isDownloaded) {
-                          // Open PDF — Chapter 8
-                        } else {
-                          setState(() => _isDownloading = true);
-                          // Real download — Chapter 8
-                        }
-                      },
-                child: Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _isDownloaded
-                        ? c.brand
-                        : c.brand.withOpacity(0.12),
-                    border: Border.all(
-                      color: _isDownloaded
-                          ? c.brand
-                          : c.brand.withOpacity(0.3),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: _isDownloading
-                      ? Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: CircularProgressIndicator(
-                            value: _progress > 0 ? _progress : null,
-                            strokeWidth: 2,
-                            color: c.brand,
-                          ),
-                        )
-                      : Icon(
-                          _isDownloaded
-                              ? Icons.menu_book_rounded
-                              : Icons.download_rounded,
-                          size: 22,
-                          color: _isDownloaded
-                              ? Colors.white
-                              : c.brand,
-                        ),
-                ),
+    return ListenableBuilder(
+      listenable: widget.downloadService,
+      builder: (context, _) {
+        final isDownloaded =
+            widget.downloadService.isDownloaded(_fileId);
+        final isDownloading =
+            widget.downloadService.isDownloading(_fileId);
+        final progress =
+            widget.downloadService.progress(_fileId);
+        final hasUrl = widget.book.pdfUrl.isNotEmpty;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'PDF Book',
+              style: AppText.latin(
+                color: c.textPrimary,
+                size: 15,
+                weight: FontWeight.w700,
               ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: c.card,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: c.goldLine, width: 1.5),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      // Download circle button
+                      GestureDetector(
+                        onTap: isDownloading || !hasUrl
+                            ? null
+                            : () async {
+                                setState(() => _errorMessage = null);
+                                if (isDownloaded) {
+                                  // Open PDF — Chapter 8-3
+                                } else {
+                                  await widget.downloadService
+                                      .download(
+                                    fileId: _fileId,
+                                    url: widget.book.pdfUrl,
+                                    onError: (e) {
+                                      setState(
+                                        () => _errorMessage = e,
+                                      );
+                                    },
+                                    onComplete: () {
+                                      setState(() {});
+                                    },
+                                  );
+                                }
+                              },
+                        child: AnimatedContainer(
+                          duration:
+                              const Duration(milliseconds: 200),
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDownloaded
+                                ? c.brand
+                                : !hasUrl
+                                    ? c.surface2
+                                    : c.brand.withOpacity(0.12),
+                            border: Border.all(
+                              color: isDownloaded
+                                  ? c.brand
+                                  : !hasUrl
+                                      ? c.divider
+                                      : c.brand.withOpacity(0.3),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: isDownloading
+                              ? Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: CircularProgressIndicator(
+                                    value: progress > 0
+                                        ? progress
+                                        : null,
+                                    strokeWidth: 2,
+                                    color: c.brand,
+                                  ),
+                                )
+                              : Icon(
+                                  isDownloaded
+                                      ? Icons.menu_book_rounded
+                                      : !hasUrl
+                                          ? Icons.hourglass_empty_rounded
+                                          : Icons.download_rounded,
+                                  size: 22,
+                                  color: isDownloaded
+                                      ? Colors.white
+                                      : !hasUrl
+                                          ? c.textFaint
+                                          : c.brand,
+                                ),
+                        ),
+                      ),
 
-              const SizedBox(width: 14),
+                      const SizedBox(width: 14),
 
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _isDownloaded
-                          ? 'Open Book'
-                          : _isDownloading
-                              ? 'Downloading...'
-                              : 'Download PDF',
-                      style: AppText.latin(
-                        color: c.textPrimary,
-                        size: 14,
-                        weight: FontWeight.w700,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isDownloaded
+                                  ? 'Open Book'
+                                  : isDownloading
+                                      ? 'Downloading...'
+                                      : !hasUrl
+                                          ? 'Coming Soon'
+                                          : 'Download PDF',
+                              style: AppText.latin(
+                                color: c.textPrimary,
+                                size: 14,
+                                weight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${widget.book.pdfSizeMb} MB · ${widget.book.pages} pages',
+                              style: AppText.latin(
+                                color: c.textMuted,
+                                size: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: c.brand.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: c.brand.withOpacity(0.25),
+                          ),
+                        ),
+                        child: Text(
+                          'Free',
+                          style: AppText.latin(
+                            color: c.brand,
+                            size: 12,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Progress bar
+                  if (isDownloading) ...[
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: progress > 0 ? progress : null,
+                        backgroundColor: c.surface2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(c.brand),
+                        minHeight: 4,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
-                      '${widget.book.pdfSizeMb} MB · ${widget.book.pages} pages',
+                      progress > 0
+                          ? '${(progress * 100).toInt()}%'
+                          : 'Connecting...',
                       style: AppText.latin(
-                        color: c.textMuted,
-                        size: 12,
+                        color: c.textFaint,
+                        size: 11,
                       ),
                     ),
                   ],
-                ),
-              ),
 
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: c.brand.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: c.brand.withOpacity(0.25)),
-                ),
-                child: Text(
-                  'Free',
-                  style: AppText.latin(
-                    color: c.brand,
-                    size: 12,
-                    weight: FontWeight.w700,
-                  ),
-                ),
+                  // Error message
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: c.dangerBg,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: c.danger.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            color: c.danger,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: AppText.latin(
+                                color: c.danger,
+                                size: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -545,14 +659,15 @@ class _TeacherCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Avatar
             Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: c.brand.withOpacity(0.12),
-                border: Border.all(color: c.brand.withOpacity(0.25)),
+                border: Border.all(
+                  color: c.brand.withOpacity(0.25),
+                ),
               ),
               alignment: Alignment.center,
               child: Text(
@@ -599,7 +714,9 @@ class _TeacherCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: c.goldLine,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: c.goldText.withOpacity(0.3)),
+                border: Border.all(
+                  color: c.goldText.withOpacity(0.3),
+                ),
               ),
               child: Icon(
                 Icons.headphones_rounded,
