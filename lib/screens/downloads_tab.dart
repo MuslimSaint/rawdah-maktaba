@@ -21,10 +21,30 @@ class _DownloadsTabState extends State<DownloadsTab> {
   @override
   void initState() {
     super.initState();
+    // Load data after first frame so context is available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+      // Listen to download service changes
+      AppState.of(context).downloadService.addListener(_onDownloadChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Remove listener safely
+    try {
+      AppState.of(context).downloadService.removeListener(_onDownloadChanged);
+    } catch (_) {}
+    super.dispose();
+  }
+
+  void _onDownloadChanged() {
+    // Reload whenever a download completes or file is deleted
     _loadData();
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     final state = AppState.of(context);
     final storage = await state.downloadService.totalStorageMb();
     final files = await state.downloadService.downloadedFiles();
@@ -177,20 +197,16 @@ class _DownloadsTabState extends State<DownloadsTab> {
                         strokeWidth: 2,
                       ),
                     )
-                  : ListenableBuilder(
-                      listenable: state.downloadService,
-                      builder: (context, _) {
-                        if (_downloadedFiles.isEmpty) {
-                          return _EmptyState(colors: c);
-                        }
-
-                        return ListView(
+                  : _downloadedFiles.isEmpty
+                      ? _EmptyState(colors: c)
+                      : ListView(
                           padding: const EdgeInsets.fromLTRB(
                               20, 0, 20, 24),
                           children: [
                             // ── Storage Card ──
                             _StorageCard(
                               totalMb: _totalStorageMb,
+                              fileCount: _downloadedFiles.length,
                               colors: c,
                             ),
 
@@ -208,7 +224,8 @@ class _DownloadsTabState extends State<DownloadsTab> {
                             const SizedBox(height: 10),
 
                             ..._downloadedFiles.map((file) {
-                              final fileId = file['id'] as String;
+                              final fileId =
+                                  file['id'] as String;
                               final sizeMb =
                                   file['sizeMb'] as double;
                               final book = _bookForFileId(
@@ -245,9 +262,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
                               );
                             }),
                           ],
-                        );
-                      },
-                    ),
+                        ),
             ),
           ],
         ),
@@ -336,10 +351,12 @@ class _EmptyState extends StatelessWidget {
 
 class _StorageCard extends StatelessWidget {
   final double totalMb;
+  final int fileCount;
   final AppColors colors;
 
   const _StorageCard({
     required this.totalMb,
+    required this.fileCount,
     required this.colors,
   });
 
@@ -384,7 +401,15 @@ class _StorageCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          Text(
+            '$fileCount file${fileCount == 1 ? '' : 's'} downloaded',
+            style: AppText.latin(
+              color: c.textMuted,
+              size: 11,
+            ),
+          ),
+          const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
@@ -438,14 +463,16 @@ class _DownloadedFileCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Icon
+            // ── Icon ──
             Container(
               width: 46,
               height: 46,
               decoration: BoxDecoration(
                 color: c.brand.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(13),
-                border: Border.all(color: c.brand.withOpacity(0.2)),
+                border: Border.all(
+                  color: c.brand.withOpacity(0.2),
+                ),
               ),
               child: Icon(
                 isPdf
@@ -458,7 +485,7 @@ class _DownloadedFileCard extends StatelessWidget {
 
             const SizedBox(width: 14),
 
-            // Info
+            // ── Info ──
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -506,21 +533,17 @@ class _DownloadedFileCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: c.brand.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Text(
-                          'Downloaded',
-                          style: AppText.latin(
-                            color: c.brand,
-                            size: 10,
-                          ),
+                      Icon(
+                        Icons.check_circle_rounded,
+                        size: 12,
+                        color: c.brand,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        'On device',
+                        style: AppText.latin(
+                          color: c.brand,
+                          size: 10,
                         ),
                       ),
                     ],
@@ -531,7 +554,7 @@ class _DownloadedFileCard extends StatelessWidget {
 
             const SizedBox(width: 8),
 
-            // Delete button
+            // ── Delete ──
             GestureDetector(
               onTap: onDelete,
               child: Container(
