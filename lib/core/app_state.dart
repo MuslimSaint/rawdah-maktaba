@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'catalog_service.dart';
 import 'download_service.dart';
+import 'audio_service.dart';
 
 /// Central app state for theme, language, and user preferences.
 class AppState extends ChangeNotifier {
@@ -10,6 +11,10 @@ class AppState extends ChangeNotifier {
   static const _keyLanguage = 'language';
   static const _keyFirstLaunch = 'first_launch';
   static const _keyUserSignedIn = 'user_signed_in';
+  static const _keyLastBookId = 'last_book_id';
+  static const _keyLastBookPage = 'last_book_page';
+  static const _keyLastBookTitle = 'last_book_title';
+  static const _keyDownloadedCount = 'downloaded_count';
 
   late SharedPreferences _prefs;
 
@@ -18,16 +23,36 @@ class AppState extends ChangeNotifier {
   bool _isFirstLaunch = true;
   bool _isSignedIn = false;
 
+  // ─── Last opened book (for Continue Reading) ───────
+  String? _lastBookId;
+  String? _lastBookTitle;
+  int _lastBookPage = 0;
+  int _lastBookTotalPages = 0;
+
   // ─── Shared Services ───────────────────────────────
   final CatalogService catalogService = CatalogService();
   final DownloadService downloadService = DownloadService();
+  final AudioService audioService = AudioService();
 
   // ─── Getters ───────────────────────────────────────
   bool get isDark => _isDark;
   String get language => _language;
   bool get isFirstLaunch => _isFirstLaunch;
   bool get isSignedIn => _isSignedIn;
+  String? get lastBookId => _lastBookId;
+  String? get lastBookTitle => _lastBookTitle;
+  int get lastBookPage => _lastBookPage;
+  int get lastBookTotalPages => _lastBookTotalPages;
 
+  bool get hasLastBook =>
+      _lastBookId != null && _lastBookId!.isNotEmpty;
+
+  double get lastBookProgress =>
+      _lastBookTotalPages > 0
+          ? _lastBookPage / _lastBookTotalPages
+          : 0;
+
+  // Always LTR — Arabic text widgets handle their own direction
   TextDirection get textDirection => TextDirection.ltr;
 
   // ─── Initialization ────────────────────────────────
@@ -47,6 +72,11 @@ class AppState extends ChangeNotifier {
     _language = _prefs.getString(_keyLanguage) ?? 'en';
     _isFirstLaunch = _prefs.getBool(_keyFirstLaunch) ?? true;
     _isSignedIn = _prefs.getBool(_keyUserSignedIn) ?? false;
+
+    // Load last opened book
+    _lastBookId = _prefs.getString(_keyLastBookId);
+    _lastBookTitle = _prefs.getString(_keyLastBookTitle);
+    _lastBookPage = _prefs.getInt(_keyLastBookPage) ?? 0;
 
     // Initialize services
     await downloadService.init();
@@ -91,6 +121,33 @@ class AppState extends ChangeNotifier {
   Future<void> setSignedIn(bool value) async {
     _isSignedIn = value;
     await _prefs.setBool(_keyUserSignedIn, value);
+    notifyListeners();
+  }
+
+  // ─── Reading Progress ──────────────────────────────
+
+  /// Called when user opens a book.
+  Future<void> setLastOpenedBook({
+    required String bookId,
+    required String bookTitle,
+    required int page,
+    required int totalPages,
+  }) async {
+    _lastBookId = bookId;
+    _lastBookTitle = bookTitle;
+    _lastBookPage = page;
+    _lastBookTotalPages = totalPages;
+    await _prefs.setString(_keyLastBookId, bookId);
+    await _prefs.setString(_keyLastBookTitle, bookTitle);
+    await _prefs.setInt(_keyLastBookPage, page);
+    notifyListeners();
+  }
+
+  /// Called when user turns a page.
+  Future<void> updateReadingPage(int page, int totalPages) async {
+    _lastBookPage = page;
+    _lastBookTotalPages = totalPages;
+    await _prefs.setInt(_keyLastBookPage, page);
     notifyListeners();
   }
 
