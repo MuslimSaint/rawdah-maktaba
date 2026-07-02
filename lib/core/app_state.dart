@@ -2,17 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'catalog_service.dart';
+import 'download_service.dart';
 
 /// Central app state for theme, language, and user preferences.
-/// Also holds the shared CatalogService instance.
 class AppState extends ChangeNotifier {
-  // ─── Storage keys ──────────────────────────────────
   static const _keyThemeMode = 'theme_mode';
   static const _keyLanguage = 'language';
   static const _keyFirstLaunch = 'first_launch';
   static const _keyUserSignedIn = 'user_signed_in';
 
-  // ─── State ─────────────────────────────────────────
   late SharedPreferences _prefs;
 
   bool _isDark = false;
@@ -20,8 +18,9 @@ class AppState extends ChangeNotifier {
   bool _isFirstLaunch = true;
   bool _isSignedIn = false;
 
-  // ─── Shared CatalogService ─────────────────────────
+  // ─── Shared Services ───────────────────────────────
   final CatalogService catalogService = CatalogService();
+  final DownloadService downloadService = DownloadService();
 
   // ─── Getters ───────────────────────────────────────
   bool get isDark => _isDark;
@@ -29,7 +28,6 @@ class AppState extends ChangeNotifier {
   bool get isFirstLaunch => _isFirstLaunch;
   bool get isSignedIn => _isSignedIn;
 
-  // Always LTR — Arabic text widgets handle their own direction
   TextDirection get textDirection => TextDirection.ltr;
 
   // ─── Initialization ────────────────────────────────
@@ -50,7 +48,8 @@ class AppState extends ChangeNotifier {
     _isFirstLaunch = _prefs.getBool(_keyFirstLaunch) ?? true;
     _isSignedIn = _prefs.getBool(_keyUserSignedIn) ?? false;
 
-    // Start loading catalog immediately after init
+    // Initialize services
+    await downloadService.init();
     catalogService.load();
   }
 
@@ -95,7 +94,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── Access from widgets ───────────────────────────
+  // ─── Access ────────────────────────────────────────
 
   static AppState of(BuildContext context) {
     return AppStateProvider.of(context);
