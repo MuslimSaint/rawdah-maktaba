@@ -156,9 +156,7 @@ class _HeroCard extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(width: 16),
-
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -185,7 +183,6 @@ class _HeroCard extends StatelessWidget {
                           ),
                         ),
                       ),
-
                     Text(
                       book.titleAr,
                       textDirection: TextDirection.rtl,
@@ -197,9 +194,7 @@ class _HeroCard extends StatelessWidget {
                         height: 1.6,
                       ),
                     ),
-
                     const SizedBox(height: 12),
-
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
@@ -237,9 +232,7 @@ class _HeroCard extends StatelessWidget {
                         );
                       }).toList(),
                     ),
-
                     const SizedBox(height: 10),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -263,11 +256,9 @@ class _HeroCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 16),
           Divider(color: c.divider, height: 1),
           const SizedBox(height: 14),
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -332,6 +323,31 @@ class _PdfSectionState extends State<_PdfSection> {
 
   String get _fileId => DownloadService.pdfId(widget.book.id);
 
+  Future<void> _openBook(BuildContext context) async {
+    final path =
+        await widget.downloadService.localPath(_fileId);
+    if (path != null && context.mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PdfReaderScreen(
+            book: widget.book,
+            filePath: path,
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _startDownload() async {
+    setState(() => _errorMessage = null);
+    await widget.downloadService.download(
+      fileId: _fileId,
+      url: widget.book.pdfUrl,
+      onError: (e) => setState(() => _errorMessage = e),
+      onComplete: () => setState(() {}),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.colors;
@@ -359,60 +375,32 @@ class _PdfSectionState extends State<_PdfSection> {
               ),
             ),
             const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: c.card,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: c.goldLine, width: 1.5),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      // Download / Open button
-                      GestureDetector(
-                        onTap: isDownloading || !hasUrl
-                            ? null
-                            : () async {
-                                setState(
-                                  () => _errorMessage = null,
-                                );
-                                if (isDownloaded) {
-                                  final path = await widget
-                                      .downloadService
-                                      .localPath(_fileId);
-                                  if (path != null &&
-                                      context.mounted) {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            PdfReaderScreen(
-                                          book: widget.book,
-                                          filePath: path,
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                } else {
-                                  await widget.downloadService
-                                      .download(
-                                    fileId: _fileId,
-                                    url: widget.book.pdfUrl,
-                                    onError: (e) {
-                                      setState(
-                                        () => _errorMessage = e,
-                                      );
-                                    },
-                                    onComplete: () {
-                                      setState(() {});
-                                    },
-                                  );
-                                }
-                              },
-                        child: AnimatedContainer(
-                          duration:
-                              const Duration(milliseconds: 200),
+
+            // ── Entire card is tappable when downloaded ──
+            GestureDetector(
+              onTap: isDownloaded && !isDownloading
+                  ? () => _openBook(context)
+                  : (!isDownloading && hasUrl)
+                      ? _startDownload
+                      : null,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: c.card,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isDownloaded
+                        ? c.brand.withOpacity(0.4)
+                        : c.goldLine,
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        // Status icon circle
+                        Container(
                           width: 52,
                           height: 52,
                           decoration: BoxDecoration(
@@ -458,124 +446,136 @@ class _PdfSectionState extends State<_PdfSection> {
                                           : c.brand,
                                 ),
                         ),
-                      ),
 
-                      const SizedBox(width: 14),
+                        const SizedBox(width: 14),
 
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isDownloaded
-                                  ? 'Open Book'
-                                  : isDownloading
-                                      ? 'Downloading...'
-                                      : !hasUrl
-                                          ? 'Coming Soon'
-                                          : 'Download PDF',
-                              style: AppText.latin(
-                                color: c.textPrimary,
-                                size: 14,
-                                weight: FontWeight.w700,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isDownloaded
+                                    ? 'Tap to Open Book'
+                                    : isDownloading
+                                        ? 'Downloading...'
+                                        : !hasUrl
+                                            ? 'Coming Soon'
+                                            : 'Tap to Download',
+                                style: AppText.latin(
+                                  color: isDownloaded
+                                      ? c.brand
+                                      : c.textPrimary,
+                                  size: 14,
+                                  weight: FontWeight.w700,
+                                ),
                               ),
+                              const SizedBox(height: 3),
+                              Text(
+                                '${widget.book.pdfSizeMb} MB · ${widget.book.pages} pages',
+                                style: AppText.latin(
+                                  color: c.textMuted,
+                                  size: 12,
+                                ),
+                              ),
+                              if (isDownloaded) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Downloaded · Tap anywhere to read',
+                                  style: AppText.latin(
+                                    color: c.brand,
+                                    size: 11,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: c.brand.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: c.brand.withOpacity(0.25),
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '${widget.book.pdfSizeMb} MB · ${widget.book.pages} pages',
-                              style: AppText.latin(
-                                color: c.textMuted,
-                                size: 12,
+                          ),
+                          child: Text(
+                            'Free',
+                            style: AppText.latin(
+                              color: c.brand,
+                              size: 12,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Progress bar
+                    if (isDownloading) ...[
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: progress > 0 ? progress : null,
+                          backgroundColor: c.surface2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(c.brand),
+                          minHeight: 4,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        progress > 0
+                            ? '${(progress * 100).toInt()}%'
+                            : 'Connecting...',
+                        style: AppText.latin(
+                          color: c.textFaint,
+                          size: 11,
+                        ),
+                      ),
+                    ],
+
+                    // Error
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: c.dangerBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: c.danger.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              color: c.danger,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: AppText.latin(
+                                  color: c.danger,
+                                  size: 12,
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: c.brand.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: c.brand.withOpacity(0.25),
-                          ),
-                        ),
-                        child: Text(
-                          'Free',
-                          style: AppText.latin(
-                            color: c.brand,
-                            size: 12,
-                            weight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
                     ],
-                  ),
-
-                  // Progress bar
-                  if (isDownloading) ...[
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: progress > 0 ? progress : null,
-                        backgroundColor: c.surface2,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(c.brand),
-                        minHeight: 4,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      progress > 0
-                          ? '${(progress * 100).toInt()}%'
-                          : 'Connecting...',
-                      style: AppText.latin(
-                        color: c.textFaint,
-                        size: 11,
-                      ),
-                    ),
                   ],
-
-                  // Error
-                  if (_errorMessage != null) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: c.dangerBg,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: c.danger.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.error_outline_rounded,
-                            color: c.danger,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: AppText.latin(
-                                color: c.danger,
-                                size: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
           ],
@@ -681,9 +681,7 @@ class _TeacherCard extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: c.brand.withOpacity(0.12),
-                border: Border.all(
-                  color: c.brand.withOpacity(0.25),
-                ),
+                border: Border.all(color: c.brand.withOpacity(0.25)),
               ),
               alignment: Alignment.center,
               child: Text(
@@ -696,9 +694,7 @@ class _TeacherCard extends StatelessWidget {
                 ),
               ),
             ),
-
             const SizedBox(width: 12),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -723,16 +719,13 @@ class _TeacherCard extends StatelessWidget {
                 ],
               ),
             ),
-
             Container(
               width: 34,
               height: 34,
               decoration: BoxDecoration(
                 color: c.goldLine,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: c.goldText.withOpacity(0.3),
-                ),
+                border: Border.all(color: c.goldText.withOpacity(0.3)),
               ),
               child: Icon(
                 Icons.headphones_rounded,
