@@ -112,7 +112,6 @@ class _LessonsScreenState extends State<LessonsScreen> {
                   children: [
                     Row(
                       children: [
-                        // Avatar
                         Container(
                           width: 52,
                           height: 52,
@@ -162,7 +161,6 @@ class _LessonsScreenState extends State<LessonsScreen> {
                           ),
                         ),
 
-                        // Parts count
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -200,7 +198,6 @@ class _LessonsScreenState extends State<LessonsScreen> {
 
                     const SizedBox(height: 14),
 
-                    // Progress
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -258,8 +255,11 @@ class _LessonsScreenState extends State<LessonsScreen> {
 
                   return _LessonRow(
                     lessonNumber: lessonNum,
+                    totalLessons: widget.book.audioParts,
                     isDone: isDone,
                     colors: c,
+                    book: widget.book,
+                    teacher: widget.teacher,
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -267,6 +267,7 @@ class _LessonsScreenState extends State<LessonsScreen> {
                             book: widget.book,
                             teacher: widget.teacher,
                             lessonNumber: lessonNum,
+                            totalLessons: widget.book.audioParts,
                           ),
                         ),
                       );
@@ -291,15 +292,21 @@ class _LessonsScreenState extends State<LessonsScreen> {
 
 class _LessonRow extends StatefulWidget {
   final int lessonNumber;
+  final int totalLessons;
   final bool isDone;
   final AppColors colors;
+  final Book book;
+  final Teacher teacher;
   final VoidCallback onTap;
   final VoidCallback onCompletedToggle;
 
   const _LessonRow({
     required this.lessonNumber,
+    required this.totalLessons,
     required this.isDone,
     required this.colors,
+    required this.book,
+    required this.teacher,
     required this.onTap,
     required this.onCompletedToggle,
   });
@@ -378,7 +385,6 @@ class _LessonRowState extends State<_LessonRow> {
 
             const SizedBox(width: 14),
 
-            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -405,7 +411,7 @@ class _LessonRowState extends State<_LessonRow> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'Part ${widget.lessonNumber}',
+                        'Part ${widget.lessonNumber} of ${widget.totalLessons}',
                         style: AppText.latin(
                           color: c.textFaint,
                           size: 11,
