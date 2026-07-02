@@ -3,15 +3,6 @@ import '../core/theme.dart';
 import '../core/translations.dart';
 
 /// The splash screen shown when the app launches.
-///
-/// Animations:
-/// - Icon scales in with spring bounce (0.7s)
-/// - Bismillah fades up (0.8s delay)
-/// - App name fades up (1.0s delay)
-/// - Three dots pulse continuously (1.3s onwards)
-/// - Rawdah Project badge fades in (1.5s delay)
-/// - Whole screen fades out at 2.3s
-/// - onDone callback fires at ~2.8s
 class SplashScreen extends StatefulWidget {
   final VoidCallback onDone;
 
@@ -41,7 +32,6 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
 
-    // Icon: spring bounce scale in
     _iconController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
@@ -59,7 +49,6 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    // Bismillah + name: fade up in sequence
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -94,8 +83,6 @@ class _SplashScreenState extends State<SplashScreen>
         curve: const Interval(0.45, 0.8, curve: Curves.easeOut),
       ),
     );
-
-    // Badge: fade up
     _badgeOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _fadeController,
@@ -109,19 +96,16 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    // Dots: continuous pulse
     _dotsController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat();
 
-    // Exit: fade out at end
     _exitController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
 
-    // Start sequence
     _iconController.forward();
     Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted) _fadeController.forward();
@@ -145,7 +129,6 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Splash always uses dark theme colors
     const splashBg = Color(0xFF013220);
     const splashDeep = Color(0xFF03140D);
     const splashGold = Color(0xFFFADCAC);
@@ -171,7 +154,7 @@ class _SplashScreenState extends State<SplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Icon
+                      // ── Icon ──
                       AnimatedBuilder(
                         animation: _iconController,
                         builder: (context, child) {
@@ -200,9 +183,10 @@ class _SplashScreenState extends State<SplashScreen>
                           );
                         },
                       ),
+
                       const SizedBox(height: 24),
 
-                      // Bismillah
+                      // ── Bismillah ──
                       AnimatedBuilder(
                         animation: _fadeController,
                         builder: (context, child) {
@@ -216,15 +200,19 @@ class _SplashScreenState extends State<SplashScreen>
                                 style: AppText.arabic(
                                   color: splashGold,
                                   size: 14,
+                                ).copyWith(
+                                  // Remove any underline from font
+                                  decoration: TextDecoration.none,
                                 ),
                               ),
                             ),
                           );
                         },
                       ),
+
                       const SizedBox(height: 12),
 
-                      // App name
+                      // ── App Name ──
                       AnimatedBuilder(
                         animation: _fadeController,
                         builder: (context, child) {
@@ -239,21 +227,24 @@ class _SplashScreenState extends State<SplashScreen>
                                   color: Colors.white,
                                   size: 32,
                                   weight: FontWeight.w700,
+                                ).copyWith(
+                                  // Remove any underline from font
+                                  decoration: TextDecoration.none,
                                 ),
                               ),
                             ),
                           );
                         },
                       ),
+
                       const SizedBox(height: 32),
 
-                      // Pulsing dots
+                      // ── Pulsing Dots ──
                       AnimatedBuilder(
                         animation: Listenable.merge(
                           [_fadeController, _dotsController],
                         ),
                         builder: (context, child) {
-                          // Show dots only after fade in complete
                           if (_fadeController.value < 0.5) {
                             return const SizedBox(height: 8);
                           }
@@ -266,15 +257,19 @@ class _SplashScreenState extends State<SplashScreen>
                               final opacity = progress < 0.4
                                   ? 0.3 + (progress / 0.4) * 0.7
                                   : progress < 0.8
-                                      ? 1.0 - ((progress - 0.4) / 0.4) * 0.7
+                                      ? 1.0 -
+                                          ((progress - 0.4) / 0.4) * 0.7
                                       : 0.3;
                               final scale = progress < 0.4
                                   ? 0.8 + (progress / 0.4) * 0.3
                                   : progress < 0.8
-                                      ? 1.1 - ((progress - 0.4) / 0.4) * 0.3
+                                      ? 1.1 -
+                                          ((progress - 0.4) / 0.4) * 0.3
                                       : 0.8;
                               return Padding(
-                                padding: EdgeInsets.only(right: i < 2 ? 8 : 0),
+                                padding: EdgeInsets.only(
+                                  right: i < 2 ? 8 : 0,
+                                ),
                                 child: Opacity(
                                   opacity: opacity.clamp(0.0, 1.0),
                                   child: Transform.scale(
@@ -298,7 +293,7 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ),
 
-                // Bottom badge
+                // ── Bottom Badge ──
                 Positioned(
                   bottom: 40,
                   left: 0,
@@ -340,6 +335,7 @@ class _SplashScreenState extends State<SplashScreen>
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 1.5,
+                                      decoration: TextDecoration.none,
                                     ),
                                   ),
                                 ],
