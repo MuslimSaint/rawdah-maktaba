@@ -3,10 +3,9 @@ import '../core/app_state.dart';
 import '../core/catalog_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import 'lessons_screen.dart';
 
 /// Full book detail screen.
-/// Shows cover, title, author, PDF download, and teaching scholars.
-/// Author and teachers are NEVER confused — always in separate sections.
 class BookDetailScreen extends StatelessWidget {
   final Book book;
   final CatalogService catalogService;
@@ -22,83 +21,83 @@ class BookDetailScreen extends StatelessWidget {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
 
-    return Directionality(
-      textDirection: state.textDirection,
-      child: Scaffold(
-        backgroundColor: c.bg,
-        body: SafeArea(
-          child: Column(
-            children: [
-              // ── Top Bar ──
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Top Bar ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: c.surface2,
+                        borderRadius: BorderRadius.circular(11),
+                        border: Border.all(color: c.divider),
+                      ),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        size: 18,
+                        color: c.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      'Book Details',
+                      style: AppText.latin(
+                        color: c.textPrimary,
+                        size: 18,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Content ──
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: c.surface2,
-                          borderRadius: BorderRadius.circular(11),
-                          border: Border.all(color: c.divider),
-                        ),
-                        child: Icon(
-                          Icons.arrow_back_rounded,
-                          size: 18,
-                          color: c.textPrimary,
-                        ),
+                    _HeroCard(book: book, colors: c),
+                    const SizedBox(height: 20),
+                    _PdfSection(book: book, colors: c),
+                    const SizedBox(height: 20),
+                    if (book.hasAudio && book.teacherIds.isNotEmpty)
+                      _TeachersSection(
+                        book: book,
+                        catalogService: catalogService,
+                        colors: c,
+                        language: state.language,
+                        onTeacherTap: (teacher) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => LessonsScreen(
+                                book: book,
+                                teacher: teacher,
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        'Book Details',
-                        style: AppText.latin(
-                          color: c.textPrimary,
-                          size: 18,
-                          weight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 16),
-
-              // ── Content ──
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ── Hero Card ──
-                      _HeroCard(book: book, colors: c),
-
-                      const SizedBox(height: 20),
-
-                      // ── PDF Section ──
-                      _PdfSection(book: book, colors: c),
-
-                      const SizedBox(height: 20),
-
-                      // ── Teaching Scholars ──
-                      if (book.hasAudio && book.teacherIds.isNotEmpty)
-                        _TeachersSection(
-                          book: book,
-                          catalogService: catalogService,
-                          colors: c,
-                          language: state.language,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -126,7 +125,6 @@ class _HeroCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Cover + info row
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -137,9 +135,7 @@ class _HeroCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: c.brand.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: c.brand.withOpacity(0.2),
-                  ),
+                  border: Border.all(color: c.brand.withOpacity(0.2)),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -164,7 +160,6 @@ class _HeroCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // NEW badge
                     if (book.isNew || book.isRecentlyAdded)
                       Align(
                         alignment: Alignment.centerLeft,
@@ -188,7 +183,6 @@ class _HeroCard extends StatelessWidget {
                         ),
                       ),
 
-                    // Arabic title
                     Text(
                       book.titleAr,
                       textDirection: TextDirection.rtl,
@@ -203,7 +197,6 @@ class _HeroCard extends StatelessWidget {
 
                     const SizedBox(height: 12),
 
-                    // Branch tags
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
@@ -244,7 +237,6 @@ class _HeroCard extends StatelessWidget {
 
                     const SizedBox(height: 10),
 
-                    // Page count
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -270,13 +262,10 @@ class _HeroCard extends StatelessWidget {
           ),
 
           const SizedBox(height: 16),
-
           Divider(color: c.divider, height: 1),
-
           const SizedBox(height: 14),
 
-          // ── AUTHOR section ──
-          // Clearly labeled "AUTHOR" — never confused with teachers
+          // ── AUTHOR — clearly labeled, never confused with teachers ──
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -332,7 +321,6 @@ class _PdfSection extends StatefulWidget {
 }
 
 class _PdfSectionState extends State<_PdfSection> {
-  // Download state — will be wired to real download in Chapter 7
   bool _isDownloaded = false;
   bool _isDownloading = false;
   double _progress = 0;
@@ -362,16 +350,16 @@ class _PdfSectionState extends State<_PdfSection> {
           ),
           child: Row(
             children: [
-              // Download button circle
+              // Download circle button
               GestureDetector(
                 onTap: _isDownloading
                     ? null
                     : () {
                         if (_isDownloaded) {
-                          // Open PDF — Chapter 7
+                          // Open PDF — Chapter 8
                         } else {
-                          // Start download — Chapter 7
                           setState(() => _isDownloading = true);
+                          // Real download — Chapter 8
                         }
                       },
                 child: Container(
@@ -412,7 +400,6 @@ class _PdfSectionState extends State<_PdfSection> {
 
               const SizedBox(width: 14),
 
-              // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -441,7 +428,6 @@ class _PdfSectionState extends State<_PdfSection> {
                 ),
               ),
 
-              // Free badge
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -450,9 +436,7 @@ class _PdfSectionState extends State<_PdfSection> {
                 decoration: BoxDecoration(
                   color: c.brand.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: c.brand.withOpacity(0.25),
-                  ),
+                  border: Border.all(color: c.brand.withOpacity(0.25)),
                 ),
                 child: Text(
                   'Free',
@@ -478,19 +462,20 @@ class _TeachersSection extends StatelessWidget {
   final CatalogService catalogService;
   final AppColors colors;
   final String language;
+  final Function(Teacher) onTeacherTap;
 
   const _TeachersSection({
     required this.book,
     required this.catalogService,
     required this.colors,
     required this.language,
+    required this.onTeacherTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
 
-    // Get teachers for this book
     final teachers = book.teacherIds
         .map((id) => catalogService.teacherById(id))
         .where((t) => t != null)
@@ -502,19 +487,11 @@ class _TeachersSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header — clearly labeled TEACHING SCHOLARS
-        Row(
-          children: [
-            Text(
-              'TEACHING SCHOLARS',
-              style: AppText.label(color: c.textFaint),
-            ),
-          ],
+        Text(
+          'TEACHING SCHOLARS',
+          style: AppText.label(color: c.textFaint),
         ),
-
         const SizedBox(height: 6),
-
-        // Italic note explaining the difference
         Text(
           'These scholars provide audio explanations for this book.',
           style: AppText.latin(
@@ -523,10 +500,7 @@ class _TeachersSection extends StatelessWidget {
             height: 1.5,
           ),
         ),
-
         const SizedBox(height: 12),
-
-        // Teacher cards
         ...teachers.map((teacher) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
@@ -534,9 +508,7 @@ class _TeachersSection extends StatelessWidget {
               teacher: teacher,
               colors: c,
               language: language,
-              onTap: () {
-                // Lessons screen — Chapter 7
-              },
+              onTap: () => onTeacherTap(teacher),
             ),
           );
         }),
@@ -573,16 +545,14 @@ class _TeacherCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Avatar with initials
+            // Avatar
             Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: c.brand.withOpacity(0.12),
-                border: Border.all(
-                  color: c.brand.withOpacity(0.25),
-                ),
+                border: Border.all(color: c.brand.withOpacity(0.25)),
               ),
               alignment: Alignment.center,
               child: Text(
@@ -598,7 +568,6 @@ class _TeacherCard extends StatelessWidget {
 
             const SizedBox(width: 12),
 
-            // Name
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -624,16 +593,13 @@ class _TeacherCard extends StatelessWidget {
               ),
             ),
 
-            // Headphones icon
             Container(
               width: 34,
               height: 34,
               decoration: BoxDecoration(
                 color: c.goldLine,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: c.goldText.withOpacity(0.3),
-                ),
+                border: Border.all(color: c.goldText.withOpacity(0.3)),
               ),
               child: Icon(
                 Icons.headphones_rounded,
