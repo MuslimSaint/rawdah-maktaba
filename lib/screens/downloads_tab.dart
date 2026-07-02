@@ -5,7 +5,7 @@ import '../core/theme.dart';
 import '../core/download_service.dart';
 import 'book_detail_screen.dart';
 
-/// Downloads tab — shows all downloaded files with storage info.
+/// Downloads tab — shows active downloads + completed downloads.
 class DownloadsTab extends StatefulWidget {
   const DownloadsTab({super.key});
 
@@ -21,27 +21,25 @@ class _DownloadsTabState extends State<DownloadsTab> {
   @override
   void initState() {
     super.initState();
-    // Load data after first frame so context is available
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
-      // Listen to download service changes
-      AppState.of(context).downloadService.addListener(_onDownloadChanged);
+      AppState.of(context)
+          .downloadService
+          .addListener(_onDownloadChanged);
     });
   }
 
   @override
   void dispose() {
-    // Remove listener safely
     try {
-      AppState.of(context).downloadService.removeListener(_onDownloadChanged);
+      AppState.of(context)
+          .downloadService
+          .removeListener(_onDownloadChanged);
     } catch (_) {}
     super.dispose();
   }
 
-  void _onDownloadChanged() {
-    // Reload whenever a download completes or file is deleted
-    _loadData();
-  }
+  void _onDownloadChanged() => _loadData();
 
   Future<void> _loadData() async {
     if (!mounted) return;
@@ -65,56 +63,46 @@ class _DownloadsTabState extends State<DownloadsTab> {
 
   Future<void> _deleteAll() async {
     final state = AppState.of(context);
+    final c = AppColors(isDark: state.isDark);
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) {
-        final c = AppColors(isDark: state.isDark);
-        return AlertDialog(
-          backgroundColor: c.card,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Delete All Downloads?',
+          style: AppText.latin(
+            color: c.textPrimary,
+            size: 16,
+            weight: FontWeight.w700,
           ),
-          title: Text(
-            'Delete All Downloads?',
-            style: AppText.latin(
-              color: c.textPrimary,
-              size: 16,
-              weight: FontWeight.w700,
-            ),
+        ),
+        content: Text(
+          'All downloaded PDFs and audio files will be removed.',
+          style: AppText.latin(color: c.textMuted, size: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel',
+                style: AppText.latin(color: c.textMuted, size: 14)),
           ),
-          content: Text(
-            'All downloaded PDFs and audio files will be removed from your device.',
-            style: AppText.latin(
-              color: c.textMuted,
-              size: 13,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text(
-                'Cancel',
-                style: AppText.latin(
-                  color: c.textMuted,
-                  size: 14,
-                ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Delete All',
+              style: AppText.latin(
+                color: c.danger,
+                size: 14,
+                weight: FontWeight.w700,
               ),
             ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(
-                'Delete All',
-                style: AppText.latin(
-                  color: c.danger,
-                  size: 14,
-                  weight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
 
     if (confirm == true) {
@@ -159,16 +147,12 @@ class _DownloadsTabState extends State<DownloadsTab> {
                           color: c.dangerBg,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: c.danger.withOpacity(0.3),
-                          ),
+                              color: c.danger.withOpacity(0.3)),
                         ),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.delete_outline_rounded,
-                              size: 14,
-                              color: c.danger,
-                            ),
+                            Icon(Icons.delete_outline_rounded,
+                                size: 14, color: c.danger),
                             const SizedBox(width: 4),
                             Text(
                               'Delete All',
@@ -197,77 +181,142 @@ class _DownloadsTabState extends State<DownloadsTab> {
                         strokeWidth: 2,
                       ),
                     )
-                  : _downloadedFiles.isEmpty
-                      ? _EmptyState(colors: c)
-                      : ListView(
+                  : ListenableBuilder(
+                      listenable: state.downloadService,
+                      builder: (context, _) {
+                        final activeDownloads =
+                            state.downloadService.activeDownloads;
+                        final hasActive = activeDownloads.isNotEmpty;
+                        final hasCompleted =
+                            _downloadedFiles.isNotEmpty;
+
+                        if (!hasActive && !hasCompleted) {
+                          return _EmptyState(colors: c);
+                        }
+
+                        return ListView(
                           padding: const EdgeInsets.fromLTRB(
                               20, 0, 20, 24),
                           children: [
-                            // ── Storage Card ──
-                            _StorageCard(
-                              totalMb: _totalStorageMb,
-                              fileCount: _downloadedFiles.length,
-                              colors: c,
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            Text(
-                              'Downloaded Files',
-                              style: AppText.latin(
-                                color: c.textPrimary,
-                                size: 15,
-                                weight: FontWeight.w700,
-                              ),
-                            ),
-
-                            const SizedBox(height: 10),
-
-                            ..._downloadedFiles.map((file) {
-                              final fileId =
-                                  file['id'] as String;
-                              final sizeMb =
-                                  file['sizeMb'] as double;
-                              final book = _bookForFileId(
-                                fileId,
-                                state.catalogService.books,
-                              );
-
-                              return Padding(
-                                padding: const EdgeInsets.only(
-                                    bottom: 10),
-                                child: _DownloadedFileCard(
-                                  fileId: fileId,
-                                  book: book,
-                                  sizeMb: sizeMb,
-                                  colors: c,
-                                  onDelete: () =>
-                                      _deleteFile(fileId),
-                                  onTap: book != null
-                                      ? () {
-                                          Navigator.of(context)
-                                              .push(
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  BookDetailScreen(
-                                                book: book,
-                                                catalogService: state
-                                                    .catalogService,
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      : null,
+                            // ── Active Downloads ──
+                            if (hasActive) ...[
+                              Text(
+                                'Downloading Now',
+                                style: AppText.latin(
+                                  color: c.textPrimary,
+                                  size: 15,
+                                  weight: FontWeight.w700,
                                 ),
-                              );
-                            }),
+                              ),
+                              const SizedBox(height: 10),
+                              ...activeDownloads.map((active) {
+                                final fileId =
+                                    active['fileId'] as String;
+                                final displayName =
+                                    active['displayName'] as String;
+                                final bookId =
+                                    active['bookId'] as String;
+                                final prog =
+                                    active['progress'] as double;
+                                final speed =
+                                    active['speedKbps'] as double;
+
+                                final book = _bookForId(
+                                    bookId,
+                                    state.catalogService.books);
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(
+                                      bottom: 10),
+                                  child: _ActiveDownloadCard(
+                                    fileId: fileId,
+                                    displayName: book?.titleAr ??
+                                        displayName,
+                                    progress: prog,
+                                    speedKbps: speed,
+                                    colors: c,
+                                    onCancel: () => state
+                                        .downloadService
+                                        .cancelDownload(fileId),
+                                  ),
+                                );
+                              }),
+                              const SizedBox(height: 20),
+                            ],
+
+                            // ── Storage Card ──
+                            if (hasCompleted) ...[
+                              _StorageCard(
+                                totalMb: _totalStorageMb,
+                                fileCount: _downloadedFiles.length,
+                                colors: c,
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'Downloaded Files',
+                                style: AppText.latin(
+                                  color: c.textPrimary,
+                                  size: 15,
+                                  weight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              ..._downloadedFiles.map((file) {
+                                final fileId =
+                                    file['id'] as String;
+                                final sizeMb =
+                                    file['sizeMb'] as double;
+                                final book = _bookForFileId(
+                                  fileId,
+                                  state.catalogService.books,
+                                );
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(
+                                      bottom: 10),
+                                  child: _DownloadedFileCard(
+                                    fileId: fileId,
+                                    book: book,
+                                    sizeMb: sizeMb,
+                                    colors: c,
+                                    onDelete: () =>
+                                        _deleteFile(fileId),
+                                    onTap: book != null
+                                        ? () {
+                                            Navigator.of(context)
+                                                .push(
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    BookDetailScreen(
+                                                  book: book,
+                                                  catalogService: state
+                                                      .catalogService,
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        : null,
+                                  ),
+                                );
+                              }),
+                            ],
                           ],
-                        ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Book? _bookForId(String bookId, List<Book> books) {
+    try {
+      return books.firstWhere((b) => b.id == bookId);
+    } catch (_) {
+      return null;
+    }
   }
 
   Book? _bookForFileId(String fileId, List<Book> books) {
@@ -285,6 +334,200 @@ class _DownloadsTabState extends State<DownloadsTab> {
     } catch (_) {
       return null;
     }
+  }
+}
+
+// ─── Active Download Card ────────────────────────────────
+
+class _ActiveDownloadCard extends StatelessWidget {
+  final String fileId;
+  final String displayName;
+  final double progress;
+  final double speedKbps;
+  final AppColors colors;
+  final VoidCallback onCancel;
+
+  const _ActiveDownloadCard({
+    required this.fileId,
+    required this.displayName,
+    required this.progress,
+    required this.speedKbps,
+    required this.colors,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final isPdf = fileId.startsWith('pdf_');
+    final percent = (progress * 100).toInt();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: c.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: c.brand.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Animated download icon
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: c.brand.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                      color: c.brand.withOpacity(0.25)),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 30,
+                      height: 30,
+                      child: CircularProgressIndicator(
+                        value: progress > 0 ? progress : null,
+                        strokeWidth: 2.5,
+                        color: c.brand,
+                        backgroundColor:
+                            c.brand.withOpacity(0.15),
+                      ),
+                    ),
+                    Icon(
+                      isPdf
+                          ? Icons.picture_as_pdf_rounded
+                          : Icons.headphones_rounded,
+                      size: 14,
+                      color: c.brand,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              // Name + speed
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      textDirection: TextDirection.rtl,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.arabic(
+                        color: c.textPrimary,
+                        size: 13,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: c.brand.withOpacity(0.1),
+                            borderRadius:
+                                BorderRadius.circular(5),
+                          ),
+                          child: Text(
+                            isPdf ? 'PDF' : 'Audio',
+                            style: AppText.latin(
+                              color: c.brand,
+                              size: 10,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        if (speedKbps > 0) ...[
+                          Icon(Icons.speed_rounded,
+                              size: 11, color: c.textFaint),
+                          const SizedBox(width: 3),
+                          Text(
+                            DownloadService.formatSpeed(speedKbps),
+                            style: AppText.latin(
+                              color: c.textFaint,
+                              size: 11,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Cancel button
+              GestureDetector(
+                onTap: onCancel,
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: c.dangerBg,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: c.danger.withOpacity(0.3)),
+                  ),
+                  child: Icon(Icons.close_rounded,
+                      size: 16, color: c.danger),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress > 0 ? progress : null,
+              backgroundColor: c.surface2,
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(c.brand),
+              minHeight: 5,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                progress > 0
+                    ? '$percent% downloaded'
+                    : 'Connecting...',
+                style: AppText.latin(
+                  color: c.brand,
+                  size: 11,
+                  weight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                'Tap × to cancel',
+                style: AppText.latin(
+                  color: c.textFaint,
+                  size: 10,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -401,13 +644,10 @@ class _StorageCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             '$fileCount file${fileCount == 1 ? '' : 's'} downloaded',
-            style: AppText.latin(
-              color: c.textMuted,
-              size: 11,
-            ),
+            style: AppText.latin(color: c.textMuted, size: 11),
           ),
           const SizedBox(height: 10),
           ClipRRect(
@@ -463,16 +703,13 @@ class _DownloadedFileCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // ── Icon ──
             Container(
               width: 46,
               height: 46,
               decoration: BoxDecoration(
                 color: c.brand.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(13),
-                border: Border.all(
-                  color: c.brand.withOpacity(0.2),
-                ),
+                border: Border.all(color: c.brand.withOpacity(0.2)),
               ),
               child: Icon(
                 isPdf
@@ -485,7 +722,6 @@ class _DownloadedFileCard extends StatelessWidget {
 
             const SizedBox(width: 14),
 
-            // ── Info ──
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -527,24 +763,17 @@ class _DownloadedFileCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         sizeDisplay,
-                        style: AppText.latin(
-                          color: c.textFaint,
-                          size: 11,
-                        ),
+                        style:
+                            AppText.latin(color: c.textFaint, size: 11),
                       ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.check_circle_rounded,
-                        size: 12,
-                        color: c.brand,
-                      ),
+                      const SizedBox(width: 6),
+                      Icon(Icons.check_circle_rounded,
+                          size: 12, color: c.brand),
                       const SizedBox(width: 3),
                       Text(
                         'On device',
-                        style: AppText.latin(
-                          color: c.brand,
-                          size: 10,
-                        ),
+                        style:
+                            AppText.latin(color: c.brand, size: 10),
                       ),
                     ],
                   ),
@@ -554,7 +783,6 @@ class _DownloadedFileCard extends StatelessWidget {
 
             const SizedBox(width: 8),
 
-            // ── Delete ──
             GestureDetector(
               onTap: onDelete,
               child: Container(
@@ -564,14 +792,10 @@ class _DownloadedFileCard extends StatelessWidget {
                   color: c.dangerBg,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: c.danger.withOpacity(0.3),
-                  ),
+                      color: c.danger.withOpacity(0.3)),
                 ),
-                child: Icon(
-                  Icons.delete_outline_rounded,
-                  size: 16,
-                  color: c.danger,
-                ),
+                child: Icon(Icons.delete_outline_rounded,
+                    size: 16, color: c.danger),
               ),
             ),
           ],
