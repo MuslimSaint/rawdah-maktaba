@@ -1,0 +1,649 @@
+import 'package:flutter/material.dart';
+import '../core/app_state.dart';
+import '../core/catalog_service.dart';
+import '../core/models.dart';
+import '../core/theme.dart';
+
+/// Full book detail screen.
+/// Shows cover, title, author, PDF download, and teaching scholars.
+/// Author and teachers are NEVER confused — always in separate sections.
+class BookDetailScreen extends StatelessWidget {
+  final Book book;
+  final CatalogService catalogService;
+
+  const BookDetailScreen({
+    super.key,
+    required this.book,
+    required this.catalogService,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppState.of(context);
+    final c = AppColors(isDark: state.isDark);
+
+    return Directionality(
+      textDirection: state.textDirection,
+      child: Scaffold(
+        backgroundColor: c.bg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // ── Top Bar ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: c.surface2,
+                          borderRadius: BorderRadius.circular(11),
+                          border: Border.all(color: c.divider),
+                        ),
+                        child: Icon(
+                          Icons.arrow_back_rounded,
+                          size: 18,
+                          color: c.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        'Book Details',
+                        style: AppText.latin(
+                          color: c.textPrimary,
+                          size: 18,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Content ──
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Hero Card ──
+                      _HeroCard(book: book, colors: c),
+
+                      const SizedBox(height: 20),
+
+                      // ── PDF Section ──
+                      _PdfSection(book: book, colors: c),
+
+                      const SizedBox(height: 20),
+
+                      // ── Teaching Scholars ──
+                      if (book.hasAudio && book.teacherIds.isNotEmpty)
+                        _TeachersSection(
+                          book: book,
+                          catalogService: catalogService,
+                          colors: c,
+                          language: state.language,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Hero Card ───────────────────────────────────────────
+
+class _HeroCard extends StatelessWidget {
+  final Book book;
+  final AppColors colors;
+
+  const _HeroCard({required this.book, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: c.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: c.goldLine, width: 1.5),
+      ),
+      child: Column(
+        children: [
+          // Cover + info row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Cover
+              Container(
+                width: 80,
+                height: 108,
+                decoration: BoxDecoration(
+                  color: c.brand.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: c.brand.withOpacity(0.2),
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    book.localCoverAsset,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Center(
+                      child: Icon(
+                        Icons.menu_book_rounded,
+                        size: 36,
+                        color: c.brand,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 16),
+
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // NEW badge
+                    if (book.isNew || book.isRecentlyAdded)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: c.brand.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: c.brand.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Text(
+                            'NEW',
+                            style: AppText.label(color: c.brand),
+                          ),
+                        ),
+                      ),
+
+                    // Arabic title
+                    Text(
+                      book.titleAr,
+                      textDirection: TextDirection.rtl,
+                      textAlign: TextAlign.right,
+                      style: AppText.arabic(
+                        color: c.textPrimary,
+                        size: 16,
+                        weight: FontWeight.w700,
+                        height: 1.6,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Branch tags
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.end,
+                      children: book.branches.map((branchId) {
+                        final branch = Catalog.branches.firstWhere(
+                          (b) => b.id == branchId,
+                          orElse: () => const Branch(
+                            id: '',
+                            nameEn: '',
+                            nameAr: '',
+                            nameAm: '',
+                          ),
+                        );
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: c.brand.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: c.brand.withOpacity(0.2),
+                            ),
+                          ),
+                          child: Text(
+                            branch.nameEn,
+                            style: AppText.latin(
+                              color: c.brand,
+                              size: 10,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Page count
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Icon(
+                          Icons.menu_book_outlined,
+                          size: 13,
+                          color: c.textFaint,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${book.pages} pages',
+                          style: AppText.latin(
+                            color: c.textFaint,
+                            size: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          Divider(color: c.divider, height: 1),
+
+          const SizedBox(height: 14),
+
+          // ── AUTHOR section ──
+          // Clearly labeled "AUTHOR" — never confused with teachers
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'AUTHOR',
+                style: AppText.label(color: c.textFaint),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      book.authorAr,
+                      textDirection: TextDirection.rtl,
+                      textAlign: TextAlign.right,
+                      style: AppText.arabic(
+                        color: c.goldText,
+                        size: 14,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      book.authorEn,
+                      textAlign: TextAlign.right,
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── PDF Section ─────────────────────────────────────────
+
+class _PdfSection extends StatefulWidget {
+  final Book book;
+  final AppColors colors;
+
+  const _PdfSection({required this.book, required this.colors});
+
+  @override
+  State<_PdfSection> createState() => _PdfSectionState();
+}
+
+class _PdfSectionState extends State<_PdfSection> {
+  // Download state — will be wired to real download in Chapter 7
+  bool _isDownloaded = false;
+  bool _isDownloading = false;
+  double _progress = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.colors;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'PDF Book',
+          style: AppText.latin(
+            color: c.textPrimary,
+            size: 15,
+            weight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: c.card,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: c.goldLine, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              // Download button circle
+              GestureDetector(
+                onTap: _isDownloading
+                    ? null
+                    : () {
+                        if (_isDownloaded) {
+                          // Open PDF — Chapter 7
+                        } else {
+                          // Start download — Chapter 7
+                          setState(() => _isDownloading = true);
+                        }
+                      },
+                child: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _isDownloaded
+                        ? c.brand
+                        : c.brand.withOpacity(0.12),
+                    border: Border.all(
+                      color: _isDownloaded
+                          ? c.brand
+                          : c.brand.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: _isDownloading
+                      ? Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: CircularProgressIndicator(
+                            value: _progress > 0 ? _progress : null,
+                            strokeWidth: 2,
+                            color: c.brand,
+                          ),
+                        )
+                      : Icon(
+                          _isDownloaded
+                              ? Icons.menu_book_rounded
+                              : Icons.download_rounded,
+                          size: 22,
+                          color: _isDownloaded
+                              ? Colors.white
+                              : c.brand,
+                        ),
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isDownloaded
+                          ? 'Open Book'
+                          : _isDownloading
+                              ? 'Downloading...'
+                              : 'Download PDF',
+                      style: AppText.latin(
+                        color: c.textPrimary,
+                        size: 14,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${widget.book.pdfSizeMb} MB · ${widget.book.pages} pages',
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Free badge
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: c.brand.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: c.brand.withOpacity(0.25),
+                  ),
+                ),
+                child: Text(
+                  'Free',
+                  style: AppText.latin(
+                    color: c.brand,
+                    size: 12,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Teachers Section ────────────────────────────────────
+
+class _TeachersSection extends StatelessWidget {
+  final Book book;
+  final CatalogService catalogService;
+  final AppColors colors;
+  final String language;
+
+  const _TeachersSection({
+    required this.book,
+    required this.catalogService,
+    required this.colors,
+    required this.language,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    // Get teachers for this book
+    final teachers = book.teacherIds
+        .map((id) => catalogService.teacherById(id))
+        .where((t) => t != null)
+        .cast<Teacher>()
+        .toList();
+
+    if (teachers.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section header — clearly labeled TEACHING SCHOLARS
+        Row(
+          children: [
+            Text(
+              'TEACHING SCHOLARS',
+              style: AppText.label(color: c.textFaint),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 6),
+
+        // Italic note explaining the difference
+        Text(
+          'These scholars provide audio explanations for this book.',
+          style: AppText.latin(
+            color: c.textMuted,
+            size: 12,
+            height: 1.5,
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Teacher cards
+        ...teachers.map((teacher) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _TeacherCard(
+              teacher: teacher,
+              colors: c,
+              language: language,
+              onTap: () {
+                // Lessons screen — Chapter 7
+              },
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _TeacherCard extends StatelessWidget {
+  final Teacher teacher;
+  final AppColors colors;
+  final String language;
+  final VoidCallback onTap;
+
+  const _TeacherCard({
+    required this.teacher,
+    required this.colors,
+    required this.language,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: c.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: c.divider),
+        ),
+        child: Row(
+          children: [
+            // Avatar with initials
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: c.brand.withOpacity(0.12),
+                border: Border.all(
+                  color: c.brand.withOpacity(0.25),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                teacher.initials,
+                textDirection: TextDirection.rtl,
+                style: AppText.arabic(
+                  color: c.brand,
+                  size: 14,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Name
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    teacher.nameAr,
+                    textDirection: TextDirection.rtl,
+                    style: AppText.arabic(
+                      color: c.textPrimary,
+                      size: 14,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    teacher.nameFor(language),
+                    style: AppText.latin(
+                      color: c.textMuted,
+                      size: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Headphones icon
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: c.goldLine,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: c.goldText.withOpacity(0.3),
+                ),
+              ),
+              child: Icon(
+                Icons.headphones_rounded,
+                size: 16,
+                color: c.goldText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
