@@ -3,8 +3,9 @@ import '../core/app_state.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import 'branch_screen.dart';
+import 'book_detail_screen.dart';
 
-/// Home tab — full implementation.
+/// Home tab — full implementation with live data.
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
 
@@ -16,22 +17,27 @@ class HomeTab extends StatelessWidget {
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _TopBar(colors: c),
-              const SizedBox(height: 20),
-              _StatsStrip(colors: c),
-              const SizedBox(height: 20),
-              _ContinueReading(colors: c),
-              const SizedBox(height: 20),
-              _DailyHadith(colors: c),
-              const SizedBox(height: 20),
-              _BranchesGrid(colors: c),
-            ],
-          ),
+        child: ListenableBuilder(
+          listenable: state,
+          builder: (context, _) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _TopBar(colors: c),
+                  const SizedBox(height: 20),
+                  _StatsStrip(colors: c),
+                  const SizedBox(height: 20),
+                  _ContinueReading(colors: c),
+                  const SizedBox(height: 20),
+                  _DailyHadith(colors: c),
+                  const SizedBox(height: 20),
+                  _BranchesGrid(colors: c),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -103,9 +109,13 @@ class _StatsStrip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: ListenableBuilder(
-        listenable: state.catalogService,
+        listenable: Listenable.merge([
+          state.catalogService,
+          state.downloadService,
+        ]),
         builder: (context, _) {
           final total = state.catalogService.books.length;
+          final downloads = state.downloadService.downloadedCount;
 
           return Container(
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -132,7 +142,7 @@ class _StatsStrip extends StatelessWidget {
                 _StatDivider(colors: c),
                 _StatItem(
                   label: 'Downloads',
-                  value: '0',
+                  value: '$downloads',
                   icon: Icons.download_rounded,
                   colors: c,
                 ),
@@ -203,6 +213,7 @@ class _ContinueReading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = AppState.of(context);
     final c = colors;
 
     return Padding(
@@ -219,76 +230,255 @@ class _ContinueReading extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: c.card,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: c.goldLine, width: 1.5),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 56,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: c.brand.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: c.brand.withOpacity(0.25)),
-                  ),
-                  child: Icon(
-                    Icons.menu_book_rounded,
-                    size: 26,
-                    color: c.brand,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'No book opened yet',
-                        style: AppText.latin(
-                          color: c.textMuted,
-                          size: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tap a book in the Library to start reading',
-                        style: AppText.latin(
-                          color: c.textFaint,
-                          size: 11,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: 0,
-                          backgroundColor: c.surface2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(c.brand),
-                          minHeight: 4,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '0%',
-                        style: AppText.latin(
-                          color: c.textFaint,
-                          size: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          GestureDetector(
+            onTap: state.hasLastBook
+                ? () {
+                    // Find book from catalog
+                    final books = state.catalogService.books;
+                    try {
+                      final book = books.firstWhere(
+                        (b) => b.id == state.lastBookId,
+                      );
+                      // Check if PDF is downloaded
+                      final fileId =
+                          'pdf_${book.id}';
+                      final isDownloaded =
+                          state.downloadService.isDownloaded(fileId);
+                      if (isDownloaded) {
+                        state.downloadService
+                            .localPath(fileId)
+                            .then((path) {
+                          if (path != null &&
+                              context.mounted) {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    BookDetailScreen(
+                                  book: book,
+                                  catalogService:
+                                      state.catalogService,
+                                ),
+                              ),
+                            );
+                          }
+                        });
+                      } else {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => BookDetailScreen(
+                              book: book,
+                              catalogService:
+                                  state.catalogService,
+                            ),
+                          ),
+                        );
+                      }
+                    } catch (_) {}
+                  }
+                : null,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: c.card,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: c.goldLine, width: 1.5),
+              ),
+              child: state.hasLastBook
+                  ? _LastBookContent(colors: c)
+                  : _NoBookContent(colors: c),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LastBookContent extends StatelessWidget {
+  final AppColors colors;
+  const _LastBookContent({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppState.of(context);
+    final c = colors;
+
+    // Find the book object
+    Book? book;
+    try {
+      book = state.catalogService.books.firstWhere(
+        (b) => b.id == state.lastBookId,
+      );
+    } catch (_) {}
+
+    final progress = state.lastBookProgress;
+    final percent = (progress * 100).toInt();
+
+    return Row(
+      children: [
+        // Cover
+        Container(
+          width: 56,
+          height: 72,
+          decoration: BoxDecoration(
+            color: c.brand.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: c.brand.withOpacity(0.25)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: book != null
+                ? Image.asset(
+                    book.localCoverAsset,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Center(
+                      child: Icon(
+                        Icons.menu_book_rounded,
+                        size: 26,
+                        color: c.brand,
+                      ),
+                    ),
+                  )
+                : Center(
+                    child: Icon(
+                      Icons.menu_book_rounded,
+                      size: 26,
+                      color: c.brand,
+                    ),
+                  ),
+          ),
+        ),
+
+        const SizedBox(width: 14),
+
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (state.lastBookTitle != null)
+                Text(
+                  state.lastBookTitle!,
+                  textDirection: TextDirection.rtl,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.arabic(
+                    color: c.textPrimary,
+                    size: 14,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+              const SizedBox(height: 4),
+              Text(
+                'Page ${state.lastBookPage + 1}'
+                '${state.lastBookTotalPages > 0 ? ' of ${state.lastBookTotalPages}' : ''}',
+                style: AppText.latin(
+                  color: c.textMuted,
+                  size: 11,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: c.surface2,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(c.brand),
+                  minHeight: 4,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$percent%',
+                style: AppText.latin(
+                  color: c.brand,
+                  size: 10,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(width: 8),
+
+        Icon(
+          Icons.chevron_right_rounded,
+          size: 18,
+          color: c.textFaint,
+        ),
+      ],
+    );
+  }
+}
+
+class _NoBookContent extends StatelessWidget {
+  final AppColors colors;
+  const _NoBookContent({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    return Row(
+      children: [
+        Container(
+          width: 56,
+          height: 72,
+          decoration: BoxDecoration(
+            color: c.brand.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: c.brand.withOpacity(0.25)),
+          ),
+          child: Icon(
+            Icons.menu_book_rounded,
+            size: 26,
+            color: c.brand,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'No book opened yet',
+                style: AppText.latin(
+                  color: c.textMuted,
+                  size: 13,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Tap a book in the Library to start reading',
+                style: AppText.latin(
+                  color: c.textFaint,
+                  size: 11,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: 0,
+                  backgroundColor: c.surface2,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(c.brand),
+                  minHeight: 4,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '0%',
+                style: AppText.latin(
+                  color: c.textFaint,
+                  size: 10,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -484,7 +674,8 @@ class _BranchesGrid extends StatelessWidget {
                 itemCount: Catalog.branches.length,
                 itemBuilder: (context, index) {
                   final branch = Catalog.branches[index];
-                  final iconData = _branchIcons[index]['icon'] as IconData;
+                  final iconData =
+                      _branchIcons[index]['icon'] as IconData;
                   final count = state.catalogService
                       .bookCountForBranch(branch.id);
 
@@ -499,7 +690,8 @@ class _BranchesGrid extends StatelessWidget {
                         MaterialPageRoute(
                           builder: (_) => BranchScreen(
                             branch: branch,
-                            catalogService: state.catalogService,
+                            catalogService:
+                                state.catalogService,
                           ),
                         ),
                       );
