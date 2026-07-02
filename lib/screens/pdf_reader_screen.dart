@@ -5,7 +5,7 @@ import '../core/models.dart';
 import '../core/theme.dart';
 
 /// PDF reader screen.
-/// Tracks reading progress and saves last opened book.
+/// Tracks reading progress and restores last page.
 class PdfReaderScreen extends StatefulWidget {
   final Book book;
   final String filePath;
@@ -24,28 +24,29 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   int _currentPage = 0;
   int _totalPages = 0;
   bool _isReady = false;
+  bool _hasRestoredPage = false;
   PDFViewController? _pdfController;
+  int _savedPage = 0;
 
   @override
   void initState() {
     super.initState();
-    // Restore last page after first frame
+    // Read saved page before PDF loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _restoreLastPage();
+      final state = AppState.of(context);
+      if (state.lastBookId == widget.book.id) {
+        _savedPage = state.lastBookPage;
+      }
     });
   }
 
-  void _restoreLastPage() {
-    final state = AppState.of(context);
-    if (state.lastBookId == widget.book.id &&
-        state.lastBookPage > 0) {
-      // Jump to last saved page
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted && _pdfController != null) {
-          _pdfController!.setPage(state.lastBookPage);
-        }
-      });
-    }
+  void _tryRestorePage() {
+    if (_hasRestoredPage) return;
+    if (_pdfController == null) return;
+    if (_savedPage <= 0) return;
+
+    _hasRestoredPage = true;
+    _pdfController!.setPage(_savedPage);
   }
 
   Future<void> _onPageChanged(int page, int total) async {
@@ -54,7 +55,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       _totalPages = total;
     });
 
-    // Save progress to AppState
+    // Save progress
     final state = AppState.of(context);
     await state.setLastOpenedBook(
       bookId: widget.book.id,
@@ -68,6 +69,13 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   Widget build(BuildContext context) {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
+
+    // Get saved page for defaultPage
+    int defaultPage = 0;
+    if (state.lastBookId == widget.book.id &&
+        state.lastBookPage > 0) {
+      defaultPage = state.lastBookPage;
+    }
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -168,10 +176,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                 pageFling: false,
                 pageSnap: false,
                 fitPolicy: FitPolicy.WIDTH,
+                defaultPage: defaultPage,
                 onRender: (pages) {
                   setState(() {
                     _totalPages = pages ?? 0;
                     _isReady = true;
+                    _currentPage = defaultPage;
                   });
 
                   // Record this book was opened
@@ -179,13 +189,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                   state.setLastOpenedBook(
                     bookId: widget.book.id,
                     bookTitle: widget.book.titleAr,
-                    page: _currentPage,
+                    page: defaultPage,
                     totalPages: pages ?? 0,
                   );
                 },
                 onViewCreated: (controller) {
                   _pdfController = controller;
-                  _restoreLastPage();
                 },
                 onPageChanged: (page, total) {
                   _onPageChanged(page ?? 0, total ?? 0);
@@ -212,8 +221,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
             // ── Bottom Page Indicator ──
             if (_isReady)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: c.card,
                   border: Border(
