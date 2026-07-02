@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:pdfx/pdfx.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import '../core/app_state.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
@@ -21,24 +21,10 @@ class PdfReaderScreen extends StatefulWidget {
 }
 
 class _PdfReaderScreenState extends State<PdfReaderScreen> {
-  late PdfControllerPinch _pdfController;
-  int _currentPage = 1;
+  int _currentPage = 0;
   int _totalPages = 0;
   bool _isReady = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _pdfController = PdfControllerPinch(
-      document: PdfDocument.openFile(widget.filePath),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pdfController.dispose();
-    super.dispose();
-  }
+  PDFViewController? _pdfController;
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +74,6 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                     ),
                   ),
                   const SizedBox(width: 14),
-                  // Page indicator
                   if (_isReady)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -101,7 +86,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                         border: Border.all(color: c.divider),
                       ),
                       child: Text(
-                        '$_currentPage / $_totalPages',
+                        '${_currentPage + 1} / $_totalPages',
                         style: AppText.latin(
                           color: c.textMuted,
                           size: 11,
@@ -121,7 +106,9 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(
-                    value: _currentPage / _totalPages,
+                    value: _totalPages > 0
+                        ? (_currentPage + 1) / _totalPages
+                        : 0,
                     backgroundColor: c.surface2,
                     valueColor:
                         AlwaysStoppedAnimation<Color>(c.brand),
@@ -135,74 +122,50 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
 
             // ── PDF Viewer ──
             Expanded(
-              child: PdfViewPinch(
-                controller: _pdfController,
-                onDocumentLoaded: (document) {
+              child: PDFView(
+                filePath: widget.filePath,
+                enableSwipe: true,
+                swipeHorizontal: false,
+                autoSpacing: true,
+                pageFling: false,
+                pageSnap: false,
+                fitPolicy: FitPolicy.WIDTH,
+                onRender: (pages) {
                   setState(() {
-                    _totalPages = document.pagesCount;
+                    _totalPages = pages ?? 0;
                     _isReady = true;
                   });
                 },
-                onPageChanged: (page) {
-                  setState(() => _currentPage = page);
+                onViewCreated: (controller) {
+                  _pdfController = controller;
                 },
-                builders: PdfViewPinchBuilders<DefaultBuilderOptions>(
-                  options: const DefaultBuilderOptions(),
-                  documentLoaderBuilder: (_) => Center(
-                    child: CircularProgressIndicator(
-                      color: c.brand,
-                      strokeWidth: 2,
-                    ),
-                  ),
-                  pageLoaderBuilder: (_) => Center(
-                    child: CircularProgressIndicator(
-                      color: c.brand,
-                      strokeWidth: 2,
-                    ),
-                  ),
-                  errorBuilder: (_, error) => Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline_rounded,
-                            size: 48,
-                            color: c.danger,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Could not open PDF',
-                            style: AppText.latin(
-                              color: c.textPrimary,
-                              size: 16,
-                              weight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            error.toString(),
-                            textAlign: TextAlign.center,
-                            style: AppText.latin(
-                              color: c.textMuted,
-                              size: 12,
-                            ),
-                          ),
-                        ],
+                onPageChanged: (page, total) {
+                  setState(() {
+                    _currentPage = page ?? 0;
+                    _totalPages = total ?? 0;
+                  });
+                },
+                onError: (error) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Could not open PDF: $error',
+                        style: AppText.latin(
+                          color: Colors.white,
+                          size: 13,
+                        ),
                       ),
+                      backgroundColor: c.danger,
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
 
             // ── Bottom Page Indicator ──
             if (_isReady)
               Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: c.card,
                   border: Border(
@@ -221,7 +184,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       border: Border.all(color: c.divider),
                     ),
                     child: Text(
-                      'Page $_currentPage of $_totalPages',
+                      'Page ${_currentPage + 1} of $_totalPages',
                       style: AppText.latin(
                         color: c.textMuted,
                         size: 12,
