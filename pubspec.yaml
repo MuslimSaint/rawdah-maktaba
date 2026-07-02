@@ -22,6 +22,9 @@ dependencies:
   cloud_firestore: ^5.4.3
   google_sign_in: ^6.2.1
 
+  # PDF viewer
+  pdfx: ^2.2.0
+
 dev_dependencies:
   flutter_lints: ^3.0.0
   flutter_launcher_icons: ^0.13.1
