@@ -1,32 +1,37 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
+import '../core/arabic_utils.dart';
 import '../core/audio_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 
-/// Audio player screen — real playback via AudioService.
+/// Audio player screen.
+/// Uses TeacherAudio for correct per-teacher part list.
+/// Handles missing episode numbers correctly.
+/// No maximum on part numbers — works for any count.
 class AudioPlayerScreen extends StatefulWidget {
   final Book book;
   final Teacher teacher;
-  final int lessonNumber;
-  final int totalLessons;
+  final TeacherAudio teacherAudio;
+  final int initialPartIndex;
 
   const AudioPlayerScreen({
     super.key,
     required this.book,
     required this.teacher,
-    required this.lessonNumber,
-    required this.totalLessons,
+    required this.teacherAudio,
+    required this.initialPartIndex,
   });
 
   @override
-  State<AudioPlayerScreen> createState() => _AudioPlayerScreenState();
+  State<AudioPlayerScreen> createState() =>
+      _AudioPlayerScreenState();
 }
 
 class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     with TickerProviderStateMixin {
-  late int _currentLesson;
+  late int _currentPartIndex;
   late AudioService _audioService;
   late DownloadService _downloadService;
 
@@ -39,7 +44,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
   @override
   void initState() {
     super.initState();
-    _currentLesson = widget.lessonNumber;
+    _currentPartIndex = widget.initialPartIndex;
 
     _slideController = AnimationController(
       vsync: this,
@@ -68,10 +73,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     super.dispose();
   }
 
+  // The REAL part number (handles gaps — e.g. 9 when 8 is missing)
+  int get _currentPartNumber =>
+      widget.teacherAudio.parts[_currentPartIndex];
+
+  int get _totalParts => widget.teacherAudio.totalParts;
+
   String get _currentFileId => DownloadService.audioId(
         widget.book.id,
         widget.teacher.id,
-        _currentLesson,
+        _currentPartNumber,
       );
 
   bool get _isCurrentDownloaded =>
@@ -83,10 +94,11 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
       return;
     }
 
-    final path = await _downloadService.localPath(_currentFileId);
+    final path =
+        await _downloadService.localPath(_currentFileId);
     if (path == null) {
-      setState(() =>
-          _errorMessage = 'Audio file not found. Please re-download.');
+      setState(() => _errorMessage =
+          'Audio file not found. Please re-download.');
       return;
     }
 
@@ -103,17 +115,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     if (mounted) {
       setState(() => _isLoadingAudio = false);
       if (_audioService.error != null) {
-        setState(
-            () => _errorMessage = _audioService.error);
+        setState(() => _errorMessage = _audioService.error);
       }
     }
   }
 
   void _previousLesson() {
-    if (_currentLesson > 1) {
+    if (_currentPartIndex > 0) {
       _audioService.stop();
       setState(() {
-        _currentLesson--;
+        _currentPartIndex--;
         _errorMessage = null;
       });
       _tryLoadCurrentLesson();
@@ -121,36 +132,26 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
   }
 
   void _nextLesson() {
-    if (_currentLesson < widget.totalLessons) {
+    if (_currentPartIndex < _totalParts - 1) {
       _audioService.stop();
       setState(() {
-        _currentLesson++;
+        _currentPartIndex++;
         _errorMessage = null;
       });
       _tryLoadCurrentLesson();
     }
   }
 
-  String _lessonTitle(int num) {
-    final arabicNumbers = [
-      'الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس',
-      'السادس', 'السابع', 'الثامن', 'التاسع', 'العاشر',
-      'الحادي عشر', 'الثاني عشر', 'الثالث عشر', 'الرابع عشر',
-      'الخامس عشر', 'السادس عشر', 'السابع عشر', 'الثامن عشر',
-      'التاسع عشر', 'العشرون',
-    ];
-    final arabicNum = num <= arabicNumbers.length
-        ? arabicNumbers[num - 1]
-        : '$num';
-    return 'الجزء $arabicNum';
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
-    final hasPrev = _currentLesson > 1;
-    final hasNext = _currentLesson < widget.totalLessons;
+    final hasPrev = _currentPartIndex > 0;
+    final hasNext = _currentPartIndex < _totalParts - 1;
+
+    // Use ArabicUtils — works for ANY part number
+    final lessonTitle =
+        ArabicUtils.lessonTitle(_currentPartNumber);
 
     return SlideTransition(
       position: _slideAnimation,
@@ -164,15 +165,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
               final position = _audioService.position;
               final duration = _audioService.duration;
               final speed = _audioService.speed;
-              final isActive = _audioService.currentFileId ==
-                  _currentFileId;
+              final isActive =
+                  _audioService.currentFileId ==
+                      _currentFileId;
 
               return Column(
                 children: [
                   // ── Top Bar ──
                   Padding(
-                    padding:
-                        const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    padding: const EdgeInsets.fromLTRB(
+                        20, 16, 20, 0),
                     child: Row(
                       children: [
                         GestureDetector(
@@ -185,11 +187,12 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                               color: c.surface2,
                               borderRadius:
                                   BorderRadius.circular(11),
-                              border:
-                                  Border.all(color: c.divider),
+                              border: Border.all(
+                                  color: c.divider),
                             ),
                             child: Icon(
-                              Icons.keyboard_arrow_down_rounded,
+                              Icons
+                                  .keyboard_arrow_down_rounded,
                               size: 24,
                               color: c.textPrimary,
                             ),
@@ -206,8 +209,9 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _lessonTitle(_currentLesson),
-                                textDirection: TextDirection.rtl,
+                                lessonTitle,
+                                textDirection:
+                                    TextDirection.rtl,
                                 style: AppText.arabic(
                                   color: c.textPrimary,
                                   size: 15,
@@ -219,17 +223,18 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                         ),
 
                         Container(
-                          width: 38,
+                          width: 44,
                           height: 38,
                           decoration: BoxDecoration(
                             color: c.surface2,
                             borderRadius:
                                 BorderRadius.circular(11),
-                            border: Border.all(color: c.divider),
+                            border:
+                                Border.all(color: c.divider),
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            '$_currentLesson/${widget.totalLessons}',
+                            '${_currentPartIndex + 1}/$_totalParts',
                             style: AppText.latin(
                               color: c.textMuted,
                               size: 10,
@@ -250,8 +255,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                     decoration: BoxDecoration(
                       color: c.brand.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(20),
-                      border:
-                          Border.all(color: c.goldLine, width: 1.5),
+                      border: Border.all(
+                          color: c.goldLine, width: 1.5),
                       boxShadow: [
                         BoxShadow(
                           color: c.brand.withOpacity(0.15),
@@ -280,8 +285,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   // ── Info ──
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 32),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32),
                     child: Column(
                       children: [
                         Text(
@@ -319,9 +324,9 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  // ── Not Downloaded State ──
+                  // ── Not Downloaded ──
                   if (!_isCurrentDownloaded) ...[
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -330,8 +335,10 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: c.surface2,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: c.divider),
+                          borderRadius:
+                              BorderRadius.circular(14),
+                          border:
+                              Border.all(color: c.divider),
                         ),
                         child: Row(
                           children: [
@@ -355,7 +362,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
                   ],
 
                   // ── Error ──
@@ -367,14 +374,19 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: c.dangerBg,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius:
+                              BorderRadius.circular(12),
                           border: Border.all(
-                              color: c.danger.withOpacity(0.3)),
+                              color:
+                                  c.danger.withOpacity(0.3)),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.error_outline_rounded,
-                                color: c.danger, size: 16),
+                            Icon(
+                              Icons.error_outline_rounded,
+                              color: c.danger,
+                              size: 16,
+                            ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -394,12 +406,13 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   // ── Seek Bar ──
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24),
                     child: Column(
                       children: [
                         SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
+                          data:
+                              SliderTheme.of(context).copyWith(
                             activeTrackColor: c.brand,
                             inactiveTrackColor: c.surface2,
                             thumbColor: c.brand,
@@ -438,16 +451,18 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8),
+                          padding:
+                              const EdgeInsets.symmetric(
+                                  horizontal: 8),
                           child: Row(
                             mainAxisAlignment:
                                 MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 isActive
-                                    ? AudioService.formatDuration(
-                                        position)
+                                    ? AudioService
+                                        .formatDuration(
+                                            position)
                                     : '00:00',
                                 style: AppText.latin(
                                   color: c.textFaint,
@@ -455,9 +470,11 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                                 ),
                               ),
                               Text(
-                                isActive && duration.inSeconds > 0
-                                    ? AudioService.formatDuration(
-                                        duration)
+                                isActive &&
+                                        duration.inSeconds > 0
+                                    ? AudioService
+                                        .formatDuration(
+                                            duration)
                                     : '--:--',
                                 style: AppText.latin(
                                   color: c.textFaint,
@@ -471,17 +488,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
                   // ── Controls ──
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24),
                     child: Row(
                       mainAxisAlignment:
                           MainAxisAlignment.spaceEvenly,
                       children: [
-                        // Previous lesson
                         _ControlButton(
                           icon: Icons.skip_previous_rounded,
                           size: 26,
@@ -490,16 +506,15 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                           onTap: _previousLesson,
                         ),
 
-                        // Back 10s
                         _SeekButton(
                           isForward: false,
                           colors: c,
                           onTap: isActive
-                              ? () => _audioService.seekBack(10)
+                              ? () =>
+                                  _audioService.seekBack(10)
                               : null,
                         ),
 
-                        // Play / Pause
                         GestureDetector(
                           onTap: _isCurrentDownloaded
                               ? () {
@@ -511,8 +526,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                                 }
                               : null,
                           child: AnimatedContainer(
-                            duration:
-                                const Duration(milliseconds: 150),
+                            duration: const Duration(
+                                milliseconds: 150),
                             width: 68,
                             height: 68,
                             decoration: BoxDecoration(
@@ -524,7 +539,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                                     ? [c.brand, c.brandHover]
                                     : [
                                         c.textFaint,
-                                        c.textFaint,
+                                        c.textFaint
                                       ],
                               ),
                               boxShadow: _isCurrentDownloaded
@@ -533,14 +548,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                                         color: c.brand
                                             .withOpacity(0.4),
                                         blurRadius: 20,
-                                        offset: const Offset(0, 6),
+                                        offset:
+                                            const Offset(0, 6),
                                       ),
                                     ]
                                   : null,
                             ),
                             child: _isLoadingAudio
                                 ? const Padding(
-                                    padding: EdgeInsets.all(20),
+                                    padding:
+                                        EdgeInsets.all(20),
                                     child:
                                         CircularProgressIndicator(
                                       strokeWidth: 2.5,
@@ -550,14 +567,14 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                                 : Icon(
                                     isActive && isPlaying
                                         ? Icons.pause_rounded
-                                        : Icons.play_arrow_rounded,
+                                        : Icons
+                                            .play_arrow_rounded,
                                     size: 34,
                                     color: Colors.white,
                                   ),
                           ),
                         ),
 
-                        // Forward 10s
                         _SeekButton(
                           isForward: true,
                           colors: c,
@@ -567,7 +584,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                               : null,
                         ),
 
-                        // Next lesson
                         _ControlButton(
                           icon: Icons.skip_next_rounded,
                           size: 26,
@@ -579,7 +595,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
                   // ── Speed ──
                   GestureDetector(
@@ -599,7 +615,9 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                       child: Text(
                         'Speed: ${speed}x',
                         style: AppText.latin(
-                          color: isActive ? c.brand : c.textFaint,
+                          color: isActive
+                              ? c.brand
+                              : c.textFaint,
                           size: 13,
                           weight: FontWeight.w700,
                         ),
@@ -609,7 +627,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   const Spacer(),
 
-                  // ── Mini Player Note ──
+                  // ── Info Note ──
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                         24, 0, 24, 16),
@@ -636,7 +654,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                           Expanded(
                             child: Text(
                               isActive && isPlaying
-                                  ? 'Audio continues playing if you go back'
+                                  ? 'Audio continues if you go back'
                                   : 'Download lessons from the Lessons screen first',
                               style: AppText.latin(
                                 color: c.goldText,
@@ -675,7 +693,6 @@ class _SeekButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -718,17 +735,20 @@ class _ControlButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: enabled ? c.surface2 : c.surface2.withOpacity(0.5),
+          color: enabled
+              ? c.surface2
+              : c.surface2.withOpacity(0.5),
           shape: BoxShape.circle,
           border: Border.all(
-            color: enabled ? c.divider : c.divider.withOpacity(0.5),
+            color: enabled
+                ? c.divider
+                : c.divider.withOpacity(0.5),
           ),
         ),
         child: Icon(
