@@ -27,104 +27,97 @@ class _BranchScreenState extends State<BranchScreen> {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
 
-    return Directionality(
-      textDirection: state.textDirection,
-      child: Scaffold(
-        backgroundColor: c.bg,
-        body: SafeArea(
-          child: Column(
-            children: [
-              // ── Top Bar ──
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
-                  children: [
-                    // Back button
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: c.surface2,
-                          borderRadius: BorderRadius.circular(11),
-                          border: Border.all(color: c.divider),
-                        ),
-                        child: Icon(
-                          Icons.arrow_back_rounded,
-                          size: 18,
-                          color: c.textPrimary,
-                        ),
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Top Bar ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: c.surface2,
+                        borderRadius: BorderRadius.circular(11),
+                        border: Border.all(color: c.divider),
+                      ),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        size: 18,
+                        color: c.textPrimary,
                       ),
                     ),
+                  ),
 
-                    const SizedBox(width: 14),
+                  const SizedBox(width: 14),
 
-                    // Branch name
-                    Expanded(
-                      child: Text(
-                        widget.branch.nameFor(state.language),
-                        style: AppText.latin(
-                          color: c.textPrimary,
-                          size: 20,
-                          weight: FontWeight.w700,
-                        ),
+                  Expanded(
+                    child: Text(
+                      widget.branch.nameFor(state.language),
+                      style: AppText.latin(
+                        color: c.textPrimary,
+                        size: 20,
+                        weight: FontWeight.w700,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
 
-              const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-              // ── Content ──
-              Expanded(
-                child: ListenableBuilder(
-                  listenable: widget.catalogService,
-                  builder: (context, _) {
-                    final books = widget.catalogService
-                        .booksInBranch(widget.branch.id);
+            // ── Content ──
+            Expanded(
+              child: ListenableBuilder(
+                listenable: widget.catalogService,
+                builder: (context, _) {
+                  final books = widget.catalogService
+                      .booksInBranch(widget.branch.id);
 
-                    // Coming Soon — no books in this branch
-                    if (books.isEmpty) {
-                      return _ComingSoon(
-                        branch: widget.branch,
-                        colors: c,
-                        language: state.language,
-                      );
-                    }
-
-                    // Book list
-                    return ListView.separated(
-                      padding:
-                          const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                      itemCount: books.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final book = books[index];
-                        return _BranchBookCard(
-                          book: book,
-                          colors: c,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => BookDetailScreen(
-                                  book: book,
-                                  catalogService:
-                                      widget.catalogService,
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
+                  if (books.isEmpty) {
+                    return _ComingSoon(
+                      branch: widget.branch,
+                      colors: c,
+                      language: state.language,
                     );
-                  },
-                ),
+                  }
+
+                  return ListView.separated(
+                    padding:
+                        const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                    itemCount: books.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final book = books[index];
+                      return _BranchBookCard(
+                        book: book,
+                        colors: c,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => BookDetailScreen(
+                                book: book,
+                                catalogService:
+                                    widget.catalogService,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -154,7 +147,6 @@ class _ComingSoon extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Icon container
             Container(
               width: 88,
               height: 88,
@@ -244,6 +236,13 @@ class _BranchBookCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
 
+    // Total parts across all teachers for this book
+    final totalParts = book.teacherAudio
+        .fold(0, (sum, t) => sum + t.totalParts);
+
+    // Number of teachers
+    final teacherCount = book.teacherAudio.length;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -289,6 +288,7 @@ class _BranchBookCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // NEW badge
                   if (book.isNew || book.isRecentlyAdded)
                     Container(
                       margin: const EdgeInsets.only(bottom: 6),
@@ -309,6 +309,7 @@ class _BranchBookCard extends StatelessWidget {
                       ),
                     ),
 
+                  // Arabic title
                   Text(
                     book.titleAr,
                     textDirection: TextDirection.rtl,
@@ -322,6 +323,7 @@ class _BranchBookCard extends StatelessWidget {
 
                   const SizedBox(height: 4),
 
+                  // Author
                   Text(
                     book.authorShort,
                     textDirection: TextDirection.rtl,
@@ -333,8 +335,10 @@ class _BranchBookCard extends StatelessWidget {
 
                   const SizedBox(height: 8),
 
+                  // Stats row
                   Row(
                     children: [
+                      // Pages
                       Icon(
                         Icons.menu_book_outlined,
                         size: 12,
@@ -348,7 +352,10 @@ class _BranchBookCard extends StatelessWidget {
                           size: 11,
                         ),
                       ),
-                      if (book.hasAudio) ...[
+
+                      // Audio info
+                      if (book.hasAudio &&
+                          book.teacherAudio.isNotEmpty) ...[
                         const SizedBox(width: 10),
                         Icon(
                           Icons.headphones_rounded,
@@ -357,7 +364,9 @@ class _BranchBookCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${book.audioParts} parts',
+                          // Show teacher count + total parts
+                          '$teacherCount ${teacherCount == 1 ? 'teacher' : 'teachers'}'
+                          ' · $totalParts parts',
                           style: AppText.latin(
                             color: c.goldText,
                             size: 11,
