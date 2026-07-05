@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import '../widgets/book_cover.dart';
 import 'book_detail_screen.dart';
 
-/// Library tab — uses shared CatalogService from AppState.
+/// Library tab — full book catalog with search.
 class LibraryTab extends StatefulWidget {
   const LibraryTab({super.key});
 
@@ -73,9 +74,8 @@ class _LibraryTabState extends State<LibraryTab> {
                     Expanded(
                       child: TextField(
                         controller: _searchController,
-                        onChanged: (v) {
-                          setState(() => _searchQuery = v);
-                        },
+                        onChanged: (v) =>
+                            setState(() => _searchQuery = v),
                         style: AppText.latin(
                           color: c.textPrimary,
                           size: 14,
@@ -98,7 +98,8 @@ class _LibraryTabState extends State<LibraryTab> {
                           setState(() => _searchQuery = '');
                         },
                         child: Padding(
-                          padding: const EdgeInsets.only(right: 12),
+                          padding:
+                              const EdgeInsets.only(right: 12),
                           child: Icon(
                             Icons.close_rounded,
                             size: 18,
@@ -118,7 +119,6 @@ class _LibraryTabState extends State<LibraryTab> {
               child: ListenableBuilder(
                 listenable: state.catalogService,
                 builder: (context, _) {
-                  // Loading
                   if (state.catalogService.isLoading &&
                       !state.catalogService.hasData) {
                     return Center(
@@ -129,14 +129,14 @@ class _LibraryTabState extends State<LibraryTab> {
                     );
                   }
 
-                  // Error
                   if (state.catalogService.error != null &&
                       !state.catalogService.hasData) {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32),
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
                           children: [
                             Icon(
                               Icons.wifi_off_rounded,
@@ -163,10 +163,12 @@ class _LibraryTabState extends State<LibraryTab> {
                             ),
                             const SizedBox(height: 24),
                             GestureDetector(
-                              onTap: () =>
-                                  state.catalogService.refresh(),
+                              onTap: () => state
+                                  .catalogService
+                                  .refresh(),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
+                                padding:
+                                    const EdgeInsets.symmetric(
                                   horizontal: 24,
                                   vertical: 12,
                                 ),
@@ -191,13 +193,14 @@ class _LibraryTabState extends State<LibraryTab> {
                     );
                   }
 
-                  final books =
-                      state.catalogService.search(_searchQuery);
+                  final books = state.catalogService
+                      .search(_searchQuery);
 
                   if (books.isEmpty) {
                     return Center(
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
                         children: [
                           Icon(
                             Icons.search_off_rounded,
@@ -213,35 +216,26 @@ class _LibraryTabState extends State<LibraryTab> {
                               weight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Try a different search term',
-                            style: AppText.latin(
-                              color: c.textMuted,
-                              size: 13,
-                            ),
-                          ),
                         ],
                       ),
                     );
                   }
 
                   return ListView.separated(
-                    padding:
-                        const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                    padding: const EdgeInsets.fromLTRB(
+                        20, 0, 20, 24),
                     itemCount: books.length,
                     separatorBuilder: (_, __) =>
                         const SizedBox(height: 12),
                     itemBuilder: (context, index) {
-                      final book = books[index];
                       return _BookCard(
-                        book: book,
+                        book: books[index],
                         colors: c,
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => BookDetailScreen(
-                                book: book,
+                                book: books[index],
                                 catalogService:
                                     state.catalogService,
                               ),
@@ -289,49 +283,32 @@ class _BookCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Cover
-            Container(
+            // ← Real cover from PDF
+            BookCoverWidget(
+              book: book,
               width: 58,
               height: 78,
-              decoration: BoxDecoration(
-                color: c.brand.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(10),
-                border:
-                    Border.all(color: c.brand.withOpacity(0.2)),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  book.localCoverAsset,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Center(
-                    child: Icon(
-                      Icons.menu_book_rounded,
-                      size: 26,
-                      color: c.brand,
-                    ),
-                  ),
-                ),
-              ),
+              borderRadius: 10,
             ),
 
             const SizedBox(width: 14),
 
-            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (book.isNew || book.isRecentlyAdded)
                     Container(
-                      margin: const EdgeInsets.only(bottom: 6),
+                      margin:
+                          const EdgeInsets.only(bottom: 6),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 7,
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
                         color: c.brand.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(5),
+                        borderRadius:
+                            BorderRadius.circular(5),
                         border: Border.all(
                           color: c.brand.withOpacity(0.3),
                         ),
@@ -371,7 +348,8 @@ class _BookCard extends StatelessWidget {
                     runSpacing: 4,
                     children: [
                       ...book.branches.map((branchId) {
-                        final branch = Catalog.branches.firstWhere(
+                        final branch =
+                            Catalog.branches.firstWhere(
                           (b) => b.id == branchId,
                           orElse: () => const Branch(
                             id: '',
@@ -400,7 +378,6 @@ class _BookCard extends StatelessWidget {
             ),
 
             const SizedBox(width: 8),
-
             Icon(
               Icons.chevron_right_rounded,
               size: 18,
@@ -429,7 +406,6 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return Container(
       padding:
           const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
