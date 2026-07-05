@@ -4,6 +4,7 @@ import '../core/catalog_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import '../widgets/book_cover.dart';
 import 'lessons_screen.dart';
 import 'pdf_reader_screen.dart';
 
@@ -81,7 +82,8 @@ class BookDetailScreen extends StatelessWidget {
                       downloadService: state.downloadService,
                     ),
                     const SizedBox(height: 20),
-                    if (book.hasAudio && book.teacherIds.isNotEmpty)
+                    if (book.hasAudio &&
+                        book.teacherAudio.isNotEmpty)
                       _TeachersSection(
                         book: book,
                         catalogService: catalogService,
@@ -133,30 +135,16 @@ class _HeroCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
+              // ── Real cover via BookCoverWidget ──
+              BookCoverWidget(
+                book: book,
                 width: 80,
                 height: 108,
-                decoration: BoxDecoration(
-                  color: c.brand.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: c.brand.withOpacity(0.2)),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
-                    book.localCoverAsset,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Center(
-                      child: Icon(
-                        Icons.menu_book_rounded,
-                        size: 36,
-                        color: c.brand,
-                      ),
-                    ),
-                  ),
-                ),
+                borderRadius: 12,
               ),
+
               const SizedBox(width: 16),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -165,22 +153,27 @@ class _HeroCard extends StatelessWidget {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
+                          margin:
+                              const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
                             color: c.brand.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius:
+                                BorderRadius.circular(6),
                             border: Border.all(
                               color: c.brand.withOpacity(0.3),
                             ),
                           ),
-                          child:
-                              Text('NEW', style: AppText.label(color: c.brand)),
+                          child: Text(
+                            'NEW',
+                            style: AppText.label(color: c.brand),
+                          ),
                         ),
                       ),
+
                     Text(
                       book.titleAr,
                       textDirection: TextDirection.rtl,
@@ -192,13 +185,16 @@ class _HeroCard extends StatelessWidget {
                         height: 1.6,
                       ),
                     ),
+
                     const SizedBox(height: 12),
+
                     Wrap(
                       spacing: 6,
                       runSpacing: 4,
                       alignment: WrapAlignment.end,
                       children: book.branches.map((branchId) {
-                        final branch = Catalog.branches.firstWhere(
+                        final branch =
+                            Catalog.branches.firstWhere(
                           (b) => b.id == branchId,
                           orElse: () => const Branch(
                             id: '',
@@ -214,7 +210,8 @@ class _HeroCard extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: c.brand.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius:
+                                BorderRadius.circular(6),
                             border: Border.all(
                               color: c.brand.withOpacity(0.2),
                             ),
@@ -230,17 +227,24 @@ class _HeroCard extends StatelessWidget {
                         );
                       }).toList(),
                     ),
+
                     const SizedBox(height: 10),
+
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Icon(Icons.menu_book_outlined,
-                            size: 13, color: c.textFaint),
+                        Icon(
+                          Icons.menu_book_outlined,
+                          size: 13,
+                          color: c.textFaint,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '${book.pages} pages',
-                          style:
-                              AppText.latin(color: c.textFaint, size: 12),
+                          style: AppText.latin(
+                            color: c.textFaint,
+                            size: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -249,13 +253,18 @@ class _HeroCard extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 16),
           Divider(color: c.divider, height: 1),
           const SizedBox(height: 14),
+
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('AUTHOR', style: AppText.label(color: c.textFaint)),
+              Text(
+                'AUTHOR',
+                style: AppText.label(color: c.textFaint),
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -275,7 +284,10 @@ class _HeroCard extends StatelessWidget {
                     Text(
                       book.authorEn,
                       textAlign: TextAlign.right,
-                      style: AppText.latin(color: c.textMuted, size: 12),
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -311,7 +323,6 @@ class _PdfSectionState extends State<_PdfSection> {
   String get _fileId => DownloadService.pdfId(widget.book.id);
 
   Future<void> _openBook(BuildContext context) async {
-    // First check DownloadService
     if (!widget.downloadService.isDownloaded(_fileId)) {
       setState(() => _errorMessage =
           'File not found. Please download again.');
@@ -339,8 +350,10 @@ class _PdfSectionState extends State<_PdfSection> {
     );
   }
 
-  Future<void> _startDownload() async {
+  Future<void> _startDownload(BuildContext context) async {
     setState(() => _errorMessage = null);
+    final state = AppState.of(context);
+
     await widget.downloadService.download(
       fileId: _fileId,
       url: widget.book.pdfUrl,
@@ -349,8 +362,19 @@ class _PdfSectionState extends State<_PdfSection> {
       onError: (e) {
         if (mounted) setState(() => _errorMessage = e);
       },
-      onComplete: () {
-        if (mounted) setState(() {});
+      onComplete: () async {
+        if (mounted) {
+          setState(() {});
+          // ← Trigger cover extraction after download
+          final path = await widget.downloadService
+              .localPath(_fileId);
+          if (path != null) {
+            state.onPdfDownloaded(
+              bookId: widget.book.id,
+              pdfPath: path,
+            );
+          }
+        }
       },
     );
   }
@@ -388,7 +412,7 @@ class _PdfSectionState extends State<_PdfSection> {
                 if (isDownloaded && !isDownloading) {
                   _openBook(context);
                 } else if (!isDownloading && hasUrl) {
-                  _startDownload();
+                  _startDownload(context);
                 }
               },
               child: Container(
@@ -407,7 +431,6 @@ class _PdfSectionState extends State<_PdfSection> {
                   children: [
                     Row(
                       children: [
-                        // Status circle
                         Container(
                           width: 52,
                           height: 52,
@@ -431,7 +454,8 @@ class _PdfSectionState extends State<_PdfSection> {
                               ? Padding(
                                   padding:
                                       const EdgeInsets.all(14),
-                                  child: CircularProgressIndicator(
+                                  child:
+                                      CircularProgressIndicator(
                                     value: progress > 0
                                         ? progress
                                         : null,
@@ -445,7 +469,8 @@ class _PdfSectionState extends State<_PdfSection> {
                                       : !hasUrl
                                           ? Icons
                                               .hourglass_empty_rounded
-                                          : Icons.download_rounded,
+                                          : Icons
+                                              .download_rounded,
                                   size: 22,
                                   color: isDownloaded
                                       ? Colors.white
@@ -500,7 +525,6 @@ class _PdfSectionState extends State<_PdfSection> {
                           ),
                         ),
 
-                        // Cancel button when downloading
                         if (isDownloading)
                           GestureDetector(
                             onTap: () {
@@ -515,7 +539,8 @@ class _PdfSectionState extends State<_PdfSection> {
                                 borderRadius:
                                     BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: c.danger.withOpacity(0.3),
+                                  color:
+                                      c.danger.withOpacity(0.3),
                                 ),
                               ),
                               child: Icon(
@@ -551,7 +576,6 @@ class _PdfSectionState extends State<_PdfSection> {
                       ],
                     ),
 
-                    // Progress bar + speed
                     if (isDownloading) ...[
                       const SizedBox(height: 12),
                       ClipRRect(
@@ -560,7 +584,8 @@ class _PdfSectionState extends State<_PdfSection> {
                           value: progress > 0 ? progress : null,
                           backgroundColor: c.surface2,
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(c.brand),
+                              AlwaysStoppedAnimation<Color>(
+                                  c.brand),
                           minHeight: 4,
                         ),
                       ),
@@ -590,14 +615,14 @@ class _PdfSectionState extends State<_PdfSection> {
                       ),
                     ],
 
-                    // Error
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: c.dangerBg,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius:
+                              BorderRadius.circular(8),
                           border: Border.all(
                             color: c.danger.withOpacity(0.3),
                           ),
@@ -664,8 +689,8 @@ class _TeachersSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
 
-    final teachers = book.teacherIds
-        .map((id) => catalogService.teacherById(id))
+    final teachers = book.teacherAudio
+        .map((ta) => catalogService.teacherById(ta.teacherId))
         .where((t) => t != null)
         .cast<Teacher>()
         .toList();
@@ -675,8 +700,10 @@ class _TeachersSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('TEACHING SCHOLARS',
-            style: AppText.label(color: c.textFaint)),
+        Text(
+          'TEACHING SCHOLARS',
+          style: AppText.label(color: c.textFaint),
+        ),
         const SizedBox(height: 6),
         Text(
           'These scholars provide audio explanations for this book.',
@@ -737,7 +764,8 @@ class _TeacherCard extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: c.brand.withOpacity(0.12),
-                border: Border.all(color: c.brand.withOpacity(0.25)),
+                border: Border.all(
+                    color: c.brand.withOpacity(0.25)),
               ),
               alignment: Alignment.center,
               child: Text(
@@ -767,8 +795,10 @@ class _TeacherCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     teacher.nameFor(language),
-                    style:
-                        AppText.latin(color: c.textMuted, size: 12),
+                    style: AppText.latin(
+                      color: c.textMuted,
+                      size: 12,
+                    ),
                   ),
                 ],
               ),
@@ -782,8 +812,11 @@ class _TeacherCard extends StatelessWidget {
                 border: Border.all(
                     color: c.goldText.withOpacity(0.3)),
               ),
-              child: Icon(Icons.headphones_rounded,
-                  size: 16, color: c.goldText),
+              child: Icon(
+                Icons.headphones_rounded,
+                size: 16,
+                color: c.goldText,
+              ),
             ),
           ],
         ),
