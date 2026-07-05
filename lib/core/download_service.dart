@@ -5,6 +5,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Handles all file downloads — PDFs and audio files.
+/// Cover extraction happens automatically after PDF download
+/// regardless of where the user is in the app.
 class DownloadService extends ChangeNotifier {
 
   final Map<String, double> _progress = {};
@@ -15,6 +17,12 @@ class DownloadService extends ChangeNotifier {
   final Map<String, Map<String, dynamic>> _activeDownloads = {};
 
   static const _downloadedKey = 'downloaded_files';
+
+  // ─── Cover extraction callback ─────────────────────
+  // Set by AppState after init so DownloadService can
+  // trigger cover extraction without importing CoverService
+  Future<void> Function(String bookId, String pdfPath)?
+      onPdfDownloadComplete;
 
   // ─── Init ──────────────────────────────────────────
 
@@ -52,7 +60,6 @@ class DownloadService extends ChangeNotifier {
       _progress[fileId] ?? 0;
 
   int get downloadedCount => _downloaded.length;
-
   bool get hasActiveDownloads => _activeDownloads.isNotEmpty;
 
   List<Map<String, dynamic>> get activeDownloads =>
@@ -68,21 +75,16 @@ class DownloadService extends ChangeNotifier {
     String? displayName,
     String? bookId,
   }) async {
-    // Already downloading
     if (_downloading[fileId] == true) return;
-
-    // Already downloaded
     if (_downloaded.contains(fileId)) {
       onComplete();
       return;
     }
-
     if (url.isEmpty) {
       onError('This file is not available yet.');
       return;
     }
 
-    // Reset all states cleanly
     _cancelled[fileId] = false;
     _paused[fileId] = false;
     _downloading[fileId] = true;
@@ -94,6 +96,7 @@ class DownloadService extends ChangeNotifier {
       'bookId': bookId ?? '',
       'progress': 0.0,
       'speedKbps': 0.0,
+      'paused': false,
       'startedAt': DateTime.now(),
     };
 
@@ -126,7 +129,7 @@ class DownloadService extends ChangeNotifier {
             return;
           }
 
-          // Check paused — wait until unpaused or cancelled
+          // Check paused
           while (_paused[fileId] == true) {
             if (_cancelled[fileId] == true) {
               await sink.close();
@@ -166,7 +169,7 @@ class DownloadService extends ChangeNotifier {
           }
         }
 
-        // Download complete
+        // ── Download complete ──
         await sink.flush();
         await sink.close();
 
@@ -174,6 +177,20 @@ class DownloadService extends ChangeNotifier {
         await _saveDownloaded();
         _completeCleanup(fileId);
         notifyListeners();
+
+        // ── Trigger cover extraction if this is a PDF ──
+        // This runs REGARDLESS of where the user is in the app
+        // because it's called here, not in the UI
+        if (fileId.startsWith('pdf_') &&
+            onPdfDownloadComplete != null) {
+          final pdfPath = (await _fileFor(fileId)).path;
+          final extractBookId =
+              bookId ?? fileId.replaceFirst('pdf_', '');
+          // Run in background — don't await
+          onPdfDownloadComplete!(extractBookId, pdfPath)
+              .catchError((_) {});
+        }
+
         onComplete();
       } catch (e) {
         await sink.close();
@@ -190,15 +207,10 @@ class DownloadService extends ChangeNotifier {
 
   // ─── Cancel ────────────────────────────────────────
 
-  /// Cancels a download immediately.
-  /// UI returns to "Download" state — user can retry.
   void cancelDownload(String fileId) {
     if (_downloading[fileId] != true) return;
-
-    // Set cancelled flag — loop will detect this
     _cancelled[fileId] = true;
-
-    // Immediately update UI — don't wait for loop
+    // Immediately update UI — don't wait for stream loop
     _cancelCleanup(fileId);
   }
 
@@ -250,7 +262,6 @@ class DownloadService extends ChangeNotifier {
   // ─── Delete ────────────────────────────────────────
 
   Future<void> deleteFile(String fileId) async {
-    // Cancel if downloading
     if (_downloading[fileId] == true) {
       cancelDownload(fileId);
       await Future.delayed(const Duration(milliseconds: 100));
@@ -270,7 +281,6 @@ class DownloadService extends ChangeNotifier {
   }
 
   Future<void> deleteAll() async {
-    // Cancel all active
     for (final id in _downloading.keys.toList()) {
       if (_downloading[id] == true) {
         _cancelled[id] = true;
@@ -312,9 +322,7 @@ class DownloadService extends ChangeNotifier {
     if (!await dir.exists()) return 0;
     double total = 0;
     await for (final entity in dir.list(recursive: true)) {
-      if (entity is File) {
-        total += await entity.length();
-      }
+      if (entity is File) total += await entity.length();
     }
     return total / (1024 * 1024);
   }
@@ -339,8 +347,7 @@ class DownloadService extends ChangeNotifier {
 
   Future<Directory> _downloadsDir() async {
     final appDir = await getApplicationDocumentsDirectory();
-    final dir =
-        Directory('${appDir.path}/rawdah_downloads');
+    final dir = Directory('${appDir.path}/rawdah_downloads');
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
