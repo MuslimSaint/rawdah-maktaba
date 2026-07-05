@@ -1,6 +1,28 @@
 /// Data models for the Rawdah Maktaba app.
-/// No teacher names, book titles, or content
-/// is hardcoded here — everything comes from catalog.json.
+
+// ─── Announcement ────────────────────────────────────────
+// Optional banner message pushed remotely via catalog.json.
+// Set active: false to hide. No app update needed.
+
+class Announcement {
+  final bool active;
+  final String message;
+  final String type; // 'info', 'warning', 'success'
+
+  const Announcement({
+    required this.active,
+    required this.message,
+    required this.type,
+  });
+
+  factory Announcement.fromJson(Map<String, dynamic> json) {
+    return Announcement(
+      active: json['active'] as bool? ?? false,
+      message: json['message'] as String? ?? '',
+      type: json['type'] as String? ?? 'info',
+    );
+  }
+}
 
 // ─── Teacher ────────────────────────────────────────────
 
@@ -31,8 +53,6 @@ class Teacher {
     );
   }
 
-  /// Returns name in the requested language.
-  /// Falls back to English if translation not available.
   String nameFor(String lang) {
     switch (lang) {
       case 'ar':
@@ -46,19 +66,9 @@ class Teacher {
 }
 
 // ─── TeacherAudio ────────────────────────────────────────
-// Represents ONE teacher's audio for ONE specific book.
-// Completely independent per teacher — different teachers
-// of the same book can have entirely different part counts,
-// different missing episodes, different total lengths.
-// There is NO maximum part number.
 
 class TeacherAudio {
   final String teacherId;
-
-  /// The actual part numbers this teacher has recorded.
-  /// Example: [1,2,3,4,5,6,7,9,10] — episode 8 is missing.
-  /// Can contain any positive integers, no maximum.
-  /// Order matters — displayed in this exact order.
   final List<int> parts;
 
   const TeacherAudio({
@@ -75,15 +85,8 @@ class TeacherAudio {
     );
   }
 
-  /// Total number of parts this teacher has recorded.
-  /// Has no maximum — could be 5 or 500.
   int get totalParts => parts.length;
-
-  /// Whether a specific part number exists for this teacher.
   bool hasPart(int partNumber) => parts.contains(partNumber);
-
-  /// Returns the index of a part number in the parts list.
-  /// Returns -1 if not found.
   int indexOf(int partNumber) => parts.indexOf(partNumber);
 }
 
@@ -99,13 +102,7 @@ class Book {
   final int pages;
   final double pdfSizeMb;
   final bool hasAudio;
-
-  /// Per-teacher audio. Each teacher is completely independent.
-  /// One teacher may have 12 parts, another may have 500.
-  /// A teacher can teach multiple books — each with
-  /// their own independent part list for that book.
   final List<TeacherAudio> teacherAudio;
-
   final bool isNew;
   final String pdfUrl;
   final String? coverUrl;
@@ -162,13 +159,9 @@ class Book {
 
   String get localCoverAsset => 'assets/covers/$id.jpg';
 
-  /// All teacher IDs that have audio for this book.
-  /// Comes entirely from catalog — never hardcoded.
   List<String> get teacherIds =>
       teacherAudio.map((t) => t.teacherId).toList();
 
-  /// Get TeacherAudio for a specific teacher ID.
-  /// Returns null if this teacher has no audio for this book.
   TeacherAudio? audioForTeacher(String teacherId) {
     try {
       return teacherAudio
@@ -180,9 +173,6 @@ class Book {
 }
 
 // ─── Branch ──────────────────────────────────────────────
-// Branches ARE fixed by design — there are exactly 6
-// Islamic knowledge branches. These do not change.
-// Branch ICONS are chosen in the UI layer, not here.
 
 class Branch {
   final String id;
@@ -215,11 +205,17 @@ class Catalog {
   final List<Book> books;
   final List<Teacher> teachers;
   final String version;
+  final String minAppVersion;
+  final String audioBaseUrl;
+  final Announcement? announcement;
 
   const Catalog({
     required this.books,
     required this.teachers,
     required this.version,
+    required this.minAppVersion,
+    required this.audioBaseUrl,
+    this.announcement,
   });
 
   factory Catalog.fromJson(Map<String, dynamic> json) {
@@ -231,10 +227,17 @@ class Catalog {
           .map((t) => Teacher.fromJson(t as Map<String, dynamic>))
           .toList(),
       version: json['version'] as String? ?? '1',
+      minAppVersion:
+          json['minAppVersion'] as String? ?? '1.0.0',
+      audioBaseUrl: json['audioBaseUrl'] as String? ??
+          'https://github.com/MuslimSaint/rawdah-catalog/releases/download/v1.0-books',
+      announcement: json['announcement'] != null
+          ? Announcement.fromJson(
+              json['announcement'] as Map<String, dynamic>)
+          : null,
     );
   }
 
-  /// Find teacher by ID — comes from catalog, never hardcoded.
   Teacher? teacherById(String id) {
     try {
       return teachers.firstWhere((t) => t.id == id);
@@ -256,11 +259,6 @@ class Catalog {
     }).toList();
   }
 
-  // ─── The 6 fixed branches ─────────────────────────────
-  // These are the Islamic knowledge classification system.
-  // They are architectural constants, not content data.
-  // Branch NAMES come from here.
-  // Branch ICONS are assigned in the UI (home_tab.dart).
   static const List<Branch> branches = [
     Branch(
       id: 'hadith',
