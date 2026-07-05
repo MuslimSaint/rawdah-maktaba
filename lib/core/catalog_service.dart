@@ -6,11 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 /// Loads and caches the book catalog.
-/// Fetches from GitHub when online, falls back to cache when offline.
 class CatalogService extends ChangeNotifier {
   static const _cacheKey = 'catalog_json';
   static const _catalogUrl =
-    'https://raw.githubusercontent.com/MuslimSaint/rawdah-catalog/main/catalog.json';
+      'https://raw.githubusercontent.com/MuslimSaint/rawdah-catalog/main/catalog.json';
 
   Catalog? _catalog;
   bool _isLoading = false;
@@ -21,16 +20,27 @@ class CatalogService extends ChangeNotifier {
   String? get error => _error;
   bool get hasData => _catalog != null;
 
+  // ─── Catalog data ──────────────────────────────────
+
+  List<Book> get books => _catalog?.books ?? [];
+  List<Teacher> get teachers => _catalog?.teachers ?? [];
+  String get audioBaseUrl =>
+      _catalog?.audioBaseUrl ??
+      'https://github.com/MuslimSaint/rawdah-catalog/releases/download/v1.0-books';
+
+  /// Active announcement to show as banner, or null.
+  Announcement? get activeAnnouncement {
+    final a = _catalog?.announcement;
+    if (a == null || !a.active || a.message.isEmpty) {
+      return null;
+    }
+    return a;
+  }
+
   // ─── Load ────────────────────────────────────────────
 
-  /// Loads the catalog.
-  /// First shows cached version immediately (if available),
-  /// then fetches fresh version from GitHub in background.
   Future<void> load() async {
-    // Step 1: Load from cache immediately (instant, no wait)
     await _loadFromCache();
-
-    // Step 2: Fetch fresh version from network in background
     await _fetchFromNetwork();
   }
 
@@ -43,9 +53,7 @@ class CatalogService extends ChangeNotifier {
         _catalog = Catalog.fromJson(json);
         notifyListeners();
       }
-    } catch (_) {
-      // Cache corrupted — ignore, network will fix it
-    }
+    } catch (_) {}
   }
 
   Future<void> _fetchFromNetwork() async {
@@ -59,59 +67,53 @@ class CatalogService extends ChangeNotifier {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final json =
+            jsonDecode(response.body) as Map<String, dynamic>;
         _catalog = Catalog.fromJson(json);
 
-        // Cache the fresh version
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_cacheKey, response.body);
-
         _error = null;
       } else {
-        _error = 'Failed to load catalog (${response.statusCode})';
+        _error =
+            'Failed to load catalog (${response.statusCode})';
       }
     } catch (e) {
-      // Network error — use cache if available
       if (_catalog == null) {
-        _error = 'No internet connection and no cached data available.';
+        _error =
+            'No internet connection and no cached data.';
       }
-      // If we have cache, silently ignore network error
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Force refresh from network.
   Future<void> refresh() async {
     await _fetchFromNetwork();
   }
 
   // ─── Helpers ─────────────────────────────────────────
 
-  /// All books in the catalog.
-  List<Book> get books => _catalog?.books ?? [];
+  List<Book> booksInBranch(String branchId) =>
+      _catalog?.booksInBranch(branchId) ?? [];
 
-  /// All teachers in the catalog.
-  List<Teacher> get teachers => _catalog?.teachers ?? [];
+  List<Book> search(String query) =>
+      _catalog?.search(query) ?? [];
 
-  /// Books in a specific branch.
-  List<Book> booksInBranch(String branchId) {
-    return _catalog?.booksInBranch(branchId) ?? [];
-  }
+  Teacher? teacherById(String id) =>
+      _catalog?.teacherById(id);
 
-  /// Search books.
-  List<Book> search(String query) {
-    return _catalog?.search(query) ?? [];
-  }
+  int bookCountForBranch(String branchId) =>
+      booksInBranch(branchId).length;
 
-  /// Find teacher by ID.
-  Teacher? teacherById(String id) {
-    return _catalog?.teacherById(id);
-  }
-
-  /// Book count for a branch (used in Home tab grid).
-  int bookCountForBranch(String branchId) {
-    return booksInBranch(branchId).length;
+  /// Constructs the audio URL for a specific part.
+  /// Uses audioBaseUrl from catalog — no hardcoding.
+  String audioUrl({
+    required String bookId,
+    required String teacherId,
+    required int partNumber,
+  }) {
+    return '$audioBaseUrl/${bookId}_${teacherId}_$partNumber.mp3';
   }
 }
