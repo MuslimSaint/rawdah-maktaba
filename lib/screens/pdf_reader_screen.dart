@@ -5,7 +5,7 @@ import '../core/models.dart';
 import '../core/theme.dart';
 
 /// PDF reader screen.
-/// Tracks reading progress and restores last page.
+/// Fixed: blank screen on open when restoring saved page.
 class PdfReaderScreen extends StatefulWidget {
   final Book book;
   final String filePath;
@@ -24,38 +24,31 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   int _currentPage = 0;
   int _totalPages = 0;
   bool _isReady = false;
-  bool _hasRestoredPage = false;
+  bool _isRendering = true; // ← Fix: track render state
   PDFViewController? _pdfController;
-  int _savedPage = 0;
+  int _defaultPage = 0;
 
   @override
   void initState() {
     super.initState();
-    // Read saved page before PDF loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final state = AppState.of(context);
-      if (state.lastBookId == widget.book.id) {
-        _savedPage = state.lastBookPage;
+      if (state.lastBookId == widget.book.id &&
+          state.lastBookPage > 0) {
+        _defaultPage = state.lastBookPage;
+        _currentPage = state.lastBookPage;
       }
     });
-  }
-
-  void _tryRestorePage() {
-    if (_hasRestoredPage) return;
-    if (_pdfController == null) return;
-    if (_savedPage <= 0) return;
-
-    _hasRestoredPage = true;
-    _pdfController!.setPage(_savedPage);
   }
 
   Future<void> _onPageChanged(int page, int total) async {
     setState(() {
       _currentPage = page;
       _totalPages = total;
+      // ← Fix: mark as no longer rendering when user changes page
+      _isRendering = false;
     });
 
-    // Save progress
     final state = AppState.of(context);
     await state.setLastOpenedBook(
       bookId: widget.book.id,
@@ -70,11 +63,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
 
-    // Get saved page for defaultPage
-    int defaultPage = 0;
+    // Get saved page
     if (state.lastBookId == widget.book.id &&
-        state.lastBookPage > 0) {
-      defaultPage = state.lastBookPage;
+        state.lastBookPage > 0 &&
+        _defaultPage == 0) {
+      _defaultPage = state.lastBookPage;
+      _currentPage = state.lastBookPage;
     }
 
     return Scaffold(
@@ -144,7 +138,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
               ),
             ),
 
-            // ── Reading Progress Bar ──
+            // ── Progress Bar ──
             if (_isReady && _totalPages > 0) ...[
               const SizedBox(height: 8),
               Padding(
@@ -168,60 +162,115 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
 
             // ── PDF Viewer ──
             Expanded(
-              child: PDFView(
-                filePath: widget.filePath,
-                enableSwipe: true,
-                swipeHorizontal: false,
-                autoSpacing: true,
-                pageFling: false,
-                pageSnap: false,
-                fitPolicy: FitPolicy.WIDTH,
-                defaultPage: defaultPage,
-                onRender: (pages) {
-                  setState(() {
-                    _totalPages = pages ?? 0;
-                    _isReady = true;
-                    _currentPage = defaultPage;
-                  });
+              child: Stack(
+                children: [
+                  // PDF view always in tree
+                  PDFView(
+                    filePath: widget.filePath,
+                    enableSwipe: true,
+                    swipeHorizontal: false,
+                    autoSpacing: true,
+                    pageFling: false,
+                    pageSnap: false,
+                    fitPolicy: FitPolicy.WIDTH,
+                    defaultPage: _defaultPage,
+                    onRender: (pages) {
+                      setState(() {
+                        _totalPages = pages ?? 0;
+                        _isReady = true;
+                        // ← Fix: keep rendering=true until
+                        // first page change fires
+                        // For page 0, no change fires so clear it
+                        if (_defaultPage == 0) {
+                          _isRendering = false;
+                        }
+                      });
 
-                  // Record this book was opened
-                  final state = AppState.of(context);
-                  state.setLastOpenedBook(
-                    bookId: widget.book.id,
-                    bookTitle: widget.book.titleAr,
-                    page: defaultPage,
-                    totalPages: pages ?? 0,
-                  );
-                },
-                onViewCreated: (controller) {
-                  _pdfController = controller;
-                },
-                onPageChanged: (page, total) {
-                  _onPageChanged(page ?? 0, total ?? 0);
-                },
-                onError: (error) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Could not open PDF: $error',
-                          style: AppText.latin(
-                            color: Colors.white,
-                            size: 13,
+                      // Record opened book
+                      AppState.of(context).setLastOpenedBook(
+                        bookId: widget.book.id,
+                        bookTitle: widget.book.titleAr,
+                        page: _defaultPage,
+                        totalPages: pages ?? 0,
+                      );
+
+                      // ← Fix: delayed clear for non-zero pages
+                      // gives PDF time to jump to saved page
+                      if (_defaultPage > 0) {
+                        Future.delayed(
+                          const Duration(milliseconds: 600),
+                          () {
+                            if (mounted) {
+                              setState(() {
+                                _isRendering = false;
+                              });
+                            }
+                          },
+                        );
+                      }
+                    },
+                    onViewCreated: (controller) {
+                      _pdfController = controller;
+                    },
+                    onPageChanged: (page, total) {
+                      _onPageChanged(page ?? 0, total ?? 0);
+                    },
+                    onError: (error) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Could not open PDF: $error',
+                              style: AppText.latin(
+                                color: Colors.white,
+                                size: 13,
+                              ),
+                            ),
+                            backgroundColor: c.danger,
                           ),
+                        );
+                      }
+                    },
+                  ),
+
+                  // ← Fix: Loading overlay covers blank flash
+                  // Shows until PDF is fully rendered and jumped to page
+                  if (_isRendering || !_isReady)
+                    Container(
+                      color: c.bg,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              color: c.brand,
+                              strokeWidth: 2,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _defaultPage > 0
+                                  ? 'Opening to page ${_defaultPage + 1}...'
+                                  : 'Loading...',
+                              style: AppText.latin(
+                                color: c.textMuted,
+                                size: 13,
+                              ),
+                            ),
+                          ],
                         ),
-                        backgroundColor: c.danger,
                       ),
-                    );
-                  }
-                },
+                    ),
+                ],
               ),
             ),
 
             // ── Bottom Page Indicator ──
-            if (_isReady)
+            if (_isReady && !_isRendering)
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: c.card,
                   border: Border(
