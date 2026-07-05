@@ -3,10 +3,10 @@ import '../core/app_state.dart';
 import '../core/catalog_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import '../widgets/book_cover.dart';
 import 'book_detail_screen.dart';
 
 /// Shows all books in a specific branch.
-/// If branch has no books → shows professional Coming Soon screen.
 class BranchScreen extends StatefulWidget {
   final Branch branch;
   final CatalogService catalogService;
@@ -54,9 +54,7 @@ class _BranchScreenState extends State<BranchScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(width: 14),
-
                   Expanded(
                     child: Text(
                       widget.branch.nameFor(state.language),
@@ -73,7 +71,6 @@ class _BranchScreenState extends State<BranchScreen> {
 
             const SizedBox(height: 20),
 
-            // ── Content ──
             Expanded(
               child: ListenableBuilder(
                 listenable: widget.catalogService,
@@ -90,8 +87,8 @@ class _BranchScreenState extends State<BranchScreen> {
                   }
 
                   return ListView.separated(
-                    padding:
-                        const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                    padding: const EdgeInsets.fromLTRB(
+                        20, 0, 20, 24),
                     itemCount: books.length,
                     separatorBuilder: (_, __) =>
                         const SizedBox(height: 12),
@@ -164,9 +161,7 @@ class _ComingSoon extends StatelessWidget {
                 color: c.brand.withOpacity(0.5),
               ),
             ),
-
             const SizedBox(height: 24),
-
             Text(
               'Coming Soon',
               style: AppText.latin(
@@ -175,9 +170,7 @@ class _ComingSoon extends StatelessWidget {
                 weight: FontWeight.w700,
               ),
             ),
-
             const SizedBox(height: 12),
-
             Text(
               'Books for ${branch.nameFor(language)} are currently being prepared and verified by scholars.',
               textAlign: TextAlign.center,
@@ -187,9 +180,7 @@ class _ComingSoon extends StatelessWidget {
                 height: 1.6,
               ),
             ),
-
             const SizedBox(height: 24),
-
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 20,
@@ -236,11 +227,8 @@ class _BranchBookCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
 
-    // Total parts across all teachers for this book
     final totalParts = book.teacherAudio
         .fold(0, (sum, t) => sum + t.totalParts);
-
-    // Number of teachers
     final teacherCount = book.teacherAudio.length;
 
     return GestureDetector(
@@ -254,51 +242,32 @@ class _BranchBookCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Cover
-            Container(
+            // ← Real cover from PDF
+            BookCoverWidget(
+              book: book,
               width: 58,
               height: 78,
-              decoration: BoxDecoration(
-                color: c.brand.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: c.brand.withOpacity(0.2),
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset(
-                  book.localCoverAsset,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Center(
-                    child: Icon(
-                      Icons.menu_book_rounded,
-                      size: 26,
-                      color: c.brand,
-                    ),
-                  ),
-                ),
-              ),
+              borderRadius: 10,
             ),
 
             const SizedBox(width: 14),
 
-            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // NEW badge
                   if (book.isNew || book.isRecentlyAdded)
                     Container(
-                      margin: const EdgeInsets.only(bottom: 6),
+                      margin:
+                          const EdgeInsets.only(bottom: 6),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 7,
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
                         color: c.brand.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(5),
+                        borderRadius:
+                            BorderRadius.circular(5),
                         border: Border.all(
                           color: c.brand.withOpacity(0.3),
                         ),
@@ -309,7 +278,6 @@ class _BranchBookCard extends StatelessWidget {
                       ),
                     ),
 
-                  // Arabic title
                   Text(
                     book.titleAr,
                     textDirection: TextDirection.rtl,
@@ -323,7 +291,6 @@ class _BranchBookCard extends StatelessWidget {
 
                   const SizedBox(height: 4),
 
-                  // Author
                   Text(
                     book.authorShort,
                     textDirection: TextDirection.rtl,
@@ -335,10 +302,8 @@ class _BranchBookCard extends StatelessWidget {
 
                   const SizedBox(height: 8),
 
-                  // Stats row
                   Row(
                     children: [
-                      // Pages
                       Icon(
                         Icons.menu_book_outlined,
                         size: 12,
@@ -352,8 +317,6 @@ class _BranchBookCard extends StatelessWidget {
                           size: 11,
                         ),
                       ),
-
-                      // Audio info
                       if (book.hasAudio &&
                           book.teacherAudio.isNotEmpty) ...[
                         const SizedBox(width: 10),
@@ -364,9 +327,7 @@ class _BranchBookCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          // Show teacher count + total parts
-                          '$teacherCount ${teacherCount == 1 ? 'teacher' : 'teachers'}'
-                          ' · $totalParts parts',
+                          '$teacherCount ${teacherCount == 1 ? 'teacher' : 'teachers'} · $totalParts parts',
                           style: AppText.latin(
                             color: c.goldText,
                             size: 11,
@@ -380,7 +341,6 @@ class _BranchBookCard extends StatelessWidget {
             ),
 
             const SizedBox(width: 8),
-
             Icon(
               Icons.chevron_right_rounded,
               size: 18,
