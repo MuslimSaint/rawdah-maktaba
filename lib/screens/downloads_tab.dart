@@ -3,9 +3,10 @@ import '../core/app_state.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import '../core/download_service.dart';
+import '../widgets/book_cover.dart';
 import 'book_detail_screen.dart';
 
-/// Downloads tab — shows active downloads + completed downloads.
+/// Downloads tab — active downloads + completed downloads.
 class DownloadsTab extends StatefulWidget {
   const DownloadsTab({super.key});
 
@@ -44,8 +45,10 @@ class _DownloadsTabState extends State<DownloadsTab> {
   Future<void> _loadData() async {
     if (!mounted) return;
     final state = AppState.of(context);
-    final storage = await state.downloadService.totalStorageMb();
-    final files = await state.downloadService.downloadedFiles();
+    final storage =
+        await state.downloadService.totalStorageMb();
+    final files =
+        await state.downloadService.downloadedFiles();
     if (mounted) {
       setState(() {
         _totalStorageMb = storage;
@@ -87,8 +90,11 @@ class _DownloadsTabState extends State<DownloadsTab> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Cancel',
-                style: AppText.latin(color: c.textMuted, size: 14)),
+            child: Text(
+              'Cancel',
+              style:
+                  AppText.latin(color: c.textMuted, size: 14),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -145,14 +151,19 @@ class _DownloadsTabState extends State<DownloadsTab> {
                         ),
                         decoration: BoxDecoration(
                           color: c.dangerBg,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius:
+                              BorderRadius.circular(10),
                           border: Border.all(
-                              color: c.danger.withOpacity(0.3)),
+                            color: c.danger.withOpacity(0.3),
+                          ),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.delete_outline_rounded,
-                                size: 14, color: c.danger),
+                            Icon(
+                              Icons.delete_outline_rounded,
+                              size: 14,
+                              color: c.danger,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               'Delete All',
@@ -172,7 +183,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
 
             const SizedBox(height: 16),
 
-            // ── Content ──
             Expanded(
               child: _isLoading
                   ? Center(
@@ -184,9 +194,10 @@ class _DownloadsTabState extends State<DownloadsTab> {
                   : ListenableBuilder(
                       listenable: state.downloadService,
                       builder: (context, _) {
-                        final activeDownloads =
-                            state.downloadService.activeDownloads;
-                        final hasActive = activeDownloads.isNotEmpty;
+                        final activeDownloads = state
+                            .downloadService.activeDownloads;
+                        final hasActive =
+                            activeDownloads.isNotEmpty;
                         final hasCompleted =
                             _downloadedFiles.isNotEmpty;
 
@@ -213,42 +224,60 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                 final fileId =
                                     active['fileId'] as String;
                                 final displayName =
-                                    active['displayName'] as String;
+                                    active['displayName']
+                                        as String;
                                 final bookId =
                                     active['bookId'] as String;
                                 final prog =
-                                    active['progress'] as double;
+                                    active['progress']
+                                        as double;
                                 final speed =
-                                    active['speedKbps'] as double;
+                                    active['speedKbps']
+                                        as double;
+                                final paused =
+                                    active['paused'] as bool? ??
+                                        false;
 
                                 final book = _bookForId(
-                                    bookId,
-                                    state.catalogService.books);
+                                  bookId,
+                                  state.catalogService.books,
+                                );
 
                                 return Padding(
-                                  padding: const EdgeInsets.only(
-                                      bottom: 10),
+                                  padding:
+                                      const EdgeInsets.only(
+                                          bottom: 10),
                                   child: _ActiveDownloadCard(
                                     fileId: fileId,
-                                    displayName: book?.titleAr ??
-                                        displayName,
+                                    book: book,
+                                    displayName:
+                                        book?.titleAr ??
+                                            displayName,
                                     progress: prog,
                                     speedKbps: speed,
+                                    isPaused: paused,
                                     colors: c,
                                     onCancel: () => state
                                         .downloadService
                                         .cancelDownload(fileId),
+                                    onPause: () => state
+                                        .downloadService
+                                        .pauseDownload(fileId),
+                                    onResume: () => state
+                                        .downloadService
+                                        .resumeDownload(fileId),
                                   ),
                                 );
                               }),
                               const SizedBox(height: 20),
                             ],
 
-                            // ── Storage Card ──
+                            // ── Completed ──
                             if (hasCompleted) ...[
                               _StorageCard(
                                 totalMb: _totalStorageMb,
-                                fileCount: _downloadedFiles.length,
+                                fileCount:
+                                    _downloadedFiles.length,
                                 colors: c,
                               ),
                               const SizedBox(height: 20),
@@ -270,10 +299,10 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                   fileId,
                                   state.catalogService.books,
                                 );
-
                                 return Padding(
-                                  padding: const EdgeInsets.only(
-                                      bottom: 10),
+                                  padding:
+                                      const EdgeInsets.only(
+                                          bottom: 10),
                                   child: _DownloadedFileCard(
                                     fileId: fileId,
                                     book: book,
@@ -283,14 +312,16 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                         _deleteFile(fileId),
                                     onTap: book != null
                                         ? () {
-                                            Navigator.of(context)
+                                            Navigator.of(
+                                                    context)
                                                 .push(
                                               MaterialPageRoute(
                                                 builder: (_) =>
                                                     BookDetailScreen(
                                                   book: book,
-                                                  catalogService: state
-                                                      .catalogService,
+                                                  catalogService:
+                                                      state
+                                                          .catalogService,
                                                 ),
                                               ),
                                             );
@@ -341,19 +372,27 @@ class _DownloadsTabState extends State<DownloadsTab> {
 
 class _ActiveDownloadCard extends StatelessWidget {
   final String fileId;
+  final Book? book;
   final String displayName;
   final double progress;
   final double speedKbps;
+  final bool isPaused;
   final AppColors colors;
   final VoidCallback onCancel;
+  final VoidCallback onPause;
+  final VoidCallback onResume;
 
   const _ActiveDownloadCard({
     required this.fileId,
+    required this.book,
     required this.displayName,
     required this.progress,
     required this.speedKbps,
+    required this.isPaused,
     required this.colors,
     required this.onCancel,
+    required this.onPause,
+    required this.onResume,
   });
 
   @override
@@ -367,54 +406,51 @@ class _ActiveDownloadCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: c.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: c.brand.withOpacity(0.3)),
+        border: Border.all(
+          color: isPaused
+              ? c.goldText.withOpacity(0.4)
+              : c.brand.withOpacity(0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              // Animated download icon
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: c.brand.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(13),
-                  border: Border.all(
-                      color: c.brand.withOpacity(0.25)),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 30,
-                      height: 30,
-                      child: CircularProgressIndicator(
-                        value: progress > 0 ? progress : null,
-                        strokeWidth: 2.5,
-                        color: c.brand,
-                        backgroundColor:
-                            c.brand.withOpacity(0.15),
-                      ),
+              // Book cover or icon
+              if (book != null)
+                BookCoverWidget(
+                  book: book!,
+                  width: 46,
+                  height: 46,
+                  borderRadius: 10,
+                )
+              else
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: c.brand.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(
+                      color: c.brand.withOpacity(0.25),
                     ),
-                    Icon(
-                      isPdf
-                          ? Icons.picture_as_pdf_rounded
-                          : Icons.headphones_rounded,
-                      size: 14,
-                      color: c.brand,
-                    ),
-                  ],
+                  ),
+                  child: Icon(
+                    isPdf
+                        ? Icons.picture_as_pdf_rounded
+                        : Icons.headphones_rounded,
+                    size: 22,
+                    color: c.brand,
+                  ),
                 ),
-              ),
 
               const SizedBox(width: 12),
 
-              // Name + speed
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
                     Text(
                       displayName,
@@ -436,26 +472,34 @@ class _ActiveDownloadCard extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: c.brand.withOpacity(0.1),
+                            color: isPaused
+                                ? c.goldLine
+                                : c.brand.withOpacity(0.1),
                             borderRadius:
                                 BorderRadius.circular(5),
                           ),
                           child: Text(
-                            isPdf ? 'PDF' : 'Audio',
+                            isPaused ? 'Paused' : (isPdf ? 'PDF' : 'Audio'),
                             style: AppText.latin(
-                              color: c.brand,
+                              color: isPaused
+                                  ? c.goldText
+                                  : c.brand,
                               size: 10,
                               weight: FontWeight.w700,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        if (speedKbps > 0) ...[
-                          Icon(Icons.speed_rounded,
-                              size: 11, color: c.textFaint),
+                        if (speedKbps > 0 && !isPaused) ...[
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.speed_rounded,
+                            size: 11,
+                            color: c.textFaint,
+                          ),
                           const SizedBox(width: 3),
                           Text(
-                            DownloadService.formatSpeed(speedKbps),
+                            DownloadService.formatSpeed(
+                                speedKbps),
                             style: AppText.latin(
                               color: c.textFaint,
                               size: 11,
@@ -468,6 +512,29 @@ class _ActiveDownloadCard extends StatelessWidget {
                 ),
               ),
 
+              // Pause/Resume button
+              GestureDetector(
+                onTap: isPaused ? onResume : onPause,
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: c.surface2,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: c.divider),
+                  ),
+                  child: Icon(
+                    isPaused
+                        ? Icons.play_arrow_rounded
+                        : Icons.pause_rounded,
+                    size: 18,
+                    color: c.textPrimary,
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
               // Cancel button
               GestureDetector(
                 onTap: onCancel,
@@ -478,10 +545,14 @@ class _ActiveDownloadCard extends StatelessWidget {
                     color: c.dangerBg,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                        color: c.danger.withOpacity(0.3)),
+                      color: c.danger.withOpacity(0.3),
+                    ),
                   ),
-                  child: Icon(Icons.close_rounded,
-                      size: 16, color: c.danger),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 16,
+                    color: c.danger,
+                  ),
                 ),
               ),
             ],
@@ -495,8 +566,9 @@ class _ActiveDownloadCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress > 0 ? progress : null,
               backgroundColor: c.surface2,
-              valueColor:
-                  AlwaysStoppedAnimation<Color>(c.brand),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isPaused ? c.goldText : c.brand,
+              ),
               minHeight: 5,
             ),
           ),
@@ -511,13 +583,15 @@ class _ActiveDownloadCard extends StatelessWidget {
                     ? '$percent% downloaded'
                     : 'Connecting...',
                 style: AppText.latin(
-                  color: c.brand,
+                  color: isPaused ? c.goldText : c.brand,
                   size: 11,
                   weight: FontWeight.w600,
                 ),
               ),
               Text(
-                'Tap × to cancel',
+                isPaused
+                    ? 'Tap ▶ to resume'
+                    : 'Tap ∥ to pause · × to cancel',
                 style: AppText.latin(
                   color: c.textFaint,
                   size: 10,
@@ -540,7 +614,6 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -575,7 +648,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Books and audio you download will appear here for offline reading and listening.',
+              'Books and audio you download will appear here.',
               textAlign: TextAlign.center,
               style: AppText.latin(
                 color: c.textMuted,
@@ -623,7 +696,8 @@ class _StorageCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.storage_rounded, size: 18, color: c.brand),
+              Icon(Icons.storage_rounded,
+                  size: 18, color: c.brand),
               const SizedBox(width: 8),
               Text(
                 'Storage Used',
@@ -647,7 +721,8 @@ class _StorageCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '$fileCount file${fileCount == 1 ? '' : 's'} downloaded',
-            style: AppText.latin(color: c.textMuted, size: 11),
+            style:
+                AppText.latin(color: c.textMuted, size: 11),
           ),
           const SizedBox(height: 10),
           ClipRRect(
@@ -655,7 +730,8 @@ class _StorageCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               backgroundColor: c.surface2,
-              valueColor: AlwaysStoppedAnimation<Color>(c.brand),
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(c.brand),
               minHeight: 6,
             ),
           ),
@@ -703,22 +779,32 @@ class _DownloadedFileCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: c.brand.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(13),
-                border: Border.all(color: c.brand.withOpacity(0.2)),
+            // ← Real cover from PDF
+            if (book != null && isPdf)
+              BookCoverWidget(
+                book: book!,
+                width: 46,
+                height: 58,
+                borderRadius: 8,
+              )
+            else
+              Container(
+                width: 46,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: c.brand.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: c.brand.withOpacity(0.2)),
+                ),
+                child: Icon(
+                  isPdf
+                      ? Icons.picture_as_pdf_rounded
+                      : Icons.headphones_rounded,
+                  size: 22,
+                  color: c.brand,
+                ),
               ),
-              child: Icon(
-                isPdf
-                    ? Icons.picture_as_pdf_rounded
-                    : Icons.headphones_rounded,
-                size: 22,
-                color: c.brand,
-              ),
-            ),
 
             const SizedBox(width: 14),
 
@@ -749,7 +835,8 @@ class _DownloadedFileCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: c.brand.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(5),
+                          borderRadius:
+                              BorderRadius.circular(5),
                         ),
                         child: Text(
                           isPdf ? 'PDF' : 'Audio',
@@ -763,8 +850,8 @@ class _DownloadedFileCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         sizeDisplay,
-                        style:
-                            AppText.latin(color: c.textFaint, size: 11),
+                        style: AppText.latin(
+                            color: c.textFaint, size: 11),
                       ),
                       const SizedBox(width: 6),
                       Icon(Icons.check_circle_rounded,
@@ -772,8 +859,8 @@ class _DownloadedFileCard extends StatelessWidget {
                       const SizedBox(width: 3),
                       Text(
                         'On device',
-                        style:
-                            AppText.latin(color: c.brand, size: 10),
+                        style: AppText.latin(
+                            color: c.brand, size: 10),
                       ),
                     ],
                   ),
@@ -794,8 +881,11 @@ class _DownloadedFileCard extends StatelessWidget {
                   border: Border.all(
                       color: c.danger.withOpacity(0.3)),
                 ),
-                child: Icon(Icons.delete_outline_rounded,
-                    size: 16, color: c.danger),
+                child: Icon(
+                  Icons.delete_outline_rounded,
+                  size: 16,
+                  color: c.danger,
+                ),
               ),
             ),
           ],
