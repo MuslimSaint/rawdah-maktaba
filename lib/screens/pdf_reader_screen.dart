@@ -5,7 +5,7 @@ import '../core/models.dart';
 import '../core/theme.dart';
 
 /// PDF reader screen.
-/// Fixed: blank screen on open when restoring saved page.
+/// Fixed: blank white screen on open for ALL pages including page 1.
 class PdfReaderScreen extends StatefulWidget {
   final Book book;
   final String filePath;
@@ -17,14 +17,19 @@ class PdfReaderScreen extends StatefulWidget {
   });
 
   @override
-  State<PdfReaderScreen> createState() => _PdfReaderScreenState();
+  State<PdfReaderScreen> createState() =>
+      _PdfReaderScreenState();
 }
 
 class _PdfReaderScreenState extends State<PdfReaderScreen> {
   int _currentPage = 0;
   int _totalPages = 0;
   bool _isReady = false;
-  bool _isRendering = true; // ← Fix: track render state
+
+  // ← Key fix: always show loading until onRender fires
+  // AND we've given enough time for the page to render visually
+  bool _showLoadingOverlay = true;
+
   PDFViewController? _pdfController;
   int _defaultPage = 0;
 
@@ -32,6 +37,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final state = AppState.of(context);
       if (state.lastBookId == widget.book.id &&
           state.lastBookPage > 0) {
@@ -41,12 +47,24 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     });
   }
 
+  void _hideLoadingOverlay() {
+    // Always wait at least 400ms after onRender
+    // before hiding the overlay. This covers:
+    // - Page 1: PDF renders but onPageChanged never fires
+    // - Other pages: PDF jumps to saved page
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        setState(() => _showLoadingOverlay = false);
+      }
+    });
+  }
+
   Future<void> _onPageChanged(int page, int total) async {
     setState(() {
       _currentPage = page;
       _totalPages = total;
-      // ← Fix: mark as no longer rendering when user changes page
-      _isRendering = false;
+      // Hide overlay as soon as any page change fires
+      _showLoadingOverlay = false;
     });
 
     final state = AppState.of(context);
@@ -63,7 +81,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
 
-    // Get saved page
+    // Read saved page
     if (state.lastBookId == widget.book.id &&
         state.lastBookPage > 0 &&
         _defaultPage == 0) {
@@ -78,17 +96,20 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
           children: [
             // ── Top Bar ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding:
+                  const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
+                    onTap: () =>
+                        Navigator.of(context).pop(),
                     child: Container(
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius: BorderRadius.circular(11),
+                        borderRadius:
+                            BorderRadius.circular(11),
                         border: Border.all(color: c.divider),
                       ),
                       child: Icon(
@@ -114,7 +135,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                     ),
                   ),
                   const SizedBox(width: 14),
-                  if (_isReady)
+                  if (_isReady && !_showLoadingOverlay)
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
@@ -122,8 +143,10 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: c.divider),
+                        borderRadius:
+                            BorderRadius.circular(10),
+                        border:
+                            Border.all(color: c.divider),
                       ),
                       child: Text(
                         '${_currentPage + 1} / $_totalPages',
@@ -139,10 +162,13 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
             ),
 
             // ── Progress Bar ──
-            if (_isReady && _totalPages > 0) ...[
+            if (_isReady &&
+                !_showLoadingOverlay &&
+                _totalPages > 0) ...[
               const SizedBox(height: 8),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(
@@ -151,7 +177,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                         : 0,
                     backgroundColor: c.surface2,
                     valueColor:
-                        AlwaysStoppedAnimation<Color>(c.brand),
+                        AlwaysStoppedAnimation<Color>(
+                            c.brand),
                     minHeight: 3,
                   ),
                 ),
@@ -160,11 +187,11 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
 
             const SizedBox(height: 8),
 
-            // ── PDF Viewer ──
+            // ── PDF Viewer + Loading Overlay ──
             Expanded(
               child: Stack(
                 children: [
-                  // PDF view always in tree
+                  // PDF always in widget tree
                   PDFView(
                     filePath: widget.filePath,
                     enableSwipe: true,
@@ -178,15 +205,10 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       setState(() {
                         _totalPages = pages ?? 0;
                         _isReady = true;
-                        // ← Fix: keep rendering=true until
-                        // first page change fires
-                        // For page 0, no change fires so clear it
-                        if (_defaultPage == 0) {
-                          _isRendering = false;
-                        }
+                        _currentPage = _defaultPage;
                       });
 
-                      // Record opened book
+                      // Save opened book
                       AppState.of(context).setLastOpenedBook(
                         bookId: widget.book.id,
                         bookTitle: widget.book.titleAr,
@@ -194,29 +216,22 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                         totalPages: pages ?? 0,
                       );
 
-                      // ← Fix: delayed clear for non-zero pages
-                      // gives PDF time to jump to saved page
-                      if (_defaultPage > 0) {
-                        Future.delayed(
-                          const Duration(milliseconds: 600),
-                          () {
-                            if (mounted) {
-                              setState(() {
-                                _isRendering = false;
-                              });
-                            }
-                          },
-                        );
-                      }
+                      // Always hide overlay after delay
+                      // Works for ALL pages including page 1
+                      _hideLoadingOverlay();
                     },
                     onViewCreated: (controller) {
                       _pdfController = controller;
                     },
                     onPageChanged: (page, total) {
-                      _onPageChanged(page ?? 0, total ?? 0);
+                      _onPageChanged(
+                          page ?? 0, total ?? 0);
                     },
                     onError: (error) {
+                      // Hide overlay on error too
                       if (mounted) {
+                        setState(() =>
+                            _showLoadingOverlay = false);
                         ScaffoldMessenger.of(context)
                             .showSnackBar(
                           SnackBar(
@@ -234,9 +249,9 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                     },
                   ),
 
-                  // ← Fix: Loading overlay covers blank flash
-                  // Shows until PDF is fully rendered and jumped to page
-                  if (_isRendering || !_isReady)
+                  // ← Loading overlay — always shows until
+                  // PDF is visually ready (all pages including 1)
+                  if (_showLoadingOverlay)
                     Container(
                       color: c.bg,
                       child: Center(
@@ -267,7 +282,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
             ),
 
             // ── Bottom Page Indicator ──
-            if (_isReady && !_isRendering)
+            if (_isReady && !_showLoadingOverlay)
               Container(
                 padding:
                     const EdgeInsets.symmetric(vertical: 10),
@@ -285,7 +300,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                     ),
                     decoration: BoxDecoration(
                       color: c.surface2,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius:
+                          BorderRadius.circular(20),
                       border: Border.all(color: c.divider),
                     ),
                     child: Text(
