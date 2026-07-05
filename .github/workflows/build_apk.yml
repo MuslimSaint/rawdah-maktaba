@@ -80,30 +80,40 @@ jobs:
       - name: Build split APKs per ABI
         run: flutter build apk --release --split-per-abi --no-tree-shake-icons
 
-      - name: Upload universal APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: rawdah-universal-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 30
+      - name: Get version info
+        id: version
+        run: |
+          echo "date=$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
+          echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
-      - name: Upload arm64 APK
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release with APKs
+        uses: softprops/action-gh-release@v2
         with:
-          name: rawdah-arm64-apk
-          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-          retention-days: 30
+          tag_name: build-${{ steps.version.outputs.date }}-${{ steps.version.outputs.sha }}
+          name: Build ${{ steps.version.outputs.date }}
+          body: |
+            🕌 مكتبة الروضة — Automatic build
+            
+            **Commit:** ${{ github.sha }}
+            **Branch:** ${{ github.ref_name }}
+            
+            ### Download:
+            - `rawdah-universal.apk` — works on all Android devices
+            - `rawdah-arm64.apk` — for modern phones (smaller size)
+            - `rawdah-armeabi.apk` — for older phones
+            - `rawdah-x86_64.apk` — for emulators
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload armeabi APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: rawdah-armeabi-apk
-          path: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-          retention-days: 30
-
-      - name: Upload x86_64 APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: rawdah-x86_64-apk
-          path: build/app/outputs/flutter-apk/app-x86_64-release.apk
-          retention-days: 30
+      - name: Rename APK files in release
+        run: |
+          echo "✅ APKs uploaded to GitHub Release"
+          echo "Universal APK: build/app/outputs/flutter-apk/app-release.apk"
+          echo "arm64 APK: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
