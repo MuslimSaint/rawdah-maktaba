@@ -5,8 +5,9 @@ import 'catalog_service.dart';
 import 'download_service.dart';
 import 'audio_service.dart';
 import 'firestore_service.dart';
+import 'cover_service.dart';
 
-/// Central app state for theme, language, and user preferences.
+/// Central app state.
 class AppState extends ChangeNotifier {
   static const _keyThemeMode = 'theme_mode';
   static const _keyLanguage = 'language';
@@ -24,7 +25,6 @@ class AppState extends ChangeNotifier {
   bool _isFirstLaunch = true;
   bool _isSignedIn = false;
 
-  // ─── Last opened book ──────────────────────────────
   String? _lastBookId;
   String? _lastBookTitle;
   int _lastBookPage = 0;
@@ -35,6 +35,7 @@ class AppState extends ChangeNotifier {
   final DownloadService downloadService = DownloadService();
   final AudioService audioService = AudioService();
   final FirestoreService firestoreService = FirestoreService();
+  final CoverService coverService = CoverService();
 
   // ─── Getters ───────────────────────────────────────
   bool get isDark => _isDark;
@@ -73,34 +74,69 @@ class AppState extends ChangeNotifier {
     _isFirstLaunch = _prefs.getBool(_keyFirstLaunch) ?? true;
     _isSignedIn = _prefs.getBool(_keyUserSignedIn) ?? false;
 
-    // Load last opened book from local storage
     _lastBookId = _prefs.getString(_keyLastBookId);
     _lastBookTitle = _prefs.getString(_keyLastBookTitle);
     _lastBookPage = _prefs.getInt(_keyLastBookPage) ?? 0;
     _lastBookTotalPages =
         _prefs.getInt(_keyLastBookTotalPages) ?? 0;
 
-    // Initialize services
+    // Initialize all services
     await downloadService.init();
+    await coverService.init();
     catalogService.load();
 
-    // Sync from Firestore if signed in
+    // Auto-extract covers for already-downloaded books
+    _autoExtractExistingCovers();
+
     if (_isSignedIn) {
       _syncFromCloud();
     }
   }
 
+  // ─── Auto extract covers for existing downloads ────
+
+  Future<void> _autoExtractExistingCovers() async {
+    // Run in background — non-blocking
+    Future.delayed(const Duration(seconds: 2), () async {
+      final books = catalogService.books;
+      for (final book in books) {
+        final fileId = 'pdf_${book.id}';
+        if (downloadService.isDownloaded(fileId) &&
+            !coverService.hasCover(book.id)) {
+          final path =
+              await downloadService.localPath(fileId);
+          if (path != null) {
+            await coverService.extractCover(
+              bookId: book.id,
+              pdfPath: path,
+            );
+          }
+        }
+      }
+    });
+  }
+
+  /// Called after a PDF is successfully downloaded.
+  /// Automatically extracts the cover from the first page.
+  Future<void> onPdfDownloaded({
+    required String bookId,
+    required String pdfPath,
+  }) async {
+    // Extract cover in background
+    coverService.extractCover(
+      bookId: bookId,
+      pdfPath: pdfPath,
+    );
+  }
+
   // ─── Cloud Sync ────────────────────────────────────
 
-  /// Syncs reading progress from Firestore.
-  /// Cloud data wins only if local has no data.
   Future<void> _syncFromCloud() async {
     try {
       final cloudData =
           await firestoreService.syncOnLogin();
       if (cloudData == null) return;
 
-      // Only use cloud data if local has nothing
       if (_lastBookId == null || _lastBookId!.isEmpty) {
         final bookId =
             cloudData['lastBookId'] as String? ?? '';
@@ -116,7 +152,6 @@ class AppState extends ChangeNotifier {
           _lastBookPage = page;
           _lastBookTotalPages = total;
 
-          // Save to local
           await _prefs.setString(_keyLastBookId, bookId);
           await _prefs.setString(
               _keyLastBookTitle, bookTitle);
@@ -126,9 +161,7 @@ class AppState extends ChangeNotifier {
           notifyListeners();
         }
       }
-    } catch (_) {
-      // Silently fail — local data is fine
-    }
+    } catch (_) {}
   }
 
   // ─── Theme ─────────────────────────────────────────
@@ -171,10 +204,7 @@ class AppState extends ChangeNotifier {
   Future<void> setSignedIn(bool value) async {
     _isSignedIn = value;
     await _prefs.setBool(_keyUserSignedIn, value);
-    if (value) {
-      // Sync from cloud after sign in
-      _syncFromCloud();
-    }
+    if (value) _syncFromCloud();
     notifyListeners();
   }
 
@@ -191,13 +221,11 @@ class AppState extends ChangeNotifier {
     _lastBookPage = page;
     _lastBookTotalPages = totalPages;
 
-    // Save locally
     await _prefs.setString(_keyLastBookId, bookId);
     await _prefs.setString(_keyLastBookTitle, bookTitle);
     await _prefs.setInt(_keyLastBookPage, page);
     await _prefs.setInt(_keyLastBookTotalPages, totalPages);
 
-    // Sync to cloud (non-blocking)
     firestoreService.saveReadingProgress(
       bookId: bookId,
       bookTitle: bookTitle,
@@ -215,7 +243,6 @@ class AppState extends ChangeNotifier {
     await _prefs.setInt(_keyLastBookPage, page);
     await _prefs.setInt(_keyLastBookTotalPages, totalPages);
 
-    // Sync to cloud (non-blocking)
     if (_lastBookId != null) {
       firestoreService.saveReadingProgress(
         bookId: _lastBookId!,
