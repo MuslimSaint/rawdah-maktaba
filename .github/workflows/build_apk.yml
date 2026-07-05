@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build Release APK
@@ -98,10 +101,10 @@ jobs:
             **Branch:** ${{ github.ref_name }}
             
             ### Download:
-            - `rawdah-universal.apk` — works on all Android devices
-            - `rawdah-arm64.apk` — for modern phones (smaller size)
-            - `rawdah-armeabi.apk` — for older phones
-            - `rawdah-x86_64.apk` — for emulators
+            - `app-release.apk` — Universal (works on all devices)
+            - `app-arm64-v8a-release.apk` — Modern phones (smaller)
+            - `app-armeabi-v7a-release.apk` — Older phones
+            - `app-x86_64-release.apk` — Emulators
           files: |
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
@@ -111,9 +114,3 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Rename APK files in release
-        run: |
-          echo "✅ APKs uploaded to GitHub Release"
-          echo "Universal APK: build/app/outputs/flutter-apk/app-release.apk"
-          echo "arm64 APK: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
