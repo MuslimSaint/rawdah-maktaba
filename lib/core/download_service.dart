@@ -7,13 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Handles all file downloads — PDFs and audio files.
 class DownloadService extends ChangeNotifier {
 
-  // ─── State ─────────────────────────────────────────
   final Map<String, double> _progress = {};
   final Map<String, bool> _downloading = {};
   final Set<String> _downloaded = {};
   final Map<String, bool> _cancelled = {};
-
-  // Active download metadata (for Downloads tab)
+  final Map<String, bool> _paused = {};
   final Map<String, Map<String, dynamic>> _activeDownloads = {};
 
   static const _downloadedKey = 'downloaded_files';
@@ -25,7 +23,6 @@ class DownloadService extends ChangeNotifier {
     final saved = prefs.getStringList(_downloadedKey) ?? [];
     _downloaded.addAll(saved);
 
-    // Verify files still exist
     final toRemove = <String>[];
     for (final id in _downloaded) {
       final file = await _fileFor(id);
@@ -42,13 +39,22 @@ class DownloadService extends ChangeNotifier {
 
   // ─── Getters ───────────────────────────────────────
 
-  bool isDownloaded(String fileId) => _downloaded.contains(fileId);
-  bool isDownloading(String fileId) => _downloading[fileId] ?? false;
-  double progress(String fileId) => _progress[fileId] ?? 0;
+  bool isDownloaded(String fileId) =>
+      _downloaded.contains(fileId);
+
+  bool isDownloading(String fileId) =>
+      _downloading[fileId] == true;
+
+  bool isPaused(String fileId) =>
+      _paused[fileId] == true;
+
+  double progress(String fileId) =>
+      _progress[fileId] ?? 0;
+
   int get downloadedCount => _downloaded.length;
+
   bool get hasActiveDownloads => _activeDownloads.isNotEmpty;
 
-  /// Returns list of currently downloading files
   List<Map<String, dynamic>> get activeDownloads =>
       _activeDownloads.values.toList();
 
@@ -62,7 +68,10 @@ class DownloadService extends ChangeNotifier {
     String? displayName,
     String? bookId,
   }) async {
+    // Already downloading
     if (_downloading[fileId] == true) return;
+
+    // Already downloaded
     if (_downloaded.contains(fileId)) {
       onComplete();
       return;
@@ -73,12 +82,12 @@ class DownloadService extends ChangeNotifier {
       return;
     }
 
-    // Reset cancelled flag
+    // Reset all states cleanly
     _cancelled[fileId] = false;
+    _paused[fileId] = false;
     _downloading[fileId] = true;
     _progress[fileId] = 0;
 
-    // Track in active downloads
     _activeDownloads[fileId] = {
       'fileId': fileId,
       'displayName': displayName ?? fileId,
@@ -95,7 +104,7 @@ class DownloadService extends ChangeNotifier {
       final response = await request.send();
 
       if (response.statusCode != 200) {
-        _cleanupActive(fileId);
+        _failDownload(fileId);
         onError('Server error: ${response.statusCode}');
         return;
       }
@@ -109,26 +118,39 @@ class DownloadService extends ChangeNotifier {
 
       try {
         await for (final chunk in response.stream) {
-          // Check if cancelled
+          // Check cancelled
           if (_cancelled[fileId] == true) {
             await sink.close();
             if (await file.exists()) await file.delete();
-            _cleanupActive(fileId);
+            _cancelCleanup(fileId);
             return;
+          }
+
+          // Check paused — wait until unpaused or cancelled
+          while (_paused[fileId] == true) {
+            if (_cancelled[fileId] == true) {
+              await sink.close();
+              if (await file.exists()) await file.delete();
+              _cancelCleanup(fileId);
+              return;
+            }
+            await Future.delayed(
+                const Duration(milliseconds: 300));
           }
 
           sink.add(chunk);
           received += chunk.length;
 
-          // Calculate speed every 500ms
+          // Speed calculation
           final now = DateTime.now();
-          final elapsed = now.difference(lastTime).inMilliseconds;
+          final elapsed =
+              now.difference(lastTime).inMilliseconds;
           if (elapsed >= 500) {
-            final bytesPerMs = (received - lastReceived) / elapsed;
+            final bytesPerMs =
+                (received - lastReceived) / elapsed;
             final kbps = (bytesPerMs * 1000) / 1024;
             lastTime = now;
             lastReceived = received;
-
             if (_activeDownloads.containsKey(fileId)) {
               _activeDownloads[fileId]!['speedKbps'] = kbps;
             }
@@ -144,41 +166,85 @@ class DownloadService extends ChangeNotifier {
           }
         }
 
-        // Stream complete — save file
+        // Download complete
         await sink.flush();
         await sink.close();
 
         _downloaded.add(fileId);
         await _saveDownloaded();
-        _cleanupActive(fileId);
-        _progress[fileId] = 1.0;
+        _completeCleanup(fileId);
         notifyListeners();
         onComplete();
       } catch (e) {
         await sink.close();
         if (await file.exists()) await file.delete();
-        _cleanupActive(fileId);
+        _failDownload(fileId);
         onError('Download interrupted. Please try again.');
       }
     } catch (e) {
-      _cleanupActive(fileId);
-      onError('Download failed. Check your internet connection.');
+      _failDownload(fileId);
+      onError(
+          'Download failed. Check your internet connection.');
     }
   }
 
   // ─── Cancel ────────────────────────────────────────
 
-  Future<void> cancelDownload(String fileId) async {
+  /// Cancels a download immediately.
+  /// UI returns to "Download" state — user can retry.
+  void cancelDownload(String fileId) {
     if (_downloading[fileId] != true) return;
+
+    // Set cancelled flag — loop will detect this
     _cancelled[fileId] = true;
-    // Cleanup happens inside the download loop
+
+    // Immediately update UI — don't wait for loop
+    _cancelCleanup(fileId);
+  }
+
+  void _cancelCleanup(String fileId) {
+    _downloading[fileId] = false;
+    _paused[fileId] = false;
+    _cancelled[fileId] = false;
+    _progress.remove(fileId);
+    _activeDownloads.remove(fileId);
     notifyListeners();
   }
 
-  void _cleanupActive(String fileId) {
+  void _completeCleanup(String fileId) {
     _downloading[fileId] = false;
+    _paused[fileId] = false;
+    _cancelled[fileId] = false;
     _activeDownloads.remove(fileId);
-    _cancelled.remove(fileId);
+  }
+
+  void _failDownload(String fileId) {
+    _downloading[fileId] = false;
+    _paused[fileId] = false;
+    _cancelled[fileId] = false;
+    _progress.remove(fileId);
+    _activeDownloads.remove(fileId);
+    notifyListeners();
+  }
+
+  // ─── Pause / Resume ────────────────────────────────
+
+  void pauseDownload(String fileId) {
+    if (_downloading[fileId] != true) return;
+    _paused[fileId] = true;
+    if (_activeDownloads.containsKey(fileId)) {
+      _activeDownloads[fileId]!['paused'] = true;
+    }
+    notifyListeners();
+  }
+
+  void resumeDownload(String fileId) {
+    if (_downloading[fileId] != true) return;
+    _paused[fileId] = false;
+    if (_activeDownloads.containsKey(fileId)) {
+      _activeDownloads[fileId]!['paused'] = false;
+    }
+    notifyListeners();
   }
 
   // ─── Delete ────────────────────────────────────────
@@ -186,8 +252,8 @@ class DownloadService extends ChangeNotifier {
   Future<void> deleteFile(String fileId) async {
     // Cancel if downloading
     if (_downloading[fileId] == true) {
-      await cancelDownload(fileId);
-      await Future.delayed(const Duration(milliseconds: 300));
+      cancelDownload(fileId);
+      await Future.delayed(const Duration(milliseconds: 100));
     }
 
     try {
@@ -198,18 +264,19 @@ class DownloadService extends ChangeNotifier {
     _downloaded.remove(fileId);
     _progress.remove(fileId);
     _downloading.remove(fileId);
+    _paused.remove(fileId);
     await _saveDownloaded();
     notifyListeners();
   }
 
   Future<void> deleteAll() async {
-    // Cancel all active downloads
+    // Cancel all active
     for (final id in _downloading.keys.toList()) {
       if (_downloading[id] == true) {
         _cancelled[id] = true;
       }
     }
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 200));
 
     final dir = await _downloadsDir();
     if (await dir.exists()) {
@@ -219,6 +286,7 @@ class DownloadService extends ChangeNotifier {
     _downloaded.clear();
     _progress.clear();
     _downloading.clear();
+    _paused.clear();
     _activeDownloads.clear();
     _cancelled.clear();
     await _saveDownloaded();
@@ -231,7 +299,6 @@ class DownloadService extends ChangeNotifier {
     if (!_downloaded.contains(fileId)) return null;
     final file = await _fileFor(fileId);
     if (await file.exists()) return file.path;
-    // File missing — remove from downloaded list
     _downloaded.remove(fileId);
     await _saveDownloaded();
     notifyListeners();
@@ -243,7 +310,6 @@ class DownloadService extends ChangeNotifier {
   Future<double> totalStorageMb() async {
     final dir = await _downloadsDir();
     if (!await dir.exists()) return 0;
-
     double total = 0;
     await for (final entity in dir.list(recursive: true)) {
       if (entity is File) {
@@ -273,14 +339,18 @@ class DownloadService extends ChangeNotifier {
 
   Future<Directory> _downloadsDir() async {
     final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory('${appDir.path}/rawdah_downloads');
-    if (!await dir.exists()) await dir.create(recursive: true);
+    final dir =
+        Directory('${appDir.path}/rawdah_downloads');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
     return dir;
   }
 
   Future<File> _fileFor(String fileId) async {
     final dir = await _downloadsDir();
-    final ext = fileId.startsWith('pdf_') ? '.pdf' : '.mp3';
+    final ext =
+        fileId.startsWith('pdf_') ? '.pdf' : '.mp3';
     return File('${dir.path}/$fileId$ext');
   }
 
@@ -297,8 +367,6 @@ class DownloadService extends ChangeNotifier {
   static String audioId(
           String bookId, String teacherId, int part) =>
       'audio_${bookId}_${teacherId}_$part';
-
-  // ─── Speed helper ──────────────────────────────────
 
   static String formatSpeed(double kbps) {
     if (kbps >= 1024) {
