@@ -16,7 +16,8 @@ class AppState extends ChangeNotifier {
   static const _keyLastBookId = 'last_book_id';
   static const _keyLastBookPage = 'last_book_page';
   static const _keyLastBookTitle = 'last_book_title';
-  static const _keyLastBookTotalPages = 'last_book_total_pages';
+  static const _keyLastBookTotalPages =
+      'last_book_total_pages';
 
   late SharedPreferences _prefs;
 
@@ -34,7 +35,8 @@ class AppState extends ChangeNotifier {
   final CatalogService catalogService = CatalogService();
   final DownloadService downloadService = DownloadService();
   final AudioService audioService = AudioService();
-  final FirestoreService firestoreService = FirestoreService();
+  final FirestoreService firestoreService =
+      FirestoreService();
   final CoverService coverService = CoverService();
 
   // ─── Getters ───────────────────────────────────────
@@ -65,14 +67,16 @@ class AppState extends ChangeNotifier {
     if (savedTheme != null) {
       _isDark = savedTheme == 'dark';
     } else {
-      final brightness =
-          WidgetsBinding.instance.platformDispatcher.platformBrightness;
+      final brightness = WidgetsBinding
+          .instance.platformDispatcher.platformBrightness;
       _isDark = brightness == Brightness.dark;
     }
 
     _language = _prefs.getString(_keyLanguage) ?? 'en';
-    _isFirstLaunch = _prefs.getBool(_keyFirstLaunch) ?? true;
-    _isSignedIn = _prefs.getBool(_keyUserSignedIn) ?? false;
+    _isFirstLaunch =
+        _prefs.getBool(_keyFirstLaunch) ?? true;
+    _isSignedIn =
+        _prefs.getBool(_keyUserSignedIn) ?? false;
 
     _lastBookId = _prefs.getString(_keyLastBookId);
     _lastBookTitle = _prefs.getString(_keyLastBookTitle);
@@ -80,53 +84,61 @@ class AppState extends ChangeNotifier {
     _lastBookTotalPages =
         _prefs.getInt(_keyLastBookTotalPages) ?? 0;
 
-    // Initialize all services
+    // Initialize services
     await downloadService.init();
     await coverService.init();
+
+    // Wire cover extraction callback into DownloadService
+    // This makes cover extraction UI-independent
+    downloadService.onPdfDownloadComplete =
+        (bookId, pdfPath) => coverService.extractCover(
+              bookId: bookId,
+              pdfPath: pdfPath,
+            );
+
+    // Start catalog load — when it completes,
+    // auto-extract covers for already-downloaded books
+    catalogService.addListener(_onCatalogLoaded);
     catalogService.load();
 
-    // Auto-extract covers for already-downloaded books
-    _autoExtractExistingCovers();
-
-    if (_isSignedIn) {
-      _syncFromCloud();
-    }
+    if (_isSignedIn) _syncFromCloud();
   }
 
-  // ─── Auto extract covers for existing downloads ────
+  // ─── Auto-extract covers after catalog loads ───────
 
-  Future<void> _autoExtractExistingCovers() async {
-    // Run in background — non-blocking
-    Future.delayed(const Duration(seconds: 2), () async {
-      final books = catalogService.books;
-      for (final book in books) {
-        final fileId = 'pdf_${book.id}';
-        if (downloadService.isDownloaded(fileId) &&
-            !coverService.hasCover(book.id)) {
-          final path =
-              await downloadService.localPath(fileId);
-          if (path != null) {
-            await coverService.extractCover(
-              bookId: book.id,
-              pdfPath: path,
-            );
-          }
+  bool _coverExtractionDone = false;
+
+  void _onCatalogLoaded() {
+    if (_coverExtractionDone) return;
+    if (!catalogService.hasData) return;
+
+    _coverExtractionDone = true;
+    catalogService.removeListener(_onCatalogLoaded);
+
+    // Extract covers for already-downloaded books
+    // Runs in background — non-blocking
+    _extractCoversForDownloadedBooks();
+  }
+
+  Future<void> _extractCoversForDownloadedBooks() async {
+    final books = catalogService.books;
+    for (final book in books) {
+      final fileId = 'pdf_${book.id}';
+      if (downloadService.isDownloaded(fileId) &&
+          !coverService.hasCover(book.id)) {
+        final path =
+            await downloadService.localPath(fileId);
+        if (path != null) {
+          // Don't await — run all in parallel background
+          coverService
+              .extractCover(
+                bookId: book.id,
+                pdfPath: path,
+              )
+              .catchError((_) {});
         }
       }
-    });
-  }
-
-  /// Called after a PDF is successfully downloaded.
-  /// Automatically extracts the cover from the first page.
-  Future<void> onPdfDownloaded({
-    required String bookId,
-    required String pdfPath,
-  }) async {
-    // Extract cover in background
-    coverService.extractCover(
-      bookId: bookId,
-      pdfPath: pdfPath,
-    );
+    }
   }
 
   // ─── Cloud Sync ────────────────────────────────────
@@ -151,7 +163,6 @@ class AppState extends ChangeNotifier {
           _lastBookTitle = bookTitle;
           _lastBookPage = page;
           _lastBookTotalPages = total;
-
           await _prefs.setString(_keyLastBookId, bookId);
           await _prefs.setString(
               _keyLastBookTitle, bookTitle);
@@ -241,7 +252,8 @@ class AppState extends ChangeNotifier {
     _lastBookPage = page;
     _lastBookTotalPages = totalPages;
     await _prefs.setInt(_keyLastBookPage, page);
-    await _prefs.setInt(_keyLastBookTotalPages, totalPages);
+    await _prefs.setInt(
+        _keyLastBookTotalPages, totalPages);
 
     if (_lastBookId != null) {
       firestoreService.saveReadingProgress(
@@ -262,7 +274,7 @@ class AppState extends ChangeNotifier {
   }
 }
 
-/// InheritedNotifier that makes AppState available to the widget tree.
+/// InheritedNotifier that makes AppState available.
 class AppStateProvider extends InheritedNotifier<AppState> {
   const AppStateProvider({
     super.key,
@@ -272,8 +284,10 @@ class AppStateProvider extends InheritedNotifier<AppState> {
 
   static AppState of(BuildContext context) {
     final provider =
-        context.dependOnInheritedWidgetOfExactType<AppStateProvider>();
-    assert(provider != null, 'No AppStateProvider found in widget tree');
+        context.dependOnInheritedWidgetOfExactType<
+            AppStateProvider>();
+    assert(
+        provider != null, 'No AppStateProvider found');
     return provider!.notifier!;
   }
 }
