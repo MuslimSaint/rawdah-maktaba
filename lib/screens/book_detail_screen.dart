@@ -153,16 +153,14 @@ class _HeroCard extends StatelessWidget {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Container(
-                          margin:
-                              const EdgeInsets.only(bottom: 8),
+                          margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
                             color: c.brand.withOpacity(0.12),
-                            borderRadius:
-                                BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(6),
                             border: Border.all(
                               color: c.brand.withOpacity(0.3),
                             ),
@@ -193,8 +191,7 @@ class _HeroCard extends StatelessWidget {
                       runSpacing: 4,
                       alignment: WrapAlignment.end,
                       children: book.branches.map((branchId) {
-                        final branch =
-                            Catalog.branches.firstWhere(
+                        final branch = Catalog.branches.firstWhere(
                           (b) => b.id == branchId,
                           orElse: () => const Branch(
                             id: '',
@@ -210,8 +207,7 @@ class _HeroCard extends StatelessWidget {
                           ),
                           decoration: BoxDecoration(
                             color: c.brand.withOpacity(0.08),
-                            borderRadius:
-                                BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(6),
                             border: Border.all(
                               color: c.brand.withOpacity(0.2),
                             ),
@@ -258,6 +254,7 @@ class _HeroCard extends StatelessWidget {
           Divider(color: c.divider, height: 1),
           const SizedBox(height: 14),
 
+          // ── AUTHOR ──
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -350,9 +347,8 @@ class _PdfSectionState extends State<_PdfSection> {
     );
   }
 
-  Future<void> _startDownload(BuildContext context) async {
+  Future<void> _startDownload() async {
     setState(() => _errorMessage = null);
-    final state = AppState.of(context);
 
     await widget.downloadService.download(
       fileId: _fileId,
@@ -362,19 +358,11 @@ class _PdfSectionState extends State<_PdfSection> {
       onError: (e) {
         if (mounted) setState(() => _errorMessage = e);
       },
-      onComplete: () async {
-        if (mounted) {
-          setState(() {});
-          // ← Trigger cover extraction after download
-          final path = await widget.downloadService
-              .localPath(_fileId);
-          if (path != null) {
-            state.onPdfDownloaded(
-              bookId: widget.book.id,
-              pdfPath: path,
-            );
-          }
-        }
+      onComplete: () {
+        // Cover extraction is handled automatically by
+        // DownloadService.onPdfDownloadComplete callback
+        // No need to do anything here
+        if (mounted) setState(() {});
       },
     );
   }
@@ -412,7 +400,7 @@ class _PdfSectionState extends State<_PdfSection> {
                 if (isDownloaded && !isDownloading) {
                   _openBook(context);
                 } else if (!isDownloading && hasUrl) {
-                  _startDownload(context);
+                  _startDownload();
                 }
               },
               child: Container(
@@ -431,6 +419,7 @@ class _PdfSectionState extends State<_PdfSection> {
                   children: [
                     Row(
                       children: [
+                        // Status circle
                         Container(
                           width: 52,
                           height: 52,
@@ -452,10 +441,8 @@ class _PdfSectionState extends State<_PdfSection> {
                           ),
                           child: isDownloading
                               ? Padding(
-                                  padding:
-                                      const EdgeInsets.all(14),
-                                  child:
-                                      CircularProgressIndicator(
+                                  padding: const EdgeInsets.all(14),
+                                  child: CircularProgressIndicator(
                                     value: progress > 0
                                         ? progress
                                         : null,
@@ -467,10 +454,8 @@ class _PdfSectionState extends State<_PdfSection> {
                                   isDownloaded
                                       ? Icons.menu_book_rounded
                                       : !hasUrl
-                                          ? Icons
-                                              .hourglass_empty_rounded
-                                          : Icons
-                                              .download_rounded,
+                                          ? Icons.hourglass_empty_rounded
+                                          : Icons.download_rounded,
                                   size: 22,
                                   color: isDownloaded
                                       ? Colors.white
@@ -525,6 +510,7 @@ class _PdfSectionState extends State<_PdfSection> {
                           ),
                         ),
 
+                        // Cancel button when downloading
                         if (isDownloading)
                           GestureDetector(
                             onTap: () {
@@ -539,8 +525,7 @@ class _PdfSectionState extends State<_PdfSection> {
                                 borderRadius:
                                     BorderRadius.circular(10),
                                 border: Border.all(
-                                  color:
-                                      c.danger.withOpacity(0.3),
+                                  color: c.danger.withOpacity(0.3),
                                 ),
                               ),
                               child: Icon(
@@ -576,6 +561,7 @@ class _PdfSectionState extends State<_PdfSection> {
                       ],
                     ),
 
+                    // Progress bar
                     if (isDownloading) ...[
                       const SizedBox(height: 12),
                       ClipRRect(
@@ -584,8 +570,7 @@ class _PdfSectionState extends State<_PdfSection> {
                           value: progress > 0 ? progress : null,
                           backgroundColor: c.surface2,
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(
-                                  c.brand),
+                              AlwaysStoppedAnimation<Color>(c.brand),
                           minHeight: 4,
                         ),
                       ),
@@ -615,14 +600,14 @@ class _PdfSectionState extends State<_PdfSection> {
                       ),
                     ],
 
+                    // Error message
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: c.dangerBg,
-                          borderRadius:
-                              BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: c.danger.withOpacity(0.3),
                           ),
@@ -765,7 +750,8 @@ class _TeacherCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: c.brand.withOpacity(0.12),
                 border: Border.all(
-                    color: c.brand.withOpacity(0.25)),
+                  color: c.brand.withOpacity(0.25),
+                ),
               ),
               alignment: Alignment.center,
               child: Text(
@@ -810,7 +796,8 @@ class _TeacherCard extends StatelessWidget {
                 color: c.goldLine,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                    color: c.goldText.withOpacity(0.3)),
+                  color: c.goldText.withOpacity(0.3),
+                ),
               ),
               child: Icon(
                 Icons.headphones_rounded,
