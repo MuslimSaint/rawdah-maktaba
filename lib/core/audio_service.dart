@@ -20,14 +20,20 @@ class AudioService extends ChangeNotifier {
 
   // Metadata for notification display + mini player
   String? _currentBookId;
+  String? _currentTeacherId;
+  int? _currentPartNumber;
   String? _currentTitle;
   String? _currentSubtitle;
+  String? _currentArtPath;
 
   // ─── Getters ───────────────────────────────────────
   String? get currentFileId => _currentFileId;
   String? get currentBookId => _currentBookId;
+  String? get currentTeacherId => _currentTeacherId;
+  int? get currentPartNumber => _currentPartNumber;
   String? get currentTitle => _currentTitle;
   String? get currentSubtitle => _currentSubtitle;
+  String? get currentArtPath => _currentArtPath;
   bool get isPlaying => _isPlaying;
   Duration get position => _position;
   Duration get duration => _duration;
@@ -89,14 +95,15 @@ class AudioService extends ChangeNotifier {
   // ─── Playback ──────────────────────────────────────
 
   /// Load and play an audio file from local path.
-  /// This is called when the user EXPLICITLY wants to start
-  /// playing (tapped play button, tapped lesson, etc.)
+  /// Called when the user explicitly wants to start playing.
   /// If same file is already loaded → just resumes/plays.
   /// Does NOT auto-toggle pause.
   Future<void> playFile({
     required String filePath,
     required String fileId,
     required String bookId,
+    required String teacherId,
+    required int partNumber,
     required String title,
     required String subtitle,
     String? artUri,
@@ -118,8 +125,11 @@ class AudioService extends ChangeNotifier {
 
       _currentFileId = fileId;
       _currentBookId = bookId;
+      _currentTeacherId = teacherId;
+      _currentPartNumber = partNumber;
       _currentTitle = title;
       _currentSubtitle = subtitle;
+      _currentArtPath = artUri;
 
       // Wrap file in MediaItem for background/notification support
       final source = AudioSource.uri(
@@ -148,18 +158,11 @@ class AudioService extends ChangeNotifier {
   /// Called when the audio player screen re-opens for the
   /// SAME file that's already playing. Does NOT stop or
   /// restart audio — just ensures state is in sync.
-  /// This is the KEY fix for the "audio pauses on return" bug.
   void ensureNotDisturbed(String fileId) {
-    // If same file — do nothing, let audio continue.
-    // If different file — also do nothing here. The user
-    // needs to explicitly play the new file via playFile().
-    // This method exists purely to make intent explicit at
-    // the call site.
     return;
   }
 
-  /// Explicitly toggle play/pause. Called only from user
-  /// tapping the play/pause button.
+  /// Explicitly toggle play/pause.
   Future<void> togglePlay() async {
     if (_isPlaying) {
       await _player.pause();
@@ -204,13 +207,15 @@ class AudioService extends ChangeNotifier {
   }
 
   /// Stop and clear current audio.
-  /// This clears the notification too.
   Future<void> stop() async {
     await _player.stop();
     _currentFileId = null;
     _currentBookId = null;
+    _currentTeacherId = null;
+    _currentPartNumber = null;
     _currentTitle = null;
     _currentSubtitle = null;
+    _currentArtPath = null;
     _position = Duration.zero;
     _duration = Duration.zero;
     _isPlaying = false;
