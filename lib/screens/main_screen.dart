@@ -1,23 +1,19 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
-import '../core/audio_service.dart';
-import '../core/cover_service.dart';
-import '../core/models.dart';
 import '../core/theme.dart';
 import 'home_tab.dart';
 import 'library_tab.dart';
 import 'downloads_tab.dart';
 import 'settings_tab.dart';
-import 'audio_player_screen.dart';
-import 'lessons_screen.dart';
 
 /// Main app screen with bottom navigation bar.
 /// Four tabs: Home, Library, Downloads, Settings.
-/// Includes a mini audio player above the bottom nav
-/// whenever audio is active — persistent across tabs.
+/// Mini audio player lives at the app root — it shows above
+/// this screen whenever audio is active. This screen just
+/// adds bottom padding so the mini player doesn't overlap
+/// the bottom nav bar.
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -44,6 +40,14 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
+    final hasActiveAudio = state.audioService.hasActiveAudio;
+
+    // When audio is active, push the bottom nav UP by
+    // the height of the mini player so it doesn't get
+    // hidden underneath. Approx height: 60px.
+    const miniPlayerHeight = 60.0;
+    final bottomPadding =
+        hasActiveAudio ? miniPlayerHeight : 0.0;
 
     return PopScope(
       canPop: false,
@@ -57,311 +61,37 @@ class _MainScreenState extends State<MainScreen> {
       },
       child: Directionality(
         textDirection: state.textDirection,
-        child: Scaffold(
-          backgroundColor: c.bg,
+        child: ListenableBuilder(
+          listenable: state.audioService,
+          builder: (context, _) {
+            final hasAudio =
+                state.audioService.hasActiveAudio;
+            final pushUp =
+                hasAudio ? miniPlayerHeight : 0.0;
 
-          body: Stack(
-            children: List.generate(_tabs.length, (index) {
-              return Offstage(
-                offstage: _currentIndex != index,
-                child: _tabs[index],
-              );
-            }),
-          ),
-
-          bottomNavigationBar: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Mini player above the nav bar
-              _MiniPlayer(
-                audioService: state.audioService,
-                coverService: state.coverService,
-                catalogService: state.catalogService,
-                colors: c,
+            return Scaffold(
+              backgroundColor: c.bg,
+              body: Stack(
+                children: List.generate(_tabs.length,
+                    (index) {
+                  return Offstage(
+                    offstage: _currentIndex != index,
+                    child: _tabs[index],
+                  );
+                }),
               ),
-
-              // Bottom Navigation Bar
-              _BottomNavBar(
-                currentIndex: _currentIndex,
-                onTap: _onTabTapped,
-                colors: c,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Mini Player ────────────────────────────────────────
-
-class _MiniPlayer extends StatelessWidget {
-  final AudioService audioService;
-  final CoverService coverService;
-  final dynamic catalogService; // CatalogService but avoid import cycle
-  final AppColors colors;
-
-  const _MiniPlayer({
-    required this.audioService,
-    required this.coverService,
-    required this.catalogService,
-    required this.colors,
-  });
-
-  void _openFullPlayer(BuildContext context) {
-    final bookId = audioService.currentBookId;
-    if (bookId == null) return;
-
-    // Find the book
-    Book? book;
-    try {
-      book = catalogService.books
-          .firstWhere((b) => b.id == bookId);
-    } catch (_) {
-      return;
-    }
-
-    // Parse the audio fileId to figure out teacher + part
-    // Format: audio_[bookId]_[teacherId]_[part]
-    final fileId = audioService.currentFileId;
-    if (fileId == null) return;
-    final withoutPrefix = fileId.replaceFirst('audio_', '');
-    final parts = withoutPrefix.split('_');
-    if (parts.length < 3) return;
-
-    // bookId may itself contain underscores — but in our data
-    // it doesn't. Assume last two are teacherId and partNumber.
-    final partNumber = int.tryParse(parts.last);
-    if (partNumber == null) return;
-    final teacherId = parts[parts.length - 2];
-
-    final teacher = catalogService.teacherById(teacherId);
-    if (teacher == null) return;
-
-    final teacherAudio = book!.audioForTeacher(teacherId);
-    if (teacherAudio == null) return;
-
-    final partIndex = teacherAudio.parts.indexOf(partNumber);
-    if (partIndex < 0) return;
-
-    // Open the full audio player screen
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AudioPlayerScreen(
-          book: book!,
-          teacher: teacher,
-          teacherAudio: teacherAudio,
-          initialPartIndex: partIndex,
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-
-    return ListenableBuilder(
-      listenable: Listenable.merge([
-        audioService,
-        coverService,
-      ]),
-      builder: (context, _) {
-        if (!audioService.hasActiveAudio) {
-          return const SizedBox.shrink();
-        }
-
-        final isPlaying = audioService.isPlaying;
-        final isLoading = audioService.isLoading;
-        final position = audioService.position;
-        final duration = audioService.duration;
-        final progress = duration.inMilliseconds > 0
-            ? position.inMilliseconds /
-                duration.inMilliseconds
-            : 0.0;
-
-        final bookId = audioService.currentBookId;
-        final coverPath = bookId != null
-            ? coverService.coverPath(bookId)
-            : null;
-
-        return Material(
-          color: c.card,
-          child: InkWell(
-            onTap: () => _openFullPlayer(context),
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: c.goldLine,
-                    width: 1,
-                  ),
+              bottomNavigationBar: Padding(
+                padding: EdgeInsets.only(bottom: pushUp),
+                child: _BottomNavBar(
+                  currentIndex: _currentIndex,
+                  onTap: _onTabTapped,
+                  colors: c,
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Thin progress line at top
-                  SizedBox(
-                    height: 2,
-                    child: LinearProgressIndicator(
-                      value: progress > 0 ? progress : null,
-                      backgroundColor: c.surface2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(
-                              c.brand),
-                      minHeight: 2,
-                    ),
-                  ),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: [
-                        // Cover thumbnail
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(8),
-                            color: c.brand.withOpacity(0.1),
-                            border: Border.all(
-                              color:
-                                  c.brand.withOpacity(0.25),
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius:
-                                BorderRadius.circular(8),
-                            child: coverPath != null
-                                ? Image.file(
-                                    File(coverPath),
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (_, __, ___) => Icon(
-                                      Icons
-                                          .headphones_rounded,
-                                      color: c.brand,
-                                      size: 20,
-                                    ),
-                                  )
-                                : Icon(
-                                    Icons.headphones_rounded,
-                                    color: c.brand,
-                                    size: 20,
-                                  ),
-                          ),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        // Title + subtitle
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                audioService.currentTitle ??
-                                    '',
-                                maxLines: 1,
-                                overflow:
-                                    TextOverflow.ellipsis,
-                                textDirection:
-                                    TextDirection.rtl,
-                                style: AppText.arabic(
-                                  color: c.textPrimary,
-                                  size: 12,
-                                  weight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                audioService
-                                        .currentSubtitle ??
-                                    '',
-                                maxLines: 1,
-                                overflow:
-                                    TextOverflow.ellipsis,
-                                textDirection:
-                                    TextDirection.rtl,
-                                style: AppText.arabic(
-                                  color: c.goldText,
-                                  size: 10,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        // Play / Pause button
-                        GestureDetector(
-                          onTap: () =>
-                              audioService.togglePlay(),
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: c.brand,
-                            ),
-                            child: isLoading
-                                ? const Padding(
-                                    padding:
-                                        EdgeInsets.all(10),
-                                    child:
-                                        CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : Icon(
-                                    isPlaying
-                                        ? Icons.pause_rounded
-                                        : Icons
-                                            .play_arrow_rounded,
-                                    color: Colors.white,
-                                    size: 22,
-                                  ),
-                          ),
-                        ),
-
-                        const SizedBox(width: 6),
-
-                        // Close (stop) button
-                        GestureDetector(
-                          onTap: () => audioService.stop(),
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: c.surface2,
-                            ),
-                            child: Icon(
-                              Icons.close_rounded,
-                              color: c.textMuted,
-                              size: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+            );
+          },
+        ),
+      ),
     );
   }
 }
