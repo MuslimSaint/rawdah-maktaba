@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 
 import 'core/app_state.dart';
 import 'core/theme.dart';
@@ -27,6 +28,16 @@ void main() async {
 
   // Initialize Firebase
   await Firebase.initializeApp();
+
+  // Initialize audio background service (notification controls,
+  // lock screen controls, headphone controls, etc.)
+  await JustAudioBackground.init(
+    androidNotificationChannelId:
+        'com.rawda.library.audio',
+    androidNotificationChannelName: 'مكتبة الروضة',
+    androidNotificationOngoing: true,
+    androidNotificationIcon: 'mipmap/ic_launcher',
+  );
 
   // Initialize app state (loads preferences from disk)
   final appState = AppState();
@@ -91,7 +102,6 @@ class _AppRouterState extends State<AppRouter> {
             } else if (!state.isSignedIn) {
               _showAuth = true;
             }
-            // else: go straight to main app
           });
         },
       );
