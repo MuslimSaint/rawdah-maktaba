@@ -3,6 +3,7 @@ import '../core/theme.dart';
 import '../core/translations.dart';
 
 /// The splash screen shown when the app launches.
+/// Uses the real app icon (assets/icon.png).
 class SplashScreen extends StatefulWidget {
   final VoidCallback onDone;
 
@@ -149,12 +150,11 @@ class _SplashScreenState extends State<SplashScreen>
             ),
             child: Stack(
               children: [
-                // Center content
                 Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // ── Icon ──
+                      // ── App Icon (real launcher icon) ──
                       AnimatedBuilder(
                         animation: _iconController,
                         builder: (context, child) {
@@ -163,20 +163,42 @@ class _SplashScreenState extends State<SplashScreen>
                             child: Transform.scale(
                               scale: _iconScale.value,
                               child: Container(
-                                width: 80,
-                                height: 80,
+                                width: 96,
+                                height: 96,
                                 decoration: BoxDecoration(
-                                  color: splashGold.withOpacity(0.13),
-                                  borderRadius: BorderRadius.circular(24),
+                                  borderRadius:
+                                      BorderRadius.circular(22),
                                   border: Border.all(
-                                    color: splashGold.withOpacity(0.35),
+                                    color: splashGold
+                                        .withOpacity(0.35),
                                     width: 1.5,
                                   ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: splashGold
+                                          .withOpacity(0.25),
+                                      blurRadius: 24,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
                                 ),
-                                child: const Icon(
-                                  Icons.menu_book_rounded,
-                                  size: 36,
-                                  color: splashGold,
+                                child: ClipRRect(
+                                  borderRadius:
+                                      BorderRadius.circular(20),
+                                  child: Image.asset(
+                                    'assets/icon.png',
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (_, __, ___) => Container(
+                                      color: splashGold
+                                          .withOpacity(0.13),
+                                      child: const Icon(
+                                        Icons.menu_book_rounded,
+                                        size: 44,
+                                        color: splashGold,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -201,7 +223,6 @@ class _SplashScreenState extends State<SplashScreen>
                                   color: splashGold,
                                   size: 14,
                                 ).copyWith(
-                                  // Remove any underline from font
                                   decoration: TextDecoration.none,
                                 ),
                               ),
@@ -228,7 +249,6 @@ class _SplashScreenState extends State<SplashScreen>
                                   size: 32,
                                   weight: FontWeight.w700,
                                 ).copyWith(
-                                  // Remove any underline from font
                                   decoration: TextDecoration.none,
                                 ),
                               ),
@@ -253,18 +273,21 @@ class _SplashScreenState extends State<SplashScreen>
                             children: List.generate(3, (i) {
                               final delay = i * 0.2;
                               final progress =
-                                  (_dotsController.value - delay) % 1.0;
+                                  (_dotsController.value - delay) %
+                                      1.0;
                               final opacity = progress < 0.4
                                   ? 0.3 + (progress / 0.4) * 0.7
                                   : progress < 0.8
                                       ? 1.0 -
-                                          ((progress - 0.4) / 0.4) * 0.7
+                                          ((progress - 0.4) / 0.4) *
+                                              0.7
                                       : 0.3;
                               final scale = progress < 0.4
                                   ? 0.8 + (progress / 0.4) * 0.3
                                   : progress < 0.8
                                       ? 1.1 -
-                                          ((progress - 0.4) / 0.4) * 0.3
+                                          ((progress - 0.4) / 0.4) *
+                                              0.3
                                       : 0.8;
                               return Padding(
                                 padding: EdgeInsets.only(
@@ -313,7 +336,8 @@ class _SplashScreenState extends State<SplashScreen>
                               ),
                               decoration: BoxDecoration(
                                 color: splashGold.withOpacity(0.07),
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius:
+                                    BorderRadius.circular(20),
                                 border: Border.all(
                                   color: splashGold.withOpacity(0.5),
                                   width: 1,
