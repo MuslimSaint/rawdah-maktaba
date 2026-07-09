@@ -9,16 +9,15 @@ import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/main_screen.dart';
+import 'widgets/mini_audio_player.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock to portrait orientation only
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
 
-  // Set system UI overlay (status bar) to be transparent
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -26,11 +25,8 @@ void main() async {
     ),
   );
 
-  // Initialize Firebase
   await Firebase.initializeApp();
 
-  // Initialize audio background service (notification controls,
-  // lock screen controls, headphone controls, etc.)
   await JustAudioBackground.init(
     androidNotificationChannelId:
         'com.rawda.library.audio',
@@ -39,7 +35,6 @@ void main() async {
     androidNotificationIcon: 'mipmap/ic_launcher',
   );
 
-  // Initialize app state (loads preferences from disk)
   final appState = AppState();
   await appState.init();
 
@@ -64,9 +59,46 @@ class RawdahApp extends StatelessWidget {
             title: 'مكتبة الروضة',
             theme: buildTheme(appState.isDark),
             home: const AppRouter(),
+
+            // ── Persistent mini audio player overlay ──
+            // Wraps every route in a Stack so the mini player
+            // shows on top of ALL screens, not just tabs.
+            builder: (context, child) {
+              return _AppShell(child: child);
+            },
           );
         },
       ),
+    );
+  }
+}
+
+/// Wraps every route with the persistent mini audio player.
+/// The mini player only appears when audio is active AND
+/// the user is past the pre-login screens.
+class _AppShell extends StatelessWidget {
+  final Widget? child;
+  const _AppShell({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppState.of(context);
+
+    // Do not show mini player during pre-login flow.
+    // Only show it once the user is fully signed in.
+    final showMini = state.isSignedIn && !state.isFirstLaunch;
+
+    return Stack(
+      children: [
+        child ?? const SizedBox.shrink(),
+        if (showMini)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: const MiniAudioPlayer(),
+          ),
+      ],
     );
   }
 }
@@ -91,7 +123,6 @@ class _AppRouterState extends State<AppRouter> {
   Widget build(BuildContext context) {
     final state = AppState.of(context);
 
-    // ── Splash ──
     if (_showSplash) {
       return SplashScreen(
         onDone: () {
@@ -107,7 +138,6 @@ class _AppRouterState extends State<AppRouter> {
       );
     }
 
-    // ── Welcome (first launch only) ──
     if (_showWelcome) {
       return WelcomeScreen(
         language: state.language,
@@ -121,7 +151,6 @@ class _AppRouterState extends State<AppRouter> {
       );
     }
 
-    // ── Auth (not signed in) ──
     if (_showAuth) {
       return AuthScreen(
         onAuthenticated: () async {
@@ -133,7 +162,6 @@ class _AppRouterState extends State<AppRouter> {
       );
     }
 
-    // ── Main App ──
     return const MainScreen();
   }
 }
