@@ -8,8 +8,7 @@ import '../widgets/book_cover.dart';
 import 'book_detail_screen.dart';
 
 /// Shows all books in a specific branch.
-/// Page count only appears once the PDF has been downloaded
-/// and its real page count extracted.
+/// Page count only shown after PDF is downloaded (real count).
 class BranchScreen extends StatefulWidget {
   final Branch branch;
   final CatalogService catalogService;
@@ -314,8 +313,7 @@ class _BranchBookCard extends StatelessWidget {
                         ),
                       ),
 
-                      // ── Info row: only shown if there's
-                      //    something meaningful to display
+                      // Info row: only if real pages OR audio
                       if (realPages != null || hasAudio) ...[
                         const SizedBox(height: 8),
                         Row(
