@@ -6,9 +6,10 @@ import '../core/models.dart';
 import '../core/theme.dart';
 import '../widgets/book_cover.dart';
 import 'book_detail_screen.dart';
+import 'quran_screen.dart';
 
 /// Shows all books in a specific branch.
-/// Page count only shown after PDF is downloaded (real count).
+/// Special-cases the Quran branch — auto-redirects to QuranScreen.
 class BranchScreen extends StatefulWidget {
   final Branch branch;
   final CatalogService catalogService;
@@ -25,9 +26,34 @@ class BranchScreen extends StatefulWidget {
 
 class _BranchScreenState extends State<BranchScreen> {
   @override
+  void initState() {
+    super.initState();
+    // If someone lands on BranchScreen for Quran (from
+    // any code path), redirect to the proper QuranScreen.
+    if (widget.branch.id == 'quran') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => const QuranScreen(),
+          ),
+        );
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
+
+    // While Quran redirect is happening, show a blank shell
+    if (widget.branch.id == 'quran') {
+      return Scaffold(
+        backgroundColor: c.bg,
+        body: const SizedBox.shrink(),
+      );
+    }
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -260,9 +286,7 @@ class _BranchBookCard extends StatelessWidget {
                   height: 78,
                   borderRadius: 10,
                 ),
-
                 const SizedBox(width: 14),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
@@ -272,7 +296,8 @@ class _BranchBookCard extends StatelessWidget {
                         Container(
                           margin: const EdgeInsets.only(
                               bottom: 6),
-                          padding: const EdgeInsets.symmetric(
+                          padding:
+                              const EdgeInsets.symmetric(
                             horizontal: 7,
                             vertical: 2,
                           ),
@@ -290,7 +315,6 @@ class _BranchBookCard extends StatelessWidget {
                                 AppText.label(color: c.brand),
                           ),
                         ),
-
                       Text(
                         book.titleAr,
                         textDirection: TextDirection.rtl,
@@ -301,9 +325,7 @@ class _BranchBookCard extends StatelessWidget {
                           weight: FontWeight.w700,
                         ),
                       ),
-
                       const SizedBox(height: 4),
-
                       Text(
                         book.authorShort,
                         textDirection: TextDirection.rtl,
@@ -312,8 +334,6 @@ class _BranchBookCard extends StatelessWidget {
                           size: 12,
                         ),
                       ),
-
-                      // Info row: only if real pages OR audio
                       if (realPages != null || hasAudio) ...[
                         const SizedBox(height: 8),
                         Row(
@@ -333,7 +353,8 @@ class _BranchBookCard extends StatelessWidget {
                                 ),
                               ),
                             ],
-                            if (realPages != null && hasAudio)
+                            if (realPages != null &&
+                                hasAudio)
                               const SizedBox(width: 10),
                             if (hasAudio) ...[
                               Icon(
@@ -360,7 +381,6 @@ class _BranchBookCard extends StatelessWidget {
                     ],
                   ),
                 ),
-
                 const SizedBox(width: 8),
                 Icon(
                   Icons.chevron_right_rounded,
