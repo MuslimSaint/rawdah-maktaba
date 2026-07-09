@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/catalog_service.dart';
+import '../core/cover_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
@@ -9,6 +10,8 @@ import 'lessons_screen.dart';
 import 'pdf_reader_screen.dart';
 
 /// Full book detail screen.
+/// Page count is only shown when the PDF has been
+/// downloaded and its real page count extracted.
 class BookDetailScreen extends StatelessWidget {
   final Book book;
   final CatalogService catalogService;
@@ -70,16 +73,22 @@ class BookDetailScreen extends StatelessWidget {
 
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                padding:
+                    const EdgeInsets.fromLTRB(20, 0, 20, 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _HeroCard(book: book, colors: c),
+                    _HeroCard(
+                      book: book,
+                      colors: c,
+                      coverService: state.coverService,
+                    ),
                     const SizedBox(height: 20),
                     _PdfSection(
                       book: book,
                       colors: c,
                       downloadService: state.downloadService,
+                      coverService: state.coverService,
                     ),
                     const SizedBox(height: 20),
                     if (book.hasAudio &&
@@ -116,183 +125,206 @@ class BookDetailScreen extends StatelessWidget {
 class _HeroCard extends StatelessWidget {
   final Book book;
   final AppColors colors;
+  final CoverService coverService;
 
-  const _HeroCard({required this.book, required this.colors});
+  const _HeroCard({
+    required this.book,
+    required this.colors,
+    required this.coverService,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: c.card,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: c.goldLine, width: 1.5),
-      ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return ListenableBuilder(
+      listenable: coverService,
+      builder: (context, _) {
+        final realPages = coverService.pageCount(book.id);
+
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: c.card,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: c.goldLine, width: 1.5),
+          ),
+          child: Column(
             children: [
-              // ── Real cover via BookCoverWidget ──
-              BookCoverWidget(
-                book: book,
-                width: 80,
-                height: 108,
-                borderRadius: 12,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  BookCoverWidget(
+                    book: book,
+                    width: 80,
+                    height: 108,
+                    borderRadius: 12,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.end,
+                      children: [
+                        if (book.isNew || book.isRecentlyAdded)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.only(
+                                  bottom: 8),
+                              padding:
+                                  const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    c.brand.withOpacity(0.12),
+                                borderRadius:
+                                    BorderRadius.circular(6),
+                                border: Border.all(
+                                  color:
+                                      c.brand.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Text(
+                                'NEW',
+                                style: AppText.label(
+                                    color: c.brand),
+                              ),
+                            ),
+                          ),
+                        Text(
+                          book.titleAr,
+                          textDirection: TextDirection.rtl,
+                          textAlign: TextAlign.right,
+                          style: AppText.arabic(
+                            color: c.textPrimary,
+                            size: 16,
+                            weight: FontWeight.w700,
+                            height: 1.6,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          alignment: WrapAlignment.end,
+                          children:
+                              book.branches.map((branchId) {
+                            final branch =
+                                Catalog.branches.firstWhere(
+                              (b) => b.id == branchId,
+                              orElse: () => const Branch(
+                                id: '',
+                                nameEn: '',
+                                nameAr: '',
+                                nameAm: '',
+                              ),
+                            );
+                            return Container(
+                              padding:
+                                  const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    c.brand.withOpacity(0.08),
+                                borderRadius:
+                                    BorderRadius.circular(6),
+                                border: Border.all(
+                                  color:
+                                      c.brand.withOpacity(0.2),
+                                ),
+                              ),
+                              child: Text(
+                                branch.nameEn,
+                                style: AppText.latin(
+                                  color: c.brand,
+                                  size: 10,
+                                  weight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+
+                        // ── Real page count only ──
+                        if (realPages != null) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.end,
+                            children: [
+                              Icon(
+                                Icons.menu_book_outlined,
+                                size: 13,
+                                color: c.textFaint,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$realPages pages',
+                                style: AppText.latin(
+                                  color: c.textFaint,
+                                  size: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ),
 
-              const SizedBox(width: 16),
+              const SizedBox(height: 16),
+              Divider(color: c.divider, height: 1),
+              const SizedBox(height: 14),
 
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (book.isNew || book.isRecentlyAdded)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: c.brand.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: c.brand.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Text(
-                            'NEW',
-                            style: AppText.label(color: c.brand),
-                          ),
-                        ),
-                      ),
-
-                    Text(
-                      book.titleAr,
-                      textDirection: TextDirection.rtl,
-                      textAlign: TextAlign.right,
-                      style: AppText.arabic(
-                        color: c.textPrimary,
-                        size: 16,
-                        weight: FontWeight.w700,
-                        height: 1.6,
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      alignment: WrapAlignment.end,
-                      children: book.branches.map((branchId) {
-                        final branch = Catalog.branches.firstWhere(
-                          (b) => b.id == branchId,
-                          orElse: () => const Branch(
-                            id: '',
-                            nameEn: '',
-                            nameAr: '',
-                            nameAm: '',
-                          ),
-                        );
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: c.brand.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: c.brand.withOpacity(0.2),
-                            ),
-                          ),
-                          child: Text(
-                            branch.nameEn,
-                            style: AppText.latin(
-                              color: c.brand,
-                              size: 10,
-                              weight: FontWeight.w600,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+              // ── AUTHOR ──
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AUTHOR',
+                    style: AppText.label(color: c.textFaint),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.end,
                       children: [
-                        Icon(
-                          Icons.menu_book_outlined,
-                          size: 13,
-                          color: c.textFaint,
-                        ),
-                        const SizedBox(width: 4),
                         Text(
-                          '${book.pages} pages',
+                          book.authorAr,
+                          textDirection: TextDirection.rtl,
+                          textAlign: TextAlign.right,
+                          style: AppText.arabic(
+                            color: c.goldText,
+                            size: 14,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          book.authorEn,
+                          textAlign: TextAlign.right,
                           style: AppText.latin(
-                            color: c.textFaint,
+                            color: c.textMuted,
                             size: 12,
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
-
-          const SizedBox(height: 16),
-          Divider(color: c.divider, height: 1),
-          const SizedBox(height: 14),
-
-          // ── AUTHOR ──
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'AUTHOR',
-                style: AppText.label(color: c.textFaint),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      book.authorAr,
-                      textDirection: TextDirection.rtl,
-                      textAlign: TextAlign.right,
-                      style: AppText.arabic(
-                        color: c.goldText,
-                        size: 14,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      book.authorEn,
-                      textAlign: TextAlign.right,
-                      style: AppText.latin(
-                        color: c.textMuted,
-                        size: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -303,11 +335,13 @@ class _PdfSection extends StatefulWidget {
   final Book book;
   final AppColors colors;
   final DownloadService downloadService;
+  final CoverService coverService;
 
   const _PdfSection({
     required this.book,
     required this.colors,
     required this.downloadService,
+    required this.coverService,
   });
 
   @override
@@ -359,9 +393,6 @@ class _PdfSectionState extends State<_PdfSection> {
         if (mounted) setState(() => _errorMessage = e);
       },
       onComplete: () {
-        // Cover extraction is handled automatically by
-        // DownloadService.onPdfDownloadComplete callback
-        // No need to do anything here
         if (mounted) setState(() {});
       },
     );
@@ -372,7 +403,10 @@ class _PdfSectionState extends State<_PdfSection> {
     final c = widget.colors;
 
     return ListenableBuilder(
-      listenable: widget.downloadService,
+      listenable: Listenable.merge([
+        widget.downloadService,
+        widget.coverService,
+      ]),
       builder: (context, _) {
         final isDownloaded =
             widget.downloadService.isDownloaded(_fileId);
@@ -381,6 +415,20 @@ class _PdfSectionState extends State<_PdfSection> {
         final progress =
             widget.downloadService.progress(_fileId);
         final hasUrl = widget.book.pdfUrl.isNotEmpty;
+        final realPages =
+            widget.coverService.pageCount(widget.book.id);
+
+        // Subtitle logic:
+        // - Before download: just MB
+        // - After download with real pages: MB · X pages
+        // - After download without real pages yet: just MB
+        String subtitle;
+        if (realPages != null) {
+          subtitle =
+              '${widget.book.pdfSizeMb} MB · $realPages pages';
+        } else {
+          subtitle = '${widget.book.pdfSizeMb} MB';
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -419,7 +467,6 @@ class _PdfSectionState extends State<_PdfSection> {
                   children: [
                     Row(
                       children: [
-                        // Status circle
                         Container(
                           width: 52,
                           height: 52,
@@ -441,8 +488,10 @@ class _PdfSectionState extends State<_PdfSection> {
                           ),
                           child: isDownloading
                               ? Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: CircularProgressIndicator(
+                                  padding:
+                                      const EdgeInsets.all(14),
+                                  child:
+                                      CircularProgressIndicator(
                                     value: progress > 0
                                         ? progress
                                         : null,
@@ -452,10 +501,13 @@ class _PdfSectionState extends State<_PdfSection> {
                                 )
                               : Icon(
                                   isDownloaded
-                                      ? Icons.menu_book_rounded
+                                      ? Icons
+                                          .menu_book_rounded
                                       : !hasUrl
-                                          ? Icons.hourglass_empty_rounded
-                                          : Icons.download_rounded,
+                                          ? Icons
+                                              .hourglass_empty_rounded
+                                          : Icons
+                                              .download_rounded,
                                   size: 22,
                                   color: isDownloaded
                                       ? Colors.white
@@ -490,7 +542,7 @@ class _PdfSectionState extends State<_PdfSection> {
                               ),
                               const SizedBox(height: 3),
                               Text(
-                                '${widget.book.pdfSizeMb} MB · ${widget.book.pages} pages',
+                                subtitle,
                                 style: AppText.latin(
                                   color: c.textMuted,
                                   size: 12,
@@ -510,7 +562,6 @@ class _PdfSectionState extends State<_PdfSection> {
                           ),
                         ),
 
-                        // Cancel button when downloading
                         if (isDownloading)
                           GestureDetector(
                             onTap: () {
@@ -525,7 +576,8 @@ class _PdfSectionState extends State<_PdfSection> {
                                 borderRadius:
                                     BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: c.danger.withOpacity(0.3),
+                                  color:
+                                      c.danger.withOpacity(0.3),
                                 ),
                               ),
                               child: Icon(
@@ -537,16 +589,19 @@ class _PdfSectionState extends State<_PdfSection> {
                           )
                         else
                           Container(
-                            padding: const EdgeInsets.symmetric(
+                            padding:
+                                const EdgeInsets.symmetric(
                               horizontal: 10,
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: c.brand.withOpacity(0.1),
+                              color:
+                                  c.brand.withOpacity(0.1),
                               borderRadius:
                                   BorderRadius.circular(8),
                               border: Border.all(
-                                color: c.brand.withOpacity(0.25),
+                                color:
+                                    c.brand.withOpacity(0.25),
                               ),
                             ),
                             child: Text(
@@ -561,7 +616,6 @@ class _PdfSectionState extends State<_PdfSection> {
                       ],
                     ),
 
-                    // Progress bar
                     if (isDownloading) ...[
                       const SizedBox(height: 12),
                       ClipRRect(
@@ -570,7 +624,8 @@ class _PdfSectionState extends State<_PdfSection> {
                           value: progress > 0 ? progress : null,
                           backgroundColor: c.surface2,
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(c.brand),
+                              AlwaysStoppedAnimation<Color>(
+                                  c.brand),
                           minHeight: 4,
                         ),
                       ),
@@ -600,14 +655,14 @@ class _PdfSectionState extends State<_PdfSection> {
                       ),
                     ],
 
-                    // Error message
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: c.dangerBg,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius:
+                              BorderRadius.circular(8),
                           border: Border.all(
                             color: c.danger.withOpacity(0.3),
                           ),
@@ -630,8 +685,8 @@ class _PdfSectionState extends State<_PdfSection> {
                               ),
                             ),
                             GestureDetector(
-                              onTap: () => setState(
-                                  () => _errorMessage = null),
+                              onTap: () => setState(() =>
+                                  _errorMessage = null),
                               child: Icon(
                                 Icons.close_rounded,
                                 color: c.danger,
@@ -767,7 +822,8 @@ class _TeacherCard extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   Text(
                     teacher.nameAr,
