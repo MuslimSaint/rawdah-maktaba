@@ -1,13 +1,11 @@
 /// Data models for the Rawdah Maktaba app.
 
 // ─── Announcement ────────────────────────────────────────
-// Optional banner message pushed remotely via catalog.json.
-// Set active: false to hide. No app update needed.
 
 class Announcement {
   final bool active;
   final String message;
-  final String type; // 'info', 'warning', 'success'
+  final String type;
 
   const Announcement({
     required this.active,
@@ -65,6 +63,50 @@ class Teacher {
   }
 }
 
+// ─── Reciter ────────────────────────────────────────────
+// Reciters (Qaris) recite the Quran beautifully.
+// Different from Teachers — teachers explain/tafseer.
+// Both can appear on a Surah's detail screen.
+
+class Reciter {
+  final String id;
+  final String nameAr;
+  final String nameEn;
+  final String nameAm;
+  final String initials;
+
+  const Reciter({
+    required this.id,
+    required this.nameAr,
+    required this.nameEn,
+    required this.nameAm,
+    required this.initials,
+  });
+
+  factory Reciter.fromJson(Map<String, dynamic> json) {
+    return Reciter(
+      id: json['id'] as String,
+      nameAr: json['nameAr'] as String,
+      nameEn: json['nameEn'] as String,
+      nameAm: (json['nameAm'] as String?)?.isNotEmpty == true
+          ? json['nameAm'] as String
+          : json['nameEn'] as String,
+      initials: json['initials'] as String,
+    );
+  }
+
+  String nameFor(String lang) {
+    switch (lang) {
+      case 'ar':
+        return nameAr;
+      case 'am':
+        return nameAm.isNotEmpty ? nameAm : nameEn;
+      default:
+        return nameEn;
+    }
+  }
+}
+
 // ─── TeacherAudio ────────────────────────────────────────
 
 class TeacherAudio {
@@ -79,6 +121,33 @@ class TeacherAudio {
   factory TeacherAudio.fromJson(Map<String, dynamic> json) {
     return TeacherAudio(
       teacherId: json['teacherId'] as String,
+      parts: (json['parts'] as List)
+          .map((p) => p as int)
+          .toList(),
+    );
+  }
+
+  int get totalParts => parts.length;
+  bool hasPart(int partNumber) => parts.contains(partNumber);
+  int indexOf(int partNumber) => parts.indexOf(partNumber);
+}
+
+// ─── ReciterAudio ────────────────────────────────────────
+// A Reciter's recording(s) for a specific Surah.
+// Each Reciter has independent parts, like TeacherAudio.
+
+class ReciterAudio {
+  final String reciterId;
+  final List<int> parts;
+
+  const ReciterAudio({
+    required this.reciterId,
+    required this.parts,
+  });
+
+  factory ReciterAudio.fromJson(Map<String, dynamic> json) {
+    return ReciterAudio(
+      reciterId: json['reciterId'] as String,
       parts: (json['parts'] as List)
           .map((p) => p as int)
           .toList(),
@@ -133,9 +202,10 @@ class Book {
       authorEn: json['authorEn'] as String,
       authorShort: json['authorShort'] as String,
       branches: List<String>.from(json['branches'] as List),
-      pages: json['pages'] as int,
-      pdfSizeMb: (json['pdfSizeMb'] as num).toDouble(),
-      hasAudio: json['hasAudio'] as bool,
+      pages: json['pages'] as int? ?? 0,
+      pdfSizeMb:
+          (json['pdfSizeMb'] as num?)?.toDouble() ?? 0.0,
+      hasAudio: json['hasAudio'] as bool? ?? false,
       teacherAudio: json['teacherAudio'] != null
           ? (json['teacherAudio'] as List)
               .map((t) => TeacherAudio.fromJson(
@@ -199,22 +269,174 @@ class Branch {
   }
 }
 
+// ─── SurahMeta ───────────────────────────────────────────
+// Metadata about a single Surah.
+// The 114 SurahMeta entries are hardcoded in quran_data.dart
+// because Surahs are architectural (like branches), not content.
+
+class SurahMeta {
+  /// Surah number 1..114
+  final int number;
+
+  /// Arabic name (e.g. الفاتحة)
+  final String nameAr;
+
+  /// English transcription of the name (e.g. Al-Fatiha)
+  final String nameTransliteration;
+
+  /// English meaning (e.g. The Opening)
+  final String meaningEn;
+
+  /// Number of ayat
+  final int ayahCount;
+
+  /// 'meccan' or 'medinan'
+  final String revelationPlace;
+
+  /// Order of revelation (1..114)
+  final int revelationOrder;
+
+  const SurahMeta({
+    required this.number,
+    required this.nameAr,
+    required this.nameTransliteration,
+    required this.meaningEn,
+    required this.ayahCount,
+    required this.revelationPlace,
+    required this.revelationOrder,
+  });
+
+  /// The name shown next to the number in the list.
+  /// Arabic name for all languages.
+  String get displayNameAr => nameAr;
+
+  /// The transliteration shown when app language is en or am.
+  /// Not shown when app language is ar.
+  String? transliterationFor(String lang) {
+    if (lang == 'ar') return null;
+    return nameTransliteration;
+  }
+}
+
+// ─── Surah (catalog part) ────────────────────────────────
+// The remote/catalog data for a Surah — what's actually
+// uploaded (PDF + reciters + teachers).
+// Combined with SurahMeta at runtime.
+
+class Surah {
+  final int number;
+  final String pdfUrl;
+  final List<ReciterAudio> reciters;
+  final List<TeacherAudio> teachers;
+
+  const Surah({
+    required this.number,
+    required this.pdfUrl,
+    required this.reciters,
+    required this.teachers,
+  });
+
+  factory Surah.fromJson(int number, Map<String, dynamic> json) {
+    return Surah(
+      number: number,
+      pdfUrl: json['pdfUrl'] as String? ?? '',
+      reciters: json['reciters'] != null
+          ? (json['reciters'] as List)
+              .map((r) => ReciterAudio.fromJson(
+                  r as Map<String, dynamic>))
+              .toList()
+          : [],
+      teachers: json['teachers'] != null
+          ? (json['teachers'] as List)
+              .map((t) => TeacherAudio.fromJson(
+                  t as Map<String, dynamic>))
+              .toList()
+          : [],
+    );
+  }
+
+  /// Empty placeholder Surah (nothing uploaded).
+  factory Surah.empty(int number) {
+    return Surah(
+      number: number,
+      pdfUrl: '',
+      reciters: const [],
+      teachers: const [],
+    );
+  }
+
+  bool get hasPdf => pdfUrl.isNotEmpty;
+  bool get hasReciters => reciters.isNotEmpty;
+  bool get hasTeachers => teachers.isNotEmpty;
+  bool get hasAnything =>
+      hasPdf || hasReciters || hasTeachers;
+}
+
+// ─── QuranData (catalog part) ────────────────────────────
+
+class QuranData {
+  final String mushafPdfUrl;
+  final Map<int, Surah> surahs;
+
+  const QuranData({
+    required this.mushafPdfUrl,
+    required this.surahs,
+  });
+
+  factory QuranData.fromJson(Map<String, dynamic> json) {
+    final surahsRaw =
+        json['surahs'] as Map<String, dynamic>? ?? {};
+    final surahs = <int, Surah>{};
+    surahsRaw.forEach((key, value) {
+      final n = int.tryParse(key);
+      if (n != null && value is Map<String, dynamic>) {
+        surahs[n] = Surah.fromJson(n, value);
+      }
+    });
+    return QuranData(
+      mushafPdfUrl: json['mushafPdfUrl'] as String? ?? '',
+      surahs: surahs,
+    );
+  }
+
+  factory QuranData.empty() {
+    return const QuranData(
+      mushafPdfUrl: '',
+      surahs: {},
+    );
+  }
+
+  bool get hasMushaf => mushafPdfUrl.isNotEmpty;
+
+  /// Returns the Surah data for a given number, or an
+  /// empty Surah if not in catalog.
+  Surah surahFor(int number) {
+    return surahs[number] ?? Surah.empty(number);
+  }
+}
+
 // ─── Catalog ─────────────────────────────────────────────
 
 class Catalog {
   final List<Book> books;
   final List<Teacher> teachers;
+  final List<Reciter> reciters;
+  final QuranData quran;
   final String version;
   final String minAppVersion;
   final String audioBaseUrl;
+  final String quranBaseUrl;
   final Announcement? announcement;
 
   const Catalog({
     required this.books,
     required this.teachers,
+    required this.reciters,
+    required this.quran,
     required this.version,
     required this.minAppVersion,
     required this.audioBaseUrl,
+    required this.quranBaseUrl,
     this.announcement,
   });
 
@@ -226,11 +448,23 @@ class Catalog {
       teachers: (json['teachers'] as List)
           .map((t) => Teacher.fromJson(t as Map<String, dynamic>))
           .toList(),
+      reciters: json['reciters'] != null
+          ? (json['reciters'] as List)
+              .map((r) =>
+                  Reciter.fromJson(r as Map<String, dynamic>))
+              .toList()
+          : [],
+      quran: json['quran'] != null
+          ? QuranData.fromJson(
+              json['quran'] as Map<String, dynamic>)
+          : QuranData.empty(),
       version: json['version'] as String? ?? '1',
       minAppVersion:
           json['minAppVersion'] as String? ?? '1.0.0',
       audioBaseUrl: json['audioBaseUrl'] as String? ??
           'https://github.com/MuslimSaint/rawdah-catalog/releases/download/v1.0-books',
+      quranBaseUrl: json['quranBaseUrl'] as String? ??
+          'https://github.com/MuslimSaint/rawdah-catalog/releases/download/v1.0-quran',
       announcement: json['announcement'] != null
           ? Announcement.fromJson(
               json['announcement'] as Map<String, dynamic>)
@@ -241,6 +475,14 @@ class Catalog {
   Teacher? teacherById(String id) {
     try {
       return teachers.firstWhere((t) => t.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Reciter? reciterById(String id) {
+    try {
+      return reciters.firstWhere((r) => r.id == id);
     } catch (_) {
       return null;
     }
@@ -259,7 +501,16 @@ class Catalog {
     }).toList();
   }
 
+  // ─── The 6 fixed branches ─────────────────────────────
+  // Tafseer removed. Quran added at position 1.
+  // Arabic renamed to Arabic & Tajweed.
   static const List<Branch> branches = [
+    Branch(
+      id: 'quran',
+      nameEn: 'The Noble Quran',
+      nameAr: 'القرآن الكريم',
+      nameAm: 'ቅዱስ ቁርኣን',
+    ),
     Branch(
       id: 'hadith',
       nameEn: 'Hadith',
@@ -279,22 +530,16 @@ class Catalog {
       nameAm: 'ፊቅህ',
     ),
     Branch(
+      id: 'arabic',
+      nameEn: 'Arabic & Tajweed',
+      nameAr: 'اللغة العربية والتجويد',
+      nameAm: 'አረብኛ እና ተጅዊድ',
+    ),
+    Branch(
       id: 'seerah',
       nameEn: 'Seerah',
       nameAr: 'سيرة',
       nameAm: 'ሲራ',
-    ),
-    Branch(
-      id: 'tafseer',
-      nameEn: 'Tafseer',
-      nameAr: 'تفسير',
-      nameAm: 'ተፍሲር',
-    ),
-    Branch(
-      id: 'arabic',
-      nameEn: 'Arabic Language',
-      nameAr: 'اللغة العربية',
-      nameAm: 'አረብኛ ቋንቋ',
     ),
   ];
 }
