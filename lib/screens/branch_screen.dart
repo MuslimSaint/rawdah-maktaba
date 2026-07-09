@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/catalog_service.dart';
+import '../core/cover_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import '../widgets/book_cover.dart';
 import 'book_detail_screen.dart';
 
 /// Shows all books in a specific branch.
+/// Page count only appears once the PDF has been downloaded
+/// and its real page count extracted.
 class BranchScreen extends StatefulWidget {
   final Branch branch;
   final CatalogService catalogService;
@@ -97,6 +100,7 @@ class _BranchScreenState extends State<BranchScreen> {
                       return _BranchBookCard(
                         book: book,
                         colors: c,
+                        coverService: state.coverService,
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
@@ -215,11 +219,13 @@ class _ComingSoon extends StatelessWidget {
 class _BranchBookCard extends StatelessWidget {
   final Book book;
   final AppColors colors;
+  final CoverService coverService;
   final VoidCallback onTap;
 
   const _BranchBookCard({
     required this.book,
     required this.colors,
+    required this.coverService,
     required this.onTap,
   });
 
@@ -231,124 +237,143 @@ class _BranchBookCard extends StatelessWidget {
         .fold(0, (sum, t) => sum + t.totalParts);
     final teacherCount = book.teacherAudio.length;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: c.card,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: c.divider),
-        ),
-        child: Row(
-          children: [
-            // ← Real cover from PDF
-            BookCoverWidget(
-              book: book,
-              width: 58,
-              height: 78,
-              borderRadius: 10,
+    return ListenableBuilder(
+      listenable: coverService,
+      builder: (context, _) {
+        final realPages = coverService.pageCount(book.id);
+        final hasAudio =
+            book.hasAudio && book.teacherAudio.isNotEmpty;
+
+        return GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: c.card,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: c.divider),
             ),
+            child: Row(
+              children: [
+                BookCoverWidget(
+                  book: book,
+                  width: 58,
+                  height: 78,
+                  borderRadius: 10,
+                ),
 
-            const SizedBox(width: 14),
+                const SizedBox(width: 14),
 
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (book.isNew || book.isRecentlyAdded)
-                    Container(
-                      margin:
-                          const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: c.brand.withOpacity(0.12),
-                        borderRadius:
-                            BorderRadius.circular(5),
-                        border: Border.all(
-                          color: c.brand.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Text(
-                        'NEW',
-                        style: AppText.label(color: c.brand),
-                      ),
-                    ),
-
-                  Text(
-                    book.titleAr,
-                    textDirection: TextDirection.rtl,
-                    textAlign: TextAlign.right,
-                    style: AppText.arabic(
-                      color: c.textPrimary,
-                      size: 15,
-                      weight: FontWeight.w700,
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  Text(
-                    book.authorShort,
-                    textDirection: TextDirection.rtl,
-                    style: AppText.arabic(
-                      color: c.goldText,
-                      size: 12,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Row(
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.menu_book_outlined,
-                        size: 12,
-                        color: c.textFaint,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${book.pages} pages',
-                        style: AppText.latin(
-                          color: c.textFaint,
-                          size: 11,
-                        ),
-                      ),
-                      if (book.hasAudio &&
-                          book.teacherAudio.isNotEmpty) ...[
-                        const SizedBox(width: 10),
-                        Icon(
-                          Icons.headphones_rounded,
-                          size: 12,
-                          color: c.goldText,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$teacherCount ${teacherCount == 1 ? 'teacher' : 'teachers'} · $totalParts parts',
-                          style: AppText.latin(
-                            color: c.goldText,
-                            size: 11,
+                      if (book.isNew || book.isRecentlyAdded)
+                        Container(
+                          margin: const EdgeInsets.only(
+                              bottom: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
                           ),
+                          decoration: BoxDecoration(
+                            color: c.brand.withOpacity(0.12),
+                            borderRadius:
+                                BorderRadius.circular(5),
+                            border: Border.all(
+                              color: c.brand.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Text(
+                            'NEW',
+                            style:
+                                AppText.label(color: c.brand),
+                          ),
+                        ),
+
+                      Text(
+                        book.titleAr,
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.right,
+                        style: AppText.arabic(
+                          color: c.textPrimary,
+                          size: 15,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      Text(
+                        book.authorShort,
+                        textDirection: TextDirection.rtl,
+                        style: AppText.arabic(
+                          color: c.goldText,
+                          size: 12,
+                        ),
+                      ),
+
+                      // ── Info row: only shown if there's
+                      //    something meaningful to display
+                      if (realPages != null || hasAudio) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            if (realPages != null) ...[
+                              Icon(
+                                Icons.menu_book_outlined,
+                                size: 12,
+                                color: c.textFaint,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$realPages pages',
+                                style: AppText.latin(
+                                  color: c.textFaint,
+                                  size: 11,
+                                ),
+                              ),
+                            ],
+                            if (realPages != null && hasAudio)
+                              const SizedBox(width: 10),
+                            if (hasAudio) ...[
+                              Icon(
+                                Icons.headphones_rounded,
+                                size: 12,
+                                color: c.goldText,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  '$teacherCount ${teacherCount == 1 ? 'teacher' : 'teachers'} · $totalParts parts',
+                                  style: AppText.latin(
+                                    color: c.goldText,
+                                    size: 11,
+                                  ),
+                                  overflow:
+                                      TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ],
                   ),
-                ],
-              ),
-            ),
+                ),
 
-            const SizedBox(width: 8),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 18,
-              color: c.textFaint,
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: c.textFaint,
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
