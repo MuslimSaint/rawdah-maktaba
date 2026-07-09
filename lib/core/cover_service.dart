@@ -5,18 +5,20 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf_render/pdf_render.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Extracts and caches:
-///   1. The first page of downloaded PDFs as cover images
-///   2. The real page count of each downloaded PDF
+/// Extracts and caches per-book metadata from downloaded PDFs:
+///   1. Cover image (first page rendered as JPG)
+///   2. Real page count
+///   3. Real file size in MB
 ///
-/// Both operations happen in a single PdfDocument.openFile()
-/// call for efficiency. Completely UI-independent —
-/// extraction works regardless of which screen user is on.
+/// All done in a single pass. Completely UI-independent —
+/// works regardless of which screen the user is on.
 class CoverService extends ChangeNotifier {
   static const _pageCountsKey = 'pdf_page_counts';
+  static const _fileSizesKey = 'pdf_file_sizes_mb';
 
   final Map<String, String> _coverPaths = {};
   final Map<String, int> _pageCounts = {};
+  final Map<String, double> _fileSizesMb = {};
   final Set<String> _extracting = {};
 
   // ─── Getters ───────────────────────────────────────
@@ -26,26 +28,43 @@ class CoverService extends ChangeNotifier {
 
   String? coverPath(String bookId) => _coverPaths[bookId];
 
-  /// Returns the real PDF page count for a book,
-  /// or null if not yet extracted / PDF not downloaded.
+  /// Real PDF page count, or null if not extracted yet.
   int? pageCount(String bookId) => _pageCounts[bookId];
 
   bool hasPageCount(String bookId) =>
       _pageCounts.containsKey(bookId);
 
+  /// Real file size in MB, or null if not extracted yet.
+  double? fileSizeMb(String bookId) => _fileSizesMb[bookId];
+
+  bool hasFileSize(String bookId) =>
+      _fileSizesMb.containsKey(bookId);
+
   // ─── Init ──────────────────────────────────────────
 
   Future<void> init() async {
-    // Load cached page counts from SharedPreferences
+    // Load cached page counts + file sizes from prefs
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getStringList(_pageCountsKey) ?? [];
-      for (final entry in raw) {
+
+      final pcRaw = prefs.getStringList(_pageCountsKey) ?? [];
+      for (final entry in pcRaw) {
         final parts = entry.split('|');
         if (parts.length == 2) {
           final count = int.tryParse(parts[1]);
           if (count != null && count > 0) {
             _pageCounts[parts[0]] = count;
+          }
+        }
+      }
+
+      final fsRaw = prefs.getStringList(_fileSizesKey) ?? [];
+      for (final entry in fsRaw) {
+        final parts = entry.split('|');
+        if (parts.length == 2) {
+          final size = double.tryParse(parts[1]);
+          if (size != null && size > 0) {
+            _fileSizesMb[parts[0]] = size;
           }
         }
       }
@@ -55,7 +74,7 @@ class CoverService extends ChangeNotifier {
     try {
       final dir = await _coversDir();
       if (!await dir.exists()) {
-        if (_pageCounts.isNotEmpty) notifyListeners();
+        _notifyIfAny();
         return;
       }
       await for (final entity in dir.list()) {
@@ -68,34 +87,49 @@ class CoverService extends ChangeNotifier {
       }
     } catch (_) {}
 
-    if (_coverPaths.isNotEmpty || _pageCounts.isNotEmpty) {
+    _notifyIfAny();
+  }
+
+  void _notifyIfAny() {
+    if (_coverPaths.isNotEmpty ||
+        _pageCounts.isNotEmpty ||
+        _fileSizesMb.isNotEmpty) {
       notifyListeners();
     }
   }
 
   // ─── Extract ───────────────────────────────────────
 
-  /// Extracts the first page as cover AND the real page
-  /// count from a downloaded PDF.
-  /// Safe to call multiple times — skips work already done.
-  /// UI-independent — can be called from any service.
+  /// Extracts cover + page count + file size from a
+  /// downloaded PDF. Safe to call multiple times — skips
+  /// work already done. UI-independent.
   Future<void> extractCover({
     required String bookId,
     required String pdfPath,
   }) async {
     // Already fully processed
     if (_coverPaths.containsKey(bookId) &&
-        _pageCounts.containsKey(bookId)) {
+        _pageCounts.containsKey(bookId) &&
+        _fileSizesMb.containsKey(bookId)) {
       return;
     }
     if (_extracting.contains(bookId)) return;
 
-    // Verify PDF exists
-    if (!await File(pdfPath).exists()) return;
+    final pdfFile = File(pdfPath);
+    if (!await pdfFile.exists()) return;
 
     _extracting.add(bookId);
 
     try {
+      // ── 1. File size (fast, no PDF open needed) ──
+      if (!_fileSizesMb.containsKey(bookId)) {
+        final bytes = await pdfFile.length();
+        _fileSizesMb[bookId] = bytes / (1024 * 1024);
+        await _saveFileSizes();
+        notifyListeners();
+      }
+
+      // ── 2. Open PDF once for cover + page count ──
       final doc = await PdfDocument.openFile(pdfPath);
 
       if (doc.pageCount == 0) {
@@ -103,12 +137,14 @@ class CoverService extends ChangeNotifier {
         return;
       }
 
-      // ── 1. Save the real page count ──
-      _pageCounts[bookId] = doc.pageCount;
-      await _savePageCounts();
-      notifyListeners();
+      // Save real page count
+      if (!_pageCounts.containsKey(bookId)) {
+        _pageCounts[bookId] = doc.pageCount;
+        await _savePageCounts();
+        notifyListeners();
+      }
 
-      // ── 2. Extract cover (only if not already done) ──
+      // Extract cover (only if not already done)
       if (!_coverPaths.containsKey(bookId)) {
         final page = await doc.getPage(1);
         final targetWidth = 400;
@@ -145,7 +181,7 @@ class CoverService extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {
-      // Silently fail — placeholder cover used
+      // Silently fail
     } finally {
       _extracting.remove(bookId);
     }
@@ -154,10 +190,7 @@ class CoverService extends ChangeNotifier {
   // ─── Delete ────────────────────────────────────────
 
   /// Called when a PDF is deleted — removes its cover too.
-  /// Note: page count is intentionally kept — even if PDF
-  /// is deleted, the count remains valid metadata about
-  /// that book. If deletion of count is desired later,
-  /// call [clearPageCount] separately.
+  /// Page count and file size are kept as valid metadata.
   Future<void> deleteCover(String bookId) async {
     try {
       final path = _coverPaths[bookId];
@@ -170,10 +203,15 @@ class CoverService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Optional — clears cached page count for a book.
   Future<void> clearPageCount(String bookId) async {
     _pageCounts.remove(bookId);
     await _savePageCounts();
+    notifyListeners();
+  }
+
+  Future<void> clearFileSize(String bookId) async {
+    _fileSizesMb.remove(bookId);
+    await _saveFileSizes();
     notifyListeners();
   }
 
@@ -189,6 +227,17 @@ class CoverService extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> _saveFileSizes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = _fileSizesMb.entries
+          .map((e) =>
+              '${e.key}|${e.value.toStringAsFixed(3)}')
+          .toList();
+      await prefs.setStringList(_fileSizesKey, list);
+    } catch (_) {}
+  }
+
   // ─── Helpers ───────────────────────────────────────
 
   Future<Directory> _coversDir() async {
@@ -198,5 +247,15 @@ class CoverService extends ChangeNotifier {
       await dir.create(recursive: true);
     }
     return dir;
+  }
+
+  // ─── Public formatter ──────────────────────────────
+
+  /// Formats an MB value nicely: KB if less than 1 MB.
+  static String formatSize(double mb) {
+    if (mb < 1) {
+      return '${(mb * 1024).toStringAsFixed(0)} KB';
+    }
+    return '${mb.toStringAsFixed(1)} MB';
   }
 }
