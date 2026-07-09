@@ -3,10 +3,21 @@ import '../core/app_state.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import '../widgets/book_cover.dart';
+import '../widgets/branch_hero_card.dart';
 import 'branch_screen.dart';
 import 'book_detail_screen.dart';
+import 'quran_screen.dart';
 
-/// Home tab — Hadith on top, no more stats strip.
+/// Home tab.
+/// New layout:
+///   • Top bar
+///   • Announcement (if any)
+///   • Hadith of the Day (shrunk)
+///   • Continue Reading (shrunk)
+///   • Branches:
+///       - Quran hero (full width)
+///       - Hadith hero (full width)
+///       - 2×2 grid: Aqeedah / Fiqh / Arabic / Seerah
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
 
@@ -27,34 +38,33 @@ class HomeTab extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _TopBar(colors: c),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
 
-                  // ── Announcement Banner (dynamic) ──
                   ListenableBuilder(
                     listenable: state.catalogService,
                     builder: (context, _) {
-                      final announcement =
+                      final a =
                           state.catalogService.activeAnnouncement;
-                      if (announcement == null) {
+                      if (a == null) {
                         return const SizedBox.shrink();
                       }
                       return _AnnouncementBanner(
-                        announcement: announcement,
+                        announcement: a,
                         colors: c,
                       );
                     },
                   ),
 
-                  // ── Hadith moved to top ──
+                  // ── Hadith (compact) ──
                   _DailyHadith(colors: c),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 18),
 
-                  // ── Continue Reading ──
+                  // ── Continue Reading (compact) ──
                   _ContinueReading(colors: c),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 22),
 
                   // ── Branches ──
-                  _BranchesGrid(colors: c),
+                  _BranchesSection(colors: c),
                 ],
               ),
             );
@@ -88,7 +98,6 @@ class _AnnouncementBannerState
   @override
   Widget build(BuildContext context) {
     if (_dismissed) return const SizedBox.shrink();
-
     final c = widget.colors;
     final a = widget.announcement;
 
@@ -114,7 +123,7 @@ class _AnnouncementBannerState
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: 14,
@@ -207,7 +216,7 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ─── Daily Hadith ────────────────────────────────────────
+// ─── Daily Hadith (compact) ──────────────────────────────
 
 class _DailyHadith extends StatelessWidget {
   final AppColors colors;
@@ -267,14 +276,14 @@ class _DailyHadith extends StatelessWidget {
                 'Hadith of the Day',
                 style: AppText.latin(
                   color: c.textPrimary,
-                  size: 15,
+                  size: 14,
                   weight: FontWeight.w700,
                 ),
               ),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
+                  horizontal: 7,
                   vertical: 2,
                 ),
                 decoration: BoxDecoration(
@@ -285,20 +294,20 @@ class _DailyHadith extends StatelessWidget {
                   'Daily',
                   style: AppText.latin(
                     color: c.goldText,
-                    size: 10,
+                    size: 9,
                     weight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: c.card,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
               border: Border(
                 left: BorderSide(color: c.goldText, width: 3),
                 top: BorderSide(color: c.divider),
@@ -313,28 +322,30 @@ class _DailyHadith extends StatelessWidget {
                   hadith['text']!,
                   textDirection: TextDirection.rtl,
                   textAlign: TextAlign.right,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                   style: AppText.arabic(
                     color: c.textPrimary,
-                    size: 16,
-                    height: 1.8,
+                    size: 14,
+                    height: 1.7,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                    horizontal: 8,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
                     color: c.goldLine,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     hadith['source']!,
                     textDirection: TextDirection.rtl,
                     style: AppText.arabic(
                       color: c.goldText,
-                      size: 12,
+                      size: 11,
                       weight: FontWeight.w700,
                     ),
                   ),
@@ -348,7 +359,7 @@ class _DailyHadith extends StatelessWidget {
   }
 }
 
-// ─── Continue Reading ────────────────────────────────────
+// ─── Continue Reading (compact) ──────────────────────────
 
 class _ContinueReading extends StatelessWidget {
   final AppColors colors;
@@ -368,11 +379,11 @@ class _ContinueReading extends StatelessWidget {
             'Continue Reading',
             style: AppText.latin(
               color: c.textPrimary,
-              size: 15,
+              size: 14,
               weight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           GestureDetector(
             onTap: state.hasLastBook
                 ? () {
@@ -394,10 +405,10 @@ class _ContinueReading extends StatelessWidget {
                   }
                 : null,
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: c.card,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                     color: c.goldLine, width: 1.5),
               ),
@@ -436,53 +447,52 @@ class _LastBookContent extends StatelessWidget {
         if (book != null)
           BookCoverWidget(
             book: book,
-            width: 56,
-            height: 72,
-            borderRadius: 10,
+            width: 44,
+            height: 58,
+            borderRadius: 8,
           )
         else
           Container(
-            width: 56,
-            height: 72,
+            width: 44,
+            height: 58,
             decoration: BoxDecoration(
               color: c.brand.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               border:
                   Border.all(color: c.brand.withOpacity(0.25)),
             ),
             child: Icon(
               Icons.menu_book_rounded,
-              size: 26,
+              size: 22,
               color: c.brand,
             ),
           ),
-
-        const SizedBox(width: 14),
-
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               if (state.lastBookTitle != null)
                 Text(
                   state.lastBookTitle!,
                   textDirection: TextDirection.rtl,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppText.arabic(
                     color: c.textPrimary,
-                    size: 14,
+                    size: 13,
                     weight: FontWeight.w700,
                   ),
                 ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               Text(
                 'Page ${state.lastBookPage + 1}'
                 '${state.lastBookTotalPages > 0 ? ' of ${state.lastBookTotalPages}' : ''}',
-                style:
-                    AppText.latin(color: c.textMuted, size: 11),
+                style: AppText.latin(
+                    color: c.textMuted, size: 10),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
@@ -490,26 +500,25 @@ class _LastBookContent extends StatelessWidget {
                   backgroundColor: c.surface2,
                   valueColor:
                       AlwaysStoppedAnimation<Color>(c.brand),
-                  minHeight: 4,
+                  minHeight: 3,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 '$percent%',
                 style: AppText.latin(
                   color: c.brand,
-                  size: 10,
+                  size: 9,
                   weight: FontWeight.w700,
                 ),
               ),
             ],
           ),
         ),
-
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
         Icon(
           Icons.chevron_right_rounded,
-          size: 18,
+          size: 16,
           color: c.textFaint,
         ),
       ],
@@ -524,41 +533,41 @@ class _NoBookContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return Row(
       children: [
         Container(
-          width: 56,
-          height: 72,
+          width: 44,
+          height: 58,
           decoration: BoxDecoration(
             color: c.brand.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(10),
-            border:
-                Border.all(color: c.brand.withOpacity(0.25)),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+                color: c.brand.withOpacity(0.25)),
           ),
           child: Icon(
             Icons.menu_book_rounded,
-            size: 26,
+            size: 22,
             color: c.brand,
           ),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'No book opened yet',
                 style: AppText.latin(
-                    color: c.textMuted, size: 13),
+                    color: c.textMuted, size: 12),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               Text(
-                'Tap a book in the Library to start reading',
+                'Tap a book in the Library to start',
                 style: AppText.latin(
-                    color: c.textFaint, size: 11),
+                    color: c.textFaint, size: 10),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
@@ -566,14 +575,8 @@ class _NoBookContent extends StatelessWidget {
                   backgroundColor: c.surface2,
                   valueColor:
                       AlwaysStoppedAnimation<Color>(c.brand),
-                  minHeight: 4,
+                  minHeight: 3,
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '0%',
-                style: AppText.latin(
-                    color: c.textFaint, size: 10),
               ),
             ],
           ),
@@ -583,20 +586,19 @@ class _NoBookContent extends StatelessWidget {
   }
 }
 
-// ─── Branches Grid ───────────────────────────────────────
+// ─── Branches Section (Heroes + Grid) ────────────────────
 
-class _BranchesGrid extends StatelessWidget {
+class _BranchesSection extends StatelessWidget {
   final AppColors colors;
-  const _BranchesGrid({required this.colors});
+  const _BranchesSection({required this.colors});
 
-  static const List<Map<String, dynamic>> _branchIcons = [
-    {'id': 'hadith', 'icon': Icons.menu_book_rounded},
-    {'id': 'aqeedah', 'icon': Icons.verified_rounded},
-    {'id': 'fiqh', 'icon': Icons.balance_rounded},
-    {'id': 'seerah', 'icon': Icons.auto_stories_rounded},
-    {'id': 'tafseer', 'icon': Icons.lightbulb_outline_rounded},
-    {'id': 'arabic', 'icon': Icons.translate_rounded},
-  ];
+  // Small square-grid icons (for the 4 non-hero branches)
+  static const Map<String, IconData> _squareIcons = {
+    'aqeedah': Icons.verified_rounded,
+    'fiqh': Icons.balance_rounded,
+    'arabic': Icons.translate_rounded,
+    'seerah': Icons.auto_stories_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -616,47 +618,104 @@ class _BranchesGrid extends StatelessWidget {
               weight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           ListenableBuilder(
             listenable: state.catalogService,
             builder: (context, _) {
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 1.55,
-                ),
-                itemCount: Catalog.branches.length,
-                itemBuilder: (context, index) {
-                  final branch = Catalog.branches[index];
-                  final iconData = _branchIcons[index]['icon']
-                      as IconData;
-                  final count = state.catalogService
-                      .bookCountForBranch(branch.id);
+              final quranBranch = Catalog.branches
+                  .firstWhere((b) => b.id == 'quran');
+              final hadithBranch = Catalog.branches
+                  .firstWhere((b) => b.id == 'hadith');
+              final gridBranches = Catalog.branches
+                  .where((b) =>
+                      b.id != 'quran' && b.id != 'hadith')
+                  .toList();
 
-                  return _BranchCard(
-                    branch: branch,
-                    icon: iconData,
-                    count: count,
+              return Column(
+                children: [
+                  // ── Quran Hero ──
+                  BranchHeroCard(
+                    branch: quranBranch,
+                    style: BranchHeroStyle.quran,
                     colors: c,
                     language: state.language,
+                    bookCount: null,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const QuranScreen(),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ── Hadith Hero ──
+                  BranchHeroCard(
+                    branch: hadithBranch,
+                    style: BranchHeroStyle.hadith,
+                    colors: c,
+                    language: state.language,
+                    bookCount: state.catalogService
+                        .bookCountForBranch('hadith'),
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => BranchScreen(
-                            branch: branch,
+                            branch: hadithBranch,
                             catalogService:
                                 state.catalogService,
                           ),
                         ),
                       );
                     },
-                  );
-                },
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ── 2×2 Grid of remaining 4 ──
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics:
+                        const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 1.55,
+                    ),
+                    itemCount: gridBranches.length,
+                    itemBuilder: (context, index) {
+                      final branch = gridBranches[index];
+                      final iconData =
+                          _squareIcons[branch.id] ??
+                              Icons.category_rounded;
+                      final count = state.catalogService
+                          .bookCountForBranch(branch.id);
+
+                      return _BranchSquareCard(
+                        branch: branch,
+                        icon: iconData,
+                        count: count,
+                        colors: c,
+                        language: state.language,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => BranchScreen(
+                                branch: branch,
+                                catalogService:
+                                    state.catalogService,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ],
               );
             },
           ),
@@ -666,7 +725,7 @@ class _BranchesGrid extends StatelessWidget {
   }
 }
 
-class _BranchCard extends StatelessWidget {
+class _BranchSquareCard extends StatelessWidget {
   final Branch branch;
   final IconData icon;
   final int count;
@@ -674,7 +733,7 @@ class _BranchCard extends StatelessWidget {
   final String language;
   final VoidCallback onTap;
 
-  const _BranchCard({
+  const _BranchSquareCard({
     required this.branch,
     required this.icon,
     required this.count,
@@ -722,7 +781,9 @@ class _BranchCard extends StatelessWidget {
                   child: Icon(
                     icon,
                     size: 18,
-                    color: hasBooks ? c.brand : c.textFaint,
+                    color: hasBooks
+                        ? c.brand
+                        : c.textFaint,
                   ),
                 ),
                 if (!hasBooks)
@@ -733,7 +794,8 @@ class _BranchCard extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: c.surface2,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius:
+                          BorderRadius.circular(6),
                     ),
                     child: Text(
                       'Soon',
@@ -758,17 +820,21 @@ class _BranchCard extends StatelessWidget {
                 Text(
                   branch.nameFor(language),
                   style: AppText.latin(
-                    color:
-                        hasBooks ? c.textPrimary : c.textMuted,
+                    color: hasBooks
+                        ? c.textPrimary
+                        : c.textMuted,
                     size: 13,
                     weight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  hasBooks ? '$count books' : 'Coming soon',
+                  hasBooks
+                      ? '$count books'
+                      : 'Coming soon',
                   style: AppText.latin(
-                    color: hasBooks ? c.brand : c.textFaint,
+                    color:
+                        hasBooks ? c.brand : c.textFaint,
                     size: 11,
                   ),
                 ),
