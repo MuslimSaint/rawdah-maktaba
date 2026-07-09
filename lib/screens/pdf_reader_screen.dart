@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/app_state.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 
 /// PDF reader screen.
-/// Fixed: blank white screen on open for ALL pages including page 1.
+/// Supports two reading modes:
+///   • Horizontal page-swipe (default — like a real book)
+///   • Vertical scroll (classic)
+/// User's choice is saved across app restarts.
 class PdfReaderScreen extends StatefulWidget {
   final Book book;
   final String filePath;
@@ -22,20 +26,28 @@ class PdfReaderScreen extends StatefulWidget {
 }
 
 class _PdfReaderScreenState extends State<PdfReaderScreen> {
+  static const _modeKey = 'pdf_reader_mode';
+
   int _currentPage = 0;
   int _totalPages = 0;
   bool _isReady = false;
-
-  // ← Key fix: always show loading until onRender fires
-  // AND we've given enough time for the page to render visually
   bool _showLoadingOverlay = true;
 
   PDFViewController? _pdfController;
   int _defaultPage = 0;
 
+  /// true = horizontal page swipe (default)
+  /// false = vertical scroll
+  bool _horizontalMode = true;
+
+  /// Bumped every time the user toggles mode.
+  /// Used as a ValueKey so PDFView rebuilds cleanly.
+  int _rebuildKey = 0;
+
   @override
   void initState() {
     super.initState();
+    _loadModePreference();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final state = AppState.of(context);
@@ -47,11 +59,36 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     });
   }
 
+  Future<void> _loadModePreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getBool(_modeKey);
+      if (saved != null && mounted) {
+        setState(() => _horizontalMode = saved);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveModePreference(bool horizontal) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_modeKey, horizontal);
+    } catch (_) {}
+  }
+
+  void _toggleMode() {
+    // Preserve current page across mode switch
+    _defaultPage = _currentPage;
+    setState(() {
+      _horizontalMode = !_horizontalMode;
+      _showLoadingOverlay = true;
+      _isReady = false;
+      _rebuildKey++;
+    });
+    _saveModePreference(_horizontalMode);
+  }
+
   void _hideLoadingOverlay() {
-    // Always wait at least 400ms after onRender
-    // before hiding the overlay. This covers:
-    // - Page 1: PDF renders but onPageChanged never fires
-    // - Other pages: PDF jumps to saved page
     Future.delayed(const Duration(milliseconds: 400), () {
       if (mounted) {
         setState(() => _showLoadingOverlay = false);
@@ -63,7 +100,6 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     setState(() {
       _currentPage = page;
       _totalPages = total;
-      // Hide overlay as soon as any page change fires
       _showLoadingOverlay = false;
     });
 
@@ -81,7 +117,6 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
 
-    // Read saved page
     if (state.lastBookId == widget.book.id &&
         state.lastBookPage > 0 &&
         _defaultPage == 0) {
@@ -119,7 +154,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       widget.book.titleAr,
@@ -134,7 +169,33 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 8),
+
+                  // ── Mode toggle button ──
+                  GestureDetector(
+                    onTap: _toggleMode,
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: c.surface2,
+                        borderRadius:
+                            BorderRadius.circular(11),
+                        border: Border.all(color: c.divider),
+                      ),
+                      child: Icon(
+                        _horizontalMode
+                            ? Icons
+                                .view_carousel_rounded
+                            : Icons.view_day_rounded,
+                        size: 18,
+                        color: c.textPrimary,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
                   if (_isReady && !_showLoadingOverlay)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -191,15 +252,16 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
             Expanded(
               child: Stack(
                 children: [
-                  // PDF always in widget tree
                   PDFView(
+                    key: ValueKey(
+                        'pdf_${_rebuildKey}_${_horizontalMode}'),
                     filePath: widget.filePath,
                     enableSwipe: true,
-                    swipeHorizontal: false,
-                    autoSpacing: true,
-                    pageFling: false,
-                    pageSnap: false,
-                    fitPolicy: FitPolicy.WIDTH,
+                    swipeHorizontal: _horizontalMode,
+                    autoSpacing: !_horizontalMode,
+                    pageFling: _horizontalMode,
+                    pageSnap: _horizontalMode,
+                    fitPolicy: FitPolicy.BOTH,
                     defaultPage: _defaultPage,
                     onRender: (pages) {
                       setState(() {
@@ -207,17 +269,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                         _isReady = true;
                         _currentPage = _defaultPage;
                       });
-
-                      // Save opened book
                       AppState.of(context).setLastOpenedBook(
                         bookId: widget.book.id,
                         bookTitle: widget.book.titleAr,
                         page: _defaultPage,
                         totalPages: pages ?? 0,
                       );
-
-                      // Always hide overlay after delay
-                      // Works for ALL pages including page 1
                       _hideLoadingOverlay();
                     },
                     onViewCreated: (controller) {
@@ -228,7 +285,6 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                           page ?? 0, total ?? 0);
                     },
                     onError: (error) {
-                      // Hide overlay on error too
                       if (mounted) {
                         setState(() =>
                             _showLoadingOverlay = false);
@@ -249,8 +305,6 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                     },
                   ),
 
-                  // ← Loading overlay — always shows until
-                  // PDF is visually ready (all pages including 1)
                   if (_showLoadingOverlay)
                     Container(
                       color: c.bg,
@@ -284,8 +338,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
             // ── Bottom Page Indicator ──
             if (_isReady && !_showLoadingOverlay)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 10),
                 decoration: BoxDecoration(
                   color: c.card,
                   border: Border(
@@ -302,10 +356,13 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       color: c.surface2,
                       borderRadius:
                           BorderRadius.circular(20),
-                      border: Border.all(color: c.divider),
+                      border:
+                          Border.all(color: c.divider),
                     ),
                     child: Text(
-                      'Page ${_currentPage + 1} of $_totalPages',
+                      _horizontalMode
+                          ? 'Swipe · Page ${_currentPage + 1} of $_totalPages'
+                          : 'Scroll · Page ${_currentPage + 1} of $_totalPages',
                       style: AppText.latin(
                         color: c.textMuted,
                         size: 12,
