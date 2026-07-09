@@ -10,8 +10,9 @@ import 'lessons_screen.dart';
 import 'pdf_reader_screen.dart';
 
 /// Full book detail screen.
-/// Page count is only shown when the PDF has been
-/// downloaded and its real page count extracted.
+/// - Page count only shown when PDF is downloaded
+/// - File size only shown when PDF is downloaded (real size)
+/// - Cover image is tappable (same as tapping download card)
 class BookDetailScreen extends StatelessWidget {
   final Book book;
   final CatalogService catalogService;
@@ -82,6 +83,7 @@ class BookDetailScreen extends StatelessWidget {
                       book: book,
                       colors: c,
                       coverService: state.coverService,
+                      downloadService: state.downloadService,
                     ),
                     const SizedBox(height: 20),
                     _PdfSection(
@@ -126,19 +128,57 @@ class _HeroCard extends StatelessWidget {
   final Book book;
   final AppColors colors;
   final CoverService coverService;
+  final DownloadService downloadService;
 
   const _HeroCard({
     required this.book,
     required this.colors,
     required this.coverService,
+    required this.downloadService,
   });
+
+  Future<void> _handleCoverTap(BuildContext context) async {
+    final fileId = DownloadService.pdfId(book.id);
+    final isDownloaded = downloadService.isDownloaded(fileId);
+    final isDownloading =
+        downloadService.isDownloading(fileId);
+
+    if (isDownloading) return;
+
+    if (isDownloaded) {
+      final path = await downloadService.localPath(fileId);
+      if (path != null && context.mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PdfReaderScreen(
+              book: book,
+              filePath: path,
+            ),
+          ),
+        );
+      }
+    } else {
+      if (book.pdfUrl.isEmpty) return;
+      downloadService.download(
+        fileId: fileId,
+        url: book.pdfUrl,
+        displayName: book.titleAr,
+        bookId: book.id,
+        onError: (_) {},
+        onComplete: () {},
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
 
     return ListenableBuilder(
-      listenable: coverService,
+      listenable: Listenable.merge([
+        coverService,
+        downloadService,
+      ]),
       builder: (context, _) {
         final realPages = coverService.pageCount(book.id);
 
@@ -154,11 +194,15 @@ class _HeroCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  BookCoverWidget(
-                    book: book,
-                    width: 80,
-                    height: 108,
-                    borderRadius: 12,
+                  // Tappable cover
+                  GestureDetector(
+                    onTap: () => _handleCoverTap(context),
+                    child: BookCoverWidget(
+                      book: book,
+                      width: 80,
+                      height: 108,
+                      borderRadius: 12,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -166,7 +210,8 @@ class _HeroCard extends StatelessWidget {
                       crossAxisAlignment:
                           CrossAxisAlignment.end,
                       children: [
-                        if (book.isNew || book.isRecentlyAdded)
+                        if (book.isNew ||
+                            book.isRecentlyAdded)
                           Align(
                             alignment: Alignment.centerLeft,
                             child: Container(
@@ -250,7 +295,7 @@ class _HeroCard extends StatelessWidget {
                           }).toList(),
                         ),
 
-                        // ── Real page count only ──
+                        // Real page count only
                         if (realPages != null) ...[
                           const SizedBox(height: 10),
                           Row(
@@ -415,19 +460,23 @@ class _PdfSectionState extends State<_PdfSection> {
         final progress =
             widget.downloadService.progress(_fileId);
         final hasUrl = widget.book.pdfUrl.isNotEmpty;
+
         final realPages =
             widget.coverService.pageCount(widget.book.id);
+        final realSize =
+            widget.coverService.fileSizeMb(widget.book.id);
 
-        // Subtitle logic:
-        // - Before download: just MB
-        // - After download with real pages: MB · X pages
-        // - After download without real pages yet: just MB
-        String subtitle;
-        if (realPages != null) {
+        // Subtitle:
+        // - Before download: no size, no pages
+        // - After download: real size · real pages
+        String? subtitle;
+        if (realSize != null && realPages != null) {
           subtitle =
-              '${widget.book.pdfSizeMb} MB · $realPages pages';
-        } else {
-          subtitle = '${widget.book.pdfSizeMb} MB';
+              '${CoverService.formatSize(realSize)} · $realPages pages';
+        } else if (realSize != null) {
+          subtitle = CoverService.formatSize(realSize);
+        } else if (realPages != null) {
+          subtitle = '$realPages pages';
         }
 
         return Column(
@@ -501,8 +550,7 @@ class _PdfSectionState extends State<_PdfSection> {
                                 )
                               : Icon(
                                   isDownloaded
-                                      ? Icons
-                                          .menu_book_rounded
+                                      ? Icons.menu_book_rounded
                                       : !hasUrl
                                           ? Icons
                                               .hourglass_empty_rounded
@@ -516,9 +564,7 @@ class _PdfSectionState extends State<_PdfSection> {
                                           : c.brand,
                                 ),
                         ),
-
                         const SizedBox(width: 14),
-
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
@@ -540,14 +586,16 @@ class _PdfSectionState extends State<_PdfSection> {
                                   weight: FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(height: 3),
-                              Text(
-                                subtitle,
-                                style: AppText.latin(
-                                  color: c.textMuted,
-                                  size: 12,
+                              if (subtitle != null) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  subtitle,
+                                  style: AppText.latin(
+                                    color: c.textMuted,
+                                    size: 12,
+                                  ),
                                 ),
-                              ),
+                              ],
                               if (isDownloaded) ...[
                                 const SizedBox(height: 2),
                                 Text(
@@ -561,7 +609,6 @@ class _PdfSectionState extends State<_PdfSection> {
                             ],
                           ),
                         ),
-
                         if (isDownloading)
                           GestureDetector(
                             onTap: () {
