@@ -24,11 +24,17 @@ class CatalogService extends ChangeNotifier {
 
   List<Book> get books => _catalog?.books ?? [];
   List<Teacher> get teachers => _catalog?.teachers ?? [];
+  List<Reciter> get reciters => _catalog?.reciters ?? [];
+  QuranData get quran => _catalog?.quran ?? QuranData.empty();
+
   String get audioBaseUrl =>
       _catalog?.audioBaseUrl ??
       'https://github.com/MuslimSaint/rawdah-catalog/releases/download/v1.0-books';
 
-  /// Active announcement to show as banner, or null.
+  String get quranBaseUrl =>
+      _catalog?.quranBaseUrl ??
+      'https://github.com/MuslimSaint/rawdah-catalog/releases/download/v1.0-quran';
+
   Announcement? get activeAnnouncement {
     final a = _catalog?.announcement;
     if (a == null || !a.active || a.message.isEmpty) {
@@ -104,16 +110,51 @@ class CatalogService extends ChangeNotifier {
   Teacher? teacherById(String id) =>
       _catalog?.teacherById(id);
 
+  Reciter? reciterById(String id) =>
+      _catalog?.reciterById(id);
+
   int bookCountForBranch(String branchId) =>
       booksInBranch(branchId).length;
 
-  /// Constructs the audio URL for a specific part.
-  /// Uses audioBaseUrl from catalog — no hardcoding.
+  /// Constructs a regular book audio URL.
   String audioUrl({
     required String bookId,
     required String teacherId,
     required int partNumber,
   }) {
     return '$audioBaseUrl/${bookId}_${teacherId}_$partNumber.mp3';
+  }
+
+  /// Constructs a Surah PDF URL.
+  /// File name: surah_[number].pdf
+  String surahPdfUrl(int surahNumber) {
+    return '$quranBaseUrl/surah_$surahNumber.pdf';
+  }
+
+  /// Constructs a reciter's Surah audio URL.
+  /// File name: surah_[number]_reciter_[reciterId]_[part].mp3
+  String surahReciterUrl({
+    required int surahNumber,
+    required String reciterId,
+    required int partNumber,
+  }) {
+    return '$quranBaseUrl/surah_${surahNumber}_reciter_${reciterId}_$partNumber.mp3';
+  }
+
+  /// Constructs a teacher's Surah audio URL.
+  /// File name: surah_[number]_teacher_[teacherId]_[part].mp3
+  String surahTeacherUrl({
+    required int surahNumber,
+    required String teacherId,
+    required int partNumber,
+  }) {
+    return '$quranBaseUrl/surah_${surahNumber}_teacher_${teacherId}_$partNumber.mp3';
+  }
+
+  /// Constructs the full Mushaf PDF URL if available.
+  String? get mushafPdfUrl {
+    final url = _catalog?.quran.mushafPdfUrl ?? '';
+    if (url.isEmpty) return null;
+    return url;
   }
 }
