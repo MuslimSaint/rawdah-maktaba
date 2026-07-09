@@ -1,15 +1,18 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/arabic_utils.dart';
 import '../core/audio_service.dart';
+import '../core/cover_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import 'pdf_reader_screen.dart';
 
 /// Audio player screen.
-/// Uses TeacherAudio for correct per-teacher part list.
-/// Handles missing episode numbers correctly.
-/// No maximum on part numbers — works for any count.
+/// - Real cover on the big rectangle (tappable to open/download book)
+/// - Loading spinner tied to real audio state (no stuck spinner)
+/// - Never pauses audio when navigating back
 class AudioPlayerScreen extends StatefulWidget {
   final Book book;
   final Teacher teacher;
@@ -34,12 +37,12 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
   late int _currentPartIndex;
   late AudioService _audioService;
   late DownloadService _downloadService;
+  late CoverService _coverService;
 
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
 
   String? _errorMessage;
-  bool _isLoadingAudio = false;
 
   @override
   void initState() {
@@ -63,7 +66,21 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
       final state = AppState.of(context);
       _audioService = state.audioService;
       _downloadService = state.downloadService;
-      _tryLoadCurrentLesson();
+      _coverService = state.coverService;
+
+      // Only auto-start if this file is NOT already loaded.
+      // If it IS already loaded, let it keep playing untouched.
+      // This is the key fix for the "pauses on return" bug.
+      if (_audioService.currentFileId != _currentFileId) {
+        // Don't auto-play a different file. User must tap.
+        // But if nothing is playing at all, and this is the
+        // initial entry, we can auto-start.
+        if (_audioService.currentFileId == null &&
+            _isCurrentDownloaded) {
+          _startPlayback();
+        }
+      }
+      // If same file already loaded → do nothing, keep playing.
     });
   }
 
@@ -73,7 +90,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     super.dispose();
   }
 
-  // The REAL part number (handles gaps — e.g. 9 when 8 is missing)
   int get _currentPartNumber =>
       widget.teacherAudio.parts[_currentPartIndex];
 
@@ -85,38 +101,46 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
         _currentPartNumber,
       );
 
+  String get _pdfFileId =>
+      DownloadService.pdfId(widget.book.id);
+
   bool get _isCurrentDownloaded =>
       _downloadService.isDownloaded(_currentFileId);
 
-  Future<void> _tryLoadCurrentLesson() async {
-    if (!_isCurrentDownloaded) {
-      setState(() => _errorMessage = null);
-      return;
-    }
+  bool get _isPdfDownloaded =>
+      _downloadService.isDownloaded(_pdfFileId);
+
+  /// Explicit start playback — called on user action or
+  /// on first entry when nothing is playing.
+  Future<void> _startPlayback() async {
+    if (!_isCurrentDownloaded) return;
 
     final path =
         await _downloadService.localPath(_currentFileId);
     if (path == null) {
-      setState(() => _errorMessage =
-          'Audio file not found. Please re-download.');
+      if (mounted) {
+        setState(() => _errorMessage =
+            'Audio file not found. Please re-download.');
+      }
       return;
     }
 
-    setState(() {
-      _isLoadingAudio = true;
-      _errorMessage = null;
-    });
+    final lessonTitle =
+        ArabicUtils.lessonTitle(_currentPartNumber);
+    final coverPath =
+        _coverService.coverPath(widget.book.id);
 
     await _audioService.playFile(
       filePath: path,
       fileId: _currentFileId,
+      bookId: widget.book.id,
+      title: '${widget.book.titleAr} — $lessonTitle',
+      subtitle: widget.teacher.nameAr,
+      artUri: coverPath,
     );
 
-    if (mounted) {
-      setState(() => _isLoadingAudio = false);
-      if (_audioService.error != null) {
-        setState(() => _errorMessage = _audioService.error);
-      }
+    if (mounted && _audioService.error != null) {
+      setState(() => _errorMessage = _audioService.error);
     }
   }
 
@@ -127,7 +151,10 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
         _currentPartIndex--;
         _errorMessage = null;
       });
-      _tryLoadCurrentLesson();
+      // Auto-play the new lesson if downloaded
+      if (_isCurrentDownloaded) {
+        _startPlayback();
+      }
     }
   }
 
@@ -138,7 +165,37 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
         _currentPartIndex++;
         _errorMessage = null;
       });
-      _tryLoadCurrentLesson();
+      if (_isCurrentDownloaded) {
+        _startPlayback();
+      }
+    }
+  }
+
+  /// Cover tap: open book if downloaded, else start download.
+  Future<void> _onCoverTap() async {
+    if (_isPdfDownloaded) {
+      final path =
+          await _downloadService.localPath(_pdfFileId);
+      if (path != null && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PdfReaderScreen(
+              book: widget.book,
+              filePath: path,
+            ),
+          ),
+        );
+      }
+    } else {
+      if (widget.book.pdfUrl.isEmpty) return;
+      _downloadService.download(
+        fileId: _pdfFileId,
+        url: widget.book.pdfUrl,
+        displayName: widget.book.titleAr,
+        bookId: widget.book.id,
+        onError: (_) {},
+        onComplete: () {},
+      );
     }
   }
 
@@ -149,7 +206,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     final hasPrev = _currentPartIndex > 0;
     final hasNext = _currentPartIndex < _totalParts - 1;
 
-    // Use ArabicUtils — works for ANY part number
     final lessonTitle =
         ArabicUtils.lessonTitle(_currentPartNumber);
 
@@ -159,7 +215,11 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
         backgroundColor: c.bg,
         body: SafeArea(
           child: ListenableBuilder(
-            listenable: state.audioService,
+            listenable: Listenable.merge([
+              state.audioService,
+              state.downloadService,
+              state.coverService,
+            ]),
             builder: (context, _) {
               final isPlaying = _audioService.isPlaying;
               final position = _audioService.position;
@@ -168,6 +228,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
               final isActive =
                   _audioService.currentFileId ==
                       _currentFileId;
+              final isLoading =
+                  isActive && _audioService.isLoading;
 
               return Column(
                 children: [
@@ -198,7 +260,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                             ),
                           ),
                         ),
-
                         Expanded(
                           child: Column(
                             children: [
@@ -221,7 +282,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                             ],
                           ),
                         ),
-
                         Container(
                           width: 44,
                           height: 38,
@@ -248,36 +308,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   const SizedBox(height: 24),
 
-                  // ── Book Cover ──
-                  Container(
-                    width: 180,
-                    height: 240,
-                    decoration: BoxDecoration(
-                      color: c.brand.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: c.goldLine, width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: c.brand.withOpacity(0.15),
-                          blurRadius: 30,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Image.asset(
-                        widget.book.localCoverAsset,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Center(
-                          child: Icon(
-                            Icons.menu_book_rounded,
-                            size: 56,
-                            color: c.brand,
-                          ),
-                        ),
-                      ),
+                  // ── Big Book Cover (tappable) ──
+                  GestureDetector(
+                    onTap: _onCoverTap,
+                    child: _BigCover(
+                      book: widget.book,
+                      coverService: _coverService,
+                      colors: c,
+                      isPdfDownloaded: _isPdfDownloaded,
+                      hasPdfUrl:
+                          widget.book.pdfUrl.isNotEmpty,
                     ),
                   ),
 
@@ -326,7 +366,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   const SizedBox(height: 16),
 
-                  // ── Not Downloaded ──
+                  // ── Not downloaded hint ──
                   if (!_isCurrentDownloaded) ...[
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -451,9 +491,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                           ),
                         ),
                         Padding(
-                          padding:
-                              const EdgeInsets.symmetric(
-                                  horizontal: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8),
                           child: Row(
                             mainAxisAlignment:
                                 MainAxisAlignment.spaceBetween,
@@ -505,7 +544,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                           colors: c,
                           onTap: _previousLesson,
                         ),
-
                         _SeekButton(
                           isForward: false,
                           colors: c,
@@ -515,13 +553,14 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                               : null,
                         ),
 
+                        // Play / Pause button
                         GestureDetector(
                           onTap: _isCurrentDownloaded
                               ? () {
                                   if (isActive) {
                                     _audioService.togglePlay();
                                   } else {
-                                    _tryLoadCurrentLesson();
+                                    _startPlayback();
                                   }
                                 }
                               : null,
@@ -554,7 +593,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                                     ]
                                   : null,
                             ),
-                            child: _isLoadingAudio
+                            child: isLoading
                                 ? const Padding(
                                     padding:
                                         EdgeInsets.all(20),
@@ -583,7 +622,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                                   _audioService.seekForward(10)
                               : null,
                         ),
-
                         _ControlButton(
                           icon: Icons.skip_next_rounded,
                           size: 26,
@@ -654,8 +692,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                           Expanded(
                             child: Text(
                               isActive && isPlaying
-                                  ? 'Audio continues if you go back'
-                                  : 'Download lessons from the Lessons screen first',
+                                  ? 'Audio continues in the background — control from the notification'
+                                  : 'Tap the cover to open or download the book',
                               style: AppText.latin(
                                 color: c.goldText,
                                 size: 11,
@@ -672,6 +710,117 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Big Cover (tappable, shows real extracted cover) ────
+
+class _BigCover extends StatelessWidget {
+  final Book book;
+  final CoverService coverService;
+  final AppColors colors;
+  final bool isPdfDownloaded;
+  final bool hasPdfUrl;
+
+  const _BigCover({
+    required this.book,
+    required this.coverService,
+    required this.colors,
+    required this.isPdfDownloaded,
+    required this.hasPdfUrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final coverPath = coverService.coverPath(book.id);
+
+    return Container(
+      width: 180,
+      height: 240,
+      decoration: BoxDecoration(
+        color: c.brand.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: c.goldLine, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: c.brand.withOpacity(0.15),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Cover image or placeholder
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: SizedBox.expand(
+              child: coverPath != null
+                  ? Image.file(
+                      File(coverPath),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Center(
+                        child: Icon(
+                          Icons.menu_book_rounded,
+                          size: 56,
+                          color: c.brand,
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Icon(
+                        Icons.menu_book_rounded,
+                        size: 56,
+                        color: c.brand,
+                      ),
+                    ),
+            ),
+          ),
+
+          // Small hint pill at bottom
+          if (hasPdfUrl)
+            Positioned(
+              bottom: 8,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.55),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isPdfDownloaded
+                            ? Icons.menu_book_rounded
+                            : Icons.download_rounded,
+                        size: 11,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isPdfDownloaded ? 'Open' : 'Download',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
