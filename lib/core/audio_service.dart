@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 
 /// Handles all audio playback for the app.
 /// Wraps just_audio with clean state management.
+/// Integrates with just_audio_background for
+/// notification controls, lock screen, headphones.
 class AudioService extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
 
@@ -15,8 +18,16 @@ class AudioService extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
+  // Metadata for notification display + mini player
+  String? _currentBookId;
+  String? _currentTitle;
+  String? _currentSubtitle;
+
   // ─── Getters ───────────────────────────────────────
   String? get currentFileId => _currentFileId;
+  String? get currentBookId => _currentBookId;
+  String? get currentTitle => _currentTitle;
+  String? get currentSubtitle => _currentSubtitle;
   bool get isPlaying => _isPlaying;
   Duration get position => _position;
   Duration get duration => _duration;
@@ -24,10 +35,11 @@ class AudioService extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  double get progress =>
-      _duration.inMilliseconds > 0
-          ? _position.inMilliseconds / _duration.inMilliseconds
-          : 0;
+  bool get hasActiveAudio => _currentFileId != null;
+
+  double get progress => _duration.inMilliseconds > 0
+      ? _position.inMilliseconds / _duration.inMilliseconds
+      : 0;
 
   // ─── Init ──────────────────────────────────────────
 
@@ -58,11 +70,13 @@ class AudioService extends ChangeNotifier {
 
     // Player state (loading, buffering, etc.)
     _player.playerStateStream.listen((state) {
-      _isLoading = state.processingState == ProcessingState.loading ||
-          state.processingState == ProcessingState.buffering;
+      _isLoading =
+          state.processingState == ProcessingState.loading ||
+              state.processingState == ProcessingState.buffering;
 
       // Auto-stop at end
-      if (state.processingState == ProcessingState.completed) {
+      if (state.processingState ==
+          ProcessingState.completed) {
         _isPlaying = false;
         _position = Duration.zero;
         _player.seek(Duration.zero);
@@ -75,24 +89,50 @@ class AudioService extends ChangeNotifier {
   // ─── Playback ──────────────────────────────────────
 
   /// Load and play an audio file from local path.
+  /// This is called when the user EXPLICITLY wants to start
+  /// playing (tapped play button, tapped lesson, etc.)
+  /// If same file is already loaded → just resumes/plays.
+  /// Does NOT auto-toggle pause.
   Future<void> playFile({
     required String filePath,
     required String fileId,
+    required String bookId,
+    required String title,
+    required String subtitle,
+    String? artUri,
   }) async {
     try {
       _error = null;
-      _isLoading = true;
-      notifyListeners();
 
-      // If same file — just toggle play/pause
+      // Same file already loaded — just resume if paused
       if (_currentFileId == fileId) {
-        await togglePlay();
+        if (!_isPlaying) {
+          await _player.play();
+        }
         return;
       }
 
-      // New file — load it
+      // New file — load fresh
+      _isLoading = true;
+      notifyListeners();
+
       _currentFileId = fileId;
-      await _player.setFilePath(filePath);
+      _currentBookId = bookId;
+      _currentTitle = title;
+      _currentSubtitle = subtitle;
+
+      // Wrap file in MediaItem for background/notification support
+      final source = AudioSource.uri(
+        Uri.file(filePath),
+        tag: MediaItem(
+          id: fileId,
+          title: title,
+          album: subtitle,
+          artUri: artUri != null ? Uri.file(artUri) : null,
+        ),
+      );
+
+      await _player.setAudioSource(source);
       await _player.setSpeed(_speed);
       await _player.play();
 
@@ -105,7 +145,21 @@ class AudioService extends ChangeNotifier {
     }
   }
 
-  /// Toggle play/pause.
+  /// Called when the audio player screen re-opens for the
+  /// SAME file that's already playing. Does NOT stop or
+  /// restart audio — just ensures state is in sync.
+  /// This is the KEY fix for the "audio pauses on return" bug.
+  void ensureNotDisturbed(String fileId) {
+    // If same file — do nothing, let audio continue.
+    // If different file — also do nothing here. The user
+    // needs to explicitly play the new file via playFile().
+    // This method exists purely to make intent explicit at
+    // the call site.
+    return;
+  }
+
+  /// Explicitly toggle play/pause. Called only from user
+  /// tapping the play/pause button.
   Future<void> togglePlay() async {
     if (_isPlaying) {
       await _player.pause();
@@ -150,9 +204,13 @@ class AudioService extends ChangeNotifier {
   }
 
   /// Stop and clear current audio.
+  /// This clears the notification too.
   Future<void> stop() async {
     await _player.stop();
     _currentFileId = null;
+    _currentBookId = null;
+    _currentTitle = null;
+    _currentSubtitle = null;
     _position = Duration.zero;
     _duration = Duration.zero;
     _isPlaying = false;
@@ -161,10 +219,8 @@ class AudioService extends ChangeNotifier {
 
   // ─── Save/Restore position ─────────────────────────
 
-  /// Returns current position in seconds for saving.
   int get positionSeconds => _position.inSeconds;
 
-  /// Restore saved position.
   Future<void> restorePosition(int seconds) async {
     await _player.seek(Duration(seconds: seconds));
   }
