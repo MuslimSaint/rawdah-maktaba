@@ -64,9 +64,6 @@ class Teacher {
 }
 
 // ─── Reciter ────────────────────────────────────────────
-// Reciters (Qaris) recite the Quran beautifully.
-// Different from Teachers — teachers explain/tafseer.
-// Both can appear on a Surah's detail screen.
 
 class Reciter {
   final String id;
@@ -133,8 +130,6 @@ class TeacherAudio {
 }
 
 // ─── ReciterAudio ────────────────────────────────────────
-// A Reciter's recording(s) for a specific Surah.
-// Each Reciter has independent parts, like TeacherAudio.
 
 class ReciterAudio {
   final String reciterId;
@@ -271,6 +266,7 @@ class Branch {
 
 // ─── SurahMeta ───────────────────────────────────────────
 // Metadata about a single Surah.
+// Names are NEVER translated — only Arabic + transcription.
 // The 114 SurahMeta entries are hardcoded in quran_data.dart
 // because Surahs are architectural (like branches), not content.
 
@@ -278,14 +274,13 @@ class SurahMeta {
   /// Surah number 1..114
   final int number;
 
-  /// Arabic name (e.g. الفاتحة)
+  /// Arabic name (e.g. الفاتحة) — the only real name.
   final String nameAr;
 
-  /// English transcription of the name (e.g. Al-Fatiha)
+  /// English transcription (e.g. Al-Fatiha) — NOT a translation.
+  /// Only used for display when app language is not Arabic,
+  /// and for search.
   final String nameTransliteration;
-
-  /// English meaning (e.g. The Opening)
-  final String meaningEn;
 
   /// Number of ayat
   final int ayahCount;
@@ -300,7 +295,6 @@ class SurahMeta {
     required this.number,
     required this.nameAr,
     required this.nameTransliteration,
-    required this.meaningEn,
     required this.ayahCount,
     required this.revelationPlace,
     required this.revelationOrder,
@@ -319,9 +313,6 @@ class SurahMeta {
 }
 
 // ─── Surah (catalog part) ────────────────────────────────
-// The remote/catalog data for a Surah — what's actually
-// uploaded (PDF + reciters + teachers).
-// Combined with SurahMeta at runtime.
 
 class Surah {
   final int number;
@@ -355,7 +346,6 @@ class Surah {
     );
   }
 
-  /// Empty placeholder Surah (nothing uploaded).
   factory Surah.empty(int number) {
     return Surah(
       number: number,
@@ -408,8 +398,6 @@ class QuranData {
 
   bool get hasMushaf => mushafPdfUrl.isNotEmpty;
 
-  /// Returns the Surah data for a given number, or an
-  /// empty Surah if not in catalog.
   Surah surahFor(int number) {
     return surahs[number] ?? Surah.empty(number);
   }
@@ -502,8 +490,6 @@ class Catalog {
   }
 
   // ─── The 6 fixed branches ─────────────────────────────
-  // Tafseer removed. Quran added at position 1.
-  // Arabic renamed to Arabic & Tajweed.
   static const List<Branch> branches = [
     Branch(
       id: 'quran',
