@@ -69,18 +69,12 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
       _coverService = state.coverService;
 
       // Only auto-start if this file is NOT already loaded.
-      // If it IS already loaded, let it keep playing untouched.
-      // This is the key fix for the "pauses on return" bug.
       if (_audioService.currentFileId != _currentFileId) {
-        // Don't auto-play a different file. User must tap.
-        // But if nothing is playing at all, and this is the
-        // initial entry, we can auto-start.
         if (_audioService.currentFileId == null &&
             _isCurrentDownloaded) {
           _startPlayback();
         }
       }
-      // If same file already loaded → do nothing, keep playing.
     });
   }
 
@@ -110,8 +104,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
   bool get _isPdfDownloaded =>
       _downloadService.isDownloaded(_pdfFileId);
 
-  /// Explicit start playback — called on user action or
-  /// on first entry when nothing is playing.
   Future<void> _startPlayback() async {
     if (!_isCurrentDownloaded) return;
 
@@ -134,6 +126,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
       filePath: path,
       fileId: _currentFileId,
       bookId: widget.book.id,
+      teacherId: widget.teacher.id,
+      partNumber: _currentPartNumber,
       title: '${widget.book.titleAr} — $lessonTitle',
       subtitle: widget.teacher.nameAr,
       artUri: coverPath,
@@ -151,7 +145,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
         _currentPartIndex--;
         _errorMessage = null;
       });
-      // Auto-play the new lesson if downloaded
       if (_isCurrentDownloaded) {
         _startPlayback();
       }
@@ -171,7 +164,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     }
   }
 
-  /// Cover tap: open book if downloaded, else start download.
   Future<void> _onCoverTap() async {
     if (_isPdfDownloaded) {
       final path =
@@ -754,7 +746,6 @@ class _BigCover extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // Cover image or placeholder
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
             child: SizedBox.expand(
@@ -779,8 +770,6 @@ class _BigCover extends StatelessWidget {
                     ),
             ),
           ),
-
-          // Small hint pill at bottom
           if (hasPdfUrl)
             Positioned(
               bottom: 8,
