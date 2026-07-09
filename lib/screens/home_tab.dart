@@ -6,7 +6,7 @@ import '../widgets/book_cover.dart';
 import 'branch_screen.dart';
 import 'book_detail_screen.dart';
 
-/// Home tab — full implementation with live data + announcement.
+/// Home tab — Hadith on top, no more stats strip.
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
 
@@ -29,7 +29,7 @@ class HomeTab extends StatelessWidget {
                   _TopBar(colors: c),
                   const SizedBox(height: 20),
 
-                  // ── Announcement Banner ──
+                  // ── Announcement Banner (dynamic) ──
                   ListenableBuilder(
                     listenable: state.catalogService,
                     builder: (context, _) {
@@ -45,12 +45,15 @@ class HomeTab extends StatelessWidget {
                     },
                   ),
 
-                  _StatsStrip(colors: c),
-                  const SizedBox(height: 20),
-                  _ContinueReading(colors: c),
-                  const SizedBox(height: 20),
+                  // ── Hadith moved to top ──
                   _DailyHadith(colors: c),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
+
+                  // ── Continue Reading ──
+                  _ContinueReading(colors: c),
+                  const SizedBox(height: 24),
+
+                  // ── Branches ──
                   _BranchesGrid(colors: c),
                 ],
               ),
@@ -89,7 +92,6 @@ class _AnnouncementBannerState
     final c = widget.colors;
     final a = widget.announcement;
 
-    // Colors based on type
     Color bgColor;
     Color textColor;
     IconData icon;
@@ -105,15 +107,14 @@ class _AnnouncementBannerState
         textColor = c.brand;
         icon = Icons.check_circle_outline_rounded;
         break;
-      default: // 'info'
+      default:
         bgColor = c.brand.withOpacity(0.08);
         textColor = c.brand;
         icon = Icons.info_outline_rounded;
     }
 
     return Padding(
-      padding:
-          const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: 14,
@@ -206,114 +207,144 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ─── Stats Strip ────────────────────────────────────────
+// ─── Daily Hadith ────────────────────────────────────────
 
-class _StatsStrip extends StatelessWidget {
+class _DailyHadith extends StatelessWidget {
   final AppColors colors;
-  const _StatsStrip({required this.colors});
+  const _DailyHadith({required this.colors});
+
+  static const List<Map<String, String>> _hadiths = [
+    {
+      'text':
+          'مَنْ يُرِدِ اللَّهُ بِهِ خَيْرًا يُفَقِّهْهُ فِي الدِّينِ',
+      'source': 'صحيح البخاري، صحيح مسلم',
+    },
+    {
+      'text':
+          'مَنْ سَلَكَ طَرِيقًا يَلْتَمِسُ فِيهِ عِلْمًا، سَهَّلَ اللَّهُ لَهُ بِهِ طَرِيقًا إِلَى الْجَنَّةِ.',
+      'source': 'صحيح مسلم',
+    },
+    {
+      'text': 'خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ.',
+      'source': 'صحيح البخاري',
+    },
+    {
+      'text':
+          'إِنَّ الْمَلَائِكَةَ لَتَضَعُ أَجْنِحَتَهَا لِطَالِبِ الْعِلْمِ رِضًا بِمَا يَصْنَعُ.',
+      'source': 'سنن الترمذي، سنن ابن ماجه',
+    },
+    {
+      'text':
+          'نَضَّرَ اللَّهُ امْرَأً سَمِعَ مِنَّا حَدِيثًا فَحَفِظَهُ حَتَّى يُبَلِّغَهُ كَمَا سَمِعَهُ.',
+      'source': 'جامع الترمذي',
+    },
+    {
+      'text':
+          'إِنَّ اللَّهَ وَمَلَائِكَتَهُ وَأَهْلَ السَّمَاوَاتِ وَالْأَرْضِ، حَتَّى النَّمْلَةَ فِي جُحْرِهَا، وَحَتَّى الْحُوتَ، لَيُصَلُّونَ عَلَى مُعَلِّمِ النَّاسِ الْخَيْرَ.',
+      'source': 'جامع الترمذي',
+    },
+    {
+      'text':
+          'الدُّنْيَا مَلْعُونَةٌ، مَلْعُونٌ مَا فِيهَا، إِلَّا ذِكْرَ اللَّهِ وَمَا وَالَاهُ، وَعَالِمًا أَوْ مُتَعَلِّمًا.',
+      'source': 'جامع الترمذي',
+    },
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final state = AppState.of(context);
     final c = colors;
+    final dayIndex = DateTime.now().weekday - 1;
+    final hadith = _hadiths[dayIndex % _hadiths.length];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: ListenableBuilder(
-        listenable: Listenable.merge([
-          state.catalogService,
-          state.downloadService,
-        ]),
-        builder: (context, _) {
-          final total = state.catalogService.books.length;
-          final downloads =
-              state.downloadService.downloadedCount;
-
-          return Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Hadith of the Day',
+                style: AppText.latin(
+                  color: c.textPrimary,
+                  size: 15,
+                  weight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: c.goldLine,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Daily',
+                  style: AppText.latin(
+                    color: c.goldText,
+                    size: 10,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: c.card,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: c.goldLine, width: 1.5),
+              border: Border(
+                left: BorderSide(color: c.goldText, width: 3),
+                top: BorderSide(color: c.divider),
+                right: BorderSide(color: c.divider),
+                bottom: BorderSide(color: c.divider),
+              ),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                _StatItem(
-                  label: 'Completed',
-                  value: '0',
-                  icon: Icons.check_circle_outline_rounded,
-                  colors: c,
+                Text(
+                  hadith['text']!,
+                  textDirection: TextDirection.rtl,
+                  textAlign: TextAlign.right,
+                  style: AppText.arabic(
+                    color: c.textPrimary,
+                    size: 16,
+                    height: 1.8,
+                  ),
                 ),
-                _StatDivider(colors: c),
-                _StatItem(
-                  label: 'Library',
-                  value: '$total',
-                  icon: Icons.menu_book_rounded,
-                  colors: c,
-                ),
-                _StatDivider(colors: c),
-                _StatItem(
-                  label: 'Downloads',
-                  value: '$downloads',
-                  icon: Icons.download_rounded,
-                  colors: c,
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.goldLine,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    hadith['source']!,
+                    textDirection: TextDirection.rtl,
+                    style: AppText.arabic(
+                      color: c.goldText,
+                      size: 12,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final AppColors colors;
-
-  const _StatItem({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, size: 20, color: c.brand),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: AppText.latin(
-              color: c.textPrimary,
-              size: 20,
-              weight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: AppText.latin(color: c.textMuted, size: 11),
           ),
         ],
       ),
     );
-  }
-}
-
-class _StatDivider extends StatelessWidget {
-  final AppColors colors;
-  const _StatDivider({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(width: 1, height: 40, color: colors.divider);
   }
 }
 
@@ -402,7 +433,6 @@ class _LastBookContent extends StatelessWidget {
 
     return Row(
       children: [
-        // ← Uses real cover if available
         if (book != null)
           BookCoverWidget(
             book: book,
@@ -549,147 +579,6 @@ class _NoBookContent extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ─── Daily Hadith ────────────────────────────────────────
-
-class _DailyHadith extends StatelessWidget {
-  final AppColors colors;
-  const _DailyHadith({required this.colors});
-
-  static const List<Map<String, String>> _hadiths = [
-    {
-      'text':
-          'مَنْ يُرِدِ اللَّهُ بِهِ خَيْرًا يُفَقِّهْهُ فِي الدِّينِ',
-      'source': 'صحيح البخاري، صحيح مسلم',
-    },
-    {
-      'text':
-          'مَنْ سَلَكَ طَرِيقًا يَلْتَمِسُ فِيهِ عِلْمًا، سَهَّلَ اللَّهُ لَهُ بِهِ طَرِيقًا إِلَى الْجَنَّةِ.',
-      'source': 'صحيح مسلم',
-    },
-    {
-      'text': 'خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ.',
-      'source': 'صحيح البخاري',
-    },
-    {
-      'text':
-          'إِنَّ الْمَلَائِكَةَ لَتَضَعُ أَجْنِحَتَهَا لِطَالِبِ الْعِلْمِ رِضًا بِمَا يَصْنَعُ.',
-      'source': 'سنن الترمذي، سنن ابن ماجه',
-    },
-    {
-      'text':
-          'نَضَّرَ اللَّهُ امْرَأً سَمِعَ مِنَّا حَدِيثًا فَحَفِظَهُ حَتَّى يُبَلِّغَهُ كَمَا سَمِعَهُ.',
-      'source': 'جامع الترمذي',
-    },
-    {
-      'text':
-          'إِنَّ اللَّهَ وَمَلَائِكَتَهُ وَأَهْلَ السَّمَاوَاتِ وَالْأَرْضِ، حَتَّى النَّمْلَةَ فِي جُحْرِهَا، وَحَتَّى الْحُوتَ، لَيُصَلُّونَ عَلَى مُعَلِّمِ النَّاسِ الْخَيْرَ.',
-      'source': 'جامع الترمذي',
-    },
-    {
-      'text':
-          'الدُّنْيَا مَلْعُونَةٌ، مَلْعُونٌ مَا فِيهَا، إِلَّا ذِكْرَ اللَّهِ وَمَا وَالَاهُ، وَعَالِمًا أَوْ مُتَعَلِّمًا.',
-      'source': 'جامع الترمذي',
-    },
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    final dayIndex = DateTime.now().weekday - 1;
-    final hadith = _hadiths[dayIndex % _hadiths.length];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Hadith of the Day',
-                style: AppText.latin(
-                  color: c.textPrimary,
-                  size: 15,
-                  weight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: c.goldLine,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  'Daily',
-                  style: AppText.latin(
-                    color: c.goldText,
-                    size: 10,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: c.card,
-              borderRadius: BorderRadius.circular(18),
-              border: Border(
-                left: BorderSide(color: c.goldText, width: 3),
-                top: BorderSide(color: c.divider),
-                right: BorderSide(color: c.divider),
-                bottom: BorderSide(color: c.divider),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  hadith['text']!,
-                  textDirection: TextDirection.rtl,
-                  textAlign: TextAlign.right,
-                  style: AppText.arabic(
-                    color: c.textPrimary,
-                    size: 16,
-                    height: 1.8,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: c.goldLine,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    hadith['source']!,
-                    textDirection: TextDirection.rtl,
-                    style: AppText.arabic(
-                      color: c.goldText,
-                      size: 12,
-                      weight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
