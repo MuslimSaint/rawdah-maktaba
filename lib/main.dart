@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -12,204 +10,43 @@ import 'screens/welcome_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/main_screen.dart';
 
-// ─── Global error storage ──────────────────────────────
-// Any error caught anywhere is stored here and shown on screen.
-final List<String> _errorLog = [];
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-void _logError(String source, Object error, StackTrace? stack) {
-  final entry = '[$source]\n$error\n\n${stack ?? "(no stack)"}';
-  _errorLog.add(entry);
-  debugPrint('══════════ ERROR CAUGHT ══════════');
-  debugPrint(entry);
-  debugPrint('═════════════════════════════════');
+  // Lock to portrait orientation only
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
+  // Set system UI overlay (status bar) to be transparent
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ),
+  );
+
+  // Initialize Firebase
+  await Firebase.initializeApp();
+
+  // Initialize audio background service (notification controls,
+  // lock screen controls, headphone controls, etc.)
+  await JustAudioBackground.init(
+    androidNotificationChannelId:
+        'com.rawda.library.audio',
+    androidNotificationChannelName: 'مكتبة الروضة',
+    androidNotificationOngoing: true,
+    androidNotificationIcon: 'mipmap/ic_launcher',
+  );
+
+  // Initialize app state (loads preferences from disk)
+  final appState = AppState();
+  await appState.init();
+
+  runApp(RawdahApp(appState: appState));
 }
 
-void main() {
-  // Catch all Flutter framework errors (widget build errors, etc.)
-  FlutterError.onError = (FlutterErrorDetails details) {
-    _logError('FLUTTER', details.exception, details.stack);
-  };
-
-  // Catch all async errors outside Flutter
-  runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
-
-    try {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
-    } catch (e, s) {
-      _logError('ORIENTATION', e, s);
-    }
-
-    try {
-      SystemChrome.setSystemUIOverlayStyle(
-        const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-        ),
-      );
-    } catch (e, s) {
-      _logError('STATUS_BAR', e, s);
-    }
-
-    try {
-      await Firebase.initializeApp();
-    } catch (e, s) {
-      _logError('FIREBASE_INIT', e, s);
-    }
-
-    try {
-      await JustAudioBackground.init(
-        androidNotificationChannelId:
-            'com.rawda.library.audio',
-        androidNotificationChannelName: 'مكتبة الروضة',
-        androidNotificationOngoing: true,
-        androidNotificationIcon: 'mipmap/ic_launcher',
-      );
-    } catch (e, s) {
-      _logError('AUDIO_BACKGROUND_INIT', e, s);
-    }
-
-    AppState? appState;
-    try {
-      appState = AppState();
-      await appState.init();
-    } catch (e, s) {
-      _logError('APP_STATE_INIT', e, s);
-    }
-
-    // Even if things failed, still try to run the app.
-    // If there are errors, they'll be visible on screen.
-    runApp(_RootApp(appState: appState));
-  }, (error, stack) {
-    _logError('UNCAUGHT_ZONE', error, stack);
-    // Even if the zone catches something fatal, try to show
-    // an error screen so the user isn't stuck on green.
-    runApp(_ErrorApp(errors: _errorLog));
-  });
-}
-
-// ─── Root App ──────────────────────────────────────────
-// If there are ANY errors logged, show the diagnostic screen.
-// Otherwise run the normal app.
-class _RootApp extends StatelessWidget {
-  final AppState? appState;
-  const _RootApp({required this.appState});
-
-  @override
-  Widget build(BuildContext context) {
-    if (_errorLog.isNotEmpty || appState == null) {
-      return _ErrorApp(errors: _errorLog);
-    }
-    return RawdahApp(appState: appState!);
-  }
-}
-
-// ─── Diagnostic Error App ──────────────────────────────
-// Shows all caught errors clearly so we can fix them.
-class _ErrorApp extends StatelessWidget {
-  final List<String> errors;
-  const _ErrorApp({required this.errors});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Diagnostic',
-      home: Scaffold(
-        backgroundColor: const Color(0xFF1a1a1a),
-        appBar: AppBar(
-          backgroundColor: Colors.red.shade900,
-          title: const Text(
-            'App Startup Errors',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          automaticallyImplyLeading: false,
-        ),
-        body: SafeArea(
-          child: errors.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Text(
-                      'App failed to start but no error was captured.\n\n'
-                      'This usually means AppState.init() returned null '
-                      'or the app was killed by Android.\n\n'
-                      'Please screenshot this and send it.',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: errors.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: 16),
-                  itemBuilder: (context, i) {
-                    return Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade900
-                            .withOpacity(0.3),
-                        border: Border.all(
-                          color: Colors.red.shade400,
-                        ),
-                        borderRadius:
-                            BorderRadius.circular(10),
-                      ),
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Error ${i + 1} of ${errors.length}',
-                            style: TextStyle(
-                              color: Colors.red.shade300,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          SelectableText(
-                            errors[i],
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontFamily: 'monospace',
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-        floatingActionButton: FloatingActionButton.extended(
-          backgroundColor: Colors.red.shade700,
-          icon: const Icon(Icons.info_outline,
-              color: Colors.white),
-          label: const Text(
-            'Screenshot this screen',
-            style: TextStyle(color: Colors.white),
-          ),
-          onPressed: () {},
-        ),
-      ),
-    );
-  }
-}
-
-/// Root widget of the normal app.
+/// Root widget of the app.
 class RawdahApp extends StatelessWidget {
   final AppState appState;
 
