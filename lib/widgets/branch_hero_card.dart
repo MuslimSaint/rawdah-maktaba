@@ -73,9 +73,9 @@ class _QuranHero extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 108,
+        height: 84,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -91,23 +91,23 @@ class _QuranHero extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: c.goldText.withOpacity(0.15),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
+              color: c.goldText.withOpacity(0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Stack(
           children: [
-            // Decorative background icon (subtle)
+            // Decorative background icon
             Positioned(
-              right: -14,
-              bottom: -10,
+              right: -10,
+              bottom: -8,
               child: Opacity(
-                opacity: 0.10,
+                opacity: 0.09,
                 child: Icon(
                   Icons.auto_awesome_rounded,
-                  size: 130,
+                  size: 100,
                   color: c.goldText,
                 ),
               ),
@@ -115,31 +115,31 @@ class _QuranHero extends StatelessWidget {
 
             Padding(
               padding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 14,
+                horizontal: 14,
+                vertical: 10,
               ),
               child: Row(
                 children: [
                   // Left: Mus'haf icon in gold circle
                   Container(
-                    width: 62,
-                    height: 62,
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: c.goldText.withOpacity(0.15),
                       border: Border.all(
                         color: c.goldText.withOpacity(0.4),
-                        width: 1.5,
+                        width: 1.3,
                       ),
                     ),
                     child: Icon(
                       Icons.import_contacts_rounded,
-                      size: 30,
+                      size: 22,
                       color: c.goldText,
                     ),
                   ),
 
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
 
                   // Middle: name + subtitle
                   Expanded(
@@ -157,11 +157,11 @@ class _QuranHero extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: AppText.arabic(
                             color: c.goldText,
-                            size: 22,
+                            size: 18,
                             weight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           language == 'ar'
                               ? '١١٤ سورة'
@@ -172,7 +172,7 @@ class _QuranHero extends StatelessWidget {
                           style: AppText.latin(
                             color:
                                 c.goldText.withOpacity(0.75),
-                            size: 12,
+                            size: 11,
                             weight: FontWeight.w600,
                           ),
                         ),
@@ -180,10 +180,10 @@ class _QuranHero extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   Icon(
                     Icons.chevron_right_rounded,
-                    size: 22,
+                    size: 18,
                     color: c.goldText.withOpacity(0.7),
                   ),
                 ],
@@ -221,9 +221,9 @@ class _HadithHero extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 108,
+        height: 84,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -238,9 +238,9 @@ class _HadithHero extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: c.brand.withOpacity(0.25),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
+              color: c.brand.withOpacity(0.22),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -248,13 +248,13 @@ class _HadithHero extends StatelessWidget {
           children: [
             // Decorative background icon
             Positioned(
-              right: -18,
-              bottom: -14,
+              right: -14,
+              bottom: -10,
               child: Opacity(
-                opacity: 0.14,
+                opacity: 0.13,
                 child: Icon(
                   Icons.menu_book_rounded,
-                  size: 130,
+                  size: 100,
                   color: c.gold,
                 ),
               ),
@@ -262,31 +262,31 @@ class _HadithHero extends StatelessWidget {
 
             Padding(
               padding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 14,
+                horizontal: 14,
+                vertical: 10,
               ),
               child: Row(
                 children: [
                   // Left: hadith book icon in gold circle
                   Container(
-                    width: 62,
-                    height: 62,
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: c.gold.withOpacity(0.2),
                       border: Border.all(
                         color: c.gold.withOpacity(0.5),
-                        width: 1.5,
+                        width: 1.3,
                       ),
                     ),
                     child: Icon(
                       Icons.menu_book_rounded,
-                      size: 30,
+                      size: 22,
                       color: c.gold,
                     ),
                   ),
 
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
 
                   // Middle: name + subtitle
                   Expanded(
@@ -304,11 +304,11 @@ class _HadithHero extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: AppText.arabic(
                             color: c.gold,
-                            size: 22,
+                            size: 18,
                             weight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           count > 0
                               ? (language == 'ar'
@@ -322,7 +322,7 @@ class _HadithHero extends StatelessWidget {
                               : TextDirection.ltr,
                           style: AppText.latin(
                             color: c.gold.withOpacity(0.8),
-                            size: 12,
+                            size: 11,
                             weight: FontWeight.w600,
                           ),
                         ),
@@ -330,10 +330,10 @@ class _HadithHero extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   Icon(
                     Icons.chevron_right_rounded,
-                    size: 22,
+                    size: 18,
                     color: c.gold.withOpacity(0.85),
                   ),
                 ],
