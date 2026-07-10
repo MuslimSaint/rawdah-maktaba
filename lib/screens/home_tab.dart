@@ -9,15 +9,6 @@ import 'book_detail_screen.dart';
 import 'quran_screen.dart';
 
 /// Home tab.
-/// New layout:
-///   • Top bar
-///   • Announcement (if any)
-///   • Hadith of the Day (shrunk)
-///   • Continue Reading (shrunk)
-///   • Branches:
-///       - Quran hero (full width)
-///       - Hadith hero (full width)
-///       - 2×2 grid: Aqeedah / Fiqh / Arabic / Seerah
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
 
@@ -40,16 +31,30 @@ class HomeTab extends StatelessWidget {
                   _TopBar(colors: c),
                   const SizedBox(height: 18),
 
+                  // Announcement listens to BOTH catalog
+                  // (for content) AND app state (for
+                  // dismissed announcements list).
                   ListenableBuilder(
-                    listenable: state.catalogService,
+                    listenable: Listenable.merge([
+                      state.catalogService,
+                      state,
+                    ]),
                     builder: (context, _) {
-                      final a =
-                          state.catalogService.activeAnnouncement;
+                      final a = state
+                          .catalogService.activeAnnouncement;
                       if (a == null) {
+                        return const SizedBox.shrink();
+                      }
+                      final fingerprint =
+                          AppState.announcementFingerprint(
+                              a.message, a.type);
+                      if (state.isAnnouncementDismissed(
+                          fingerprint)) {
                         return const SizedBox.shrink();
                       }
                       return _AnnouncementBanner(
                         announcement: a,
+                        fingerprint: fingerprint,
                         colors: c,
                       );
                     },
@@ -77,29 +82,21 @@ class HomeTab extends StatelessWidget {
 
 // ─── Announcement Banner ─────────────────────────────────
 
-class _AnnouncementBanner extends StatefulWidget {
+class _AnnouncementBanner extends StatelessWidget {
   final Announcement announcement;
+  final String fingerprint;
   final AppColors colors;
 
   const _AnnouncementBanner({
     required this.announcement,
+    required this.fingerprint,
     required this.colors,
   });
 
   @override
-  State<_AnnouncementBanner> createState() =>
-      _AnnouncementBannerState();
-}
-
-class _AnnouncementBannerState
-    extends State<_AnnouncementBanner> {
-  bool _dismissed = false;
-
-  @override
   Widget build(BuildContext context) {
-    if (_dismissed) return const SizedBox.shrink();
-    final c = widget.colors;
-    final a = widget.announcement;
+    final c = colors;
+    final a = announcement;
 
     Color bgColor;
     Color textColor;
@@ -151,7 +148,15 @@ class _AnnouncementBannerState
               ),
             ),
             GestureDetector(
-              onTap: () => setState(() => _dismissed = true),
+              onTap: () {
+                // Persistently dismiss this specific
+                // announcement (by fingerprint).
+                // A new announcement with different text
+                // will have a different fingerprint and
+                // show again.
+                AppState.of(context)
+                    .dismissAnnouncement(fingerprint);
+              },
               child: Icon(
                 Icons.close_rounded,
                 size: 16,
@@ -592,7 +597,6 @@ class _BranchesSection extends StatelessWidget {
   final AppColors colors;
   const _BranchesSection({required this.colors});
 
-  // Small square-grid icons (for the 4 non-hero branches)
   static const Map<String, IconData> _squareIcons = {
     'aqeedah': Icons.verified_rounded,
     'fiqh': Icons.balance_rounded,
@@ -633,7 +637,6 @@ class _BranchesSection extends StatelessWidget {
 
               return Column(
                 children: [
-                  // ── Quran Hero ──
                   BranchHeroCard(
                     branch: quranBranch,
                     style: BranchHeroStyle.quran,
@@ -648,10 +651,7 @@ class _BranchesSection extends StatelessWidget {
                       );
                     },
                   ),
-
                   const SizedBox(height: 12),
-
-                  // ── Hadith Hero ──
                   BranchHeroCard(
                     branch: hadithBranch,
                     style: BranchHeroStyle.hadith,
@@ -671,10 +671,7 @@ class _BranchesSection extends StatelessWidget {
                       );
                     },
                   ),
-
                   const SizedBox(height: 12),
-
-                  // ── 2×2 Grid of remaining 4 ──
                   GridView.builder(
                     shrinkWrap: true,
                     physics:
