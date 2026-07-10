@@ -18,6 +18,8 @@ class AppState extends ChangeNotifier {
   static const _keyLastBookTitle = 'last_book_title';
   static const _keyLastBookTotalPages =
       'last_book_total_pages';
+  static const _keyDismissedAnnouncements =
+      'dismissed_announcements';
 
   late SharedPreferences _prefs;
 
@@ -30,6 +32,11 @@ class AppState extends ChangeNotifier {
   String? _lastBookTitle;
   int _lastBookPage = 0;
   int _lastBookTotalPages = 0;
+
+  // Set of announcement fingerprints the user has dismissed.
+  // If a new announcement is posted with different text,
+  // its fingerprint will differ and the banner shows again.
+  final Set<String> _dismissedAnnouncements = <String>{};
 
   // ─── Shared Services ───────────────────────────────
   final CatalogService catalogService = CatalogService();
@@ -84,20 +91,22 @@ class AppState extends ChangeNotifier {
     _lastBookTotalPages =
         _prefs.getInt(_keyLastBookTotalPages) ?? 0;
 
+    // Load dismissed announcements
+    final dismissed = _prefs
+            .getStringList(_keyDismissedAnnouncements) ??
+        [];
+    _dismissedAnnouncements.addAll(dismissed);
+
     // Initialize services
     await downloadService.init();
     await coverService.init();
 
-    // Wire cover extraction callback into DownloadService
-    // This makes cover extraction UI-independent
     downloadService.onPdfDownloadComplete =
         (bookId, pdfPath) => coverService.extractCover(
               bookId: bookId,
               pdfPath: pdfPath,
             );
 
-    // Start catalog load — when it completes,
-    // auto-extract covers for already-downloaded books
     catalogService.addListener(_onCatalogLoaded);
     catalogService.load();
 
@@ -114,9 +123,6 @@ class AppState extends ChangeNotifier {
 
     _coverExtractionDone = true;
     catalogService.removeListener(_onCatalogLoaded);
-
-    // Extract covers for already-downloaded books
-    // Runs in background — non-blocking
     _extractCoversForDownloadedBooks();
   }
 
@@ -129,7 +135,6 @@ class AppState extends ChangeNotifier {
         final path =
             await downloadService.localPath(fileId);
         if (path != null) {
-          // Don't await — run all in parallel background
           coverService
               .extractCover(
                 bookId: book.id,
@@ -264,6 +269,44 @@ class AppState extends ChangeNotifier {
       );
     }
 
+    notifyListeners();
+  }
+
+  // ─── Announcement Dismissal ────────────────────────
+  // Fingerprint = a simple hash of the announcement's
+  // message + type. Same message → same fingerprint →
+  // stays dismissed. Different message → new fingerprint
+  // → banner shows again.
+
+  /// Generates a stable fingerprint from message + type.
+  static String announcementFingerprint(
+      String message, String type) {
+    // Simple stable hash — no external package needed
+    return '${type}::${message.hashCode}';
+  }
+
+  /// Returns true if this announcement has been dismissed
+  /// by the user.
+  bool isAnnouncementDismissed(String fingerprint) {
+    return _dismissedAnnouncements.contains(fingerprint);
+  }
+
+  /// Persistently marks an announcement as dismissed.
+  Future<void> dismissAnnouncement(String fingerprint) async {
+    if (_dismissedAnnouncements.contains(fingerprint)) return;
+    _dismissedAnnouncements.add(fingerprint);
+    await _prefs.setStringList(
+      _keyDismissedAnnouncements,
+      _dismissedAnnouncements.toList(),
+    );
+    notifyListeners();
+  }
+
+  /// Clears all dismissed announcements. Handy if you want
+  /// a "reset banners" option in Settings later.
+  Future<void> clearDismissedAnnouncements() async {
+    _dismissedAnnouncements.clear();
+    await _prefs.remove(_keyDismissedAnnouncements);
     notifyListeners();
   }
 
