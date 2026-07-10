@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,9 +7,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 /// Loads and caches the book catalog.
+///
+/// Key behaviors:
+///   • Loads cached catalog INSTANTLY (fast UI)
+///   • Fetches fresh catalog from network on every load
+///   • Cache-busting timestamp appended to URL to bypass CDN
+///   • If fresh response is VALID, it always replaces cache
+///   • If fresh response is broken/invalid, keeps cache silently
 class CatalogService extends ChangeNotifier {
   static const _cacheKey = 'catalog_json';
-  static const _catalogUrl =
+  static const _catalogBaseUrl =
       'https://raw.githubusercontent.com/MuslimSaint/rawdah-catalog/main/catalog.json';
 
   Catalog? _catalog;
@@ -59,7 +67,9 @@ class CatalogService extends ChangeNotifier {
         _catalog = Catalog.fromJson(json);
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('CatalogService cache load failed: $e');
+    }
   }
 
   Future<void> _fetchFromNetwork() async {
@@ -68,23 +78,60 @@ class CatalogService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await http
-          .get(Uri.parse(_catalogUrl))
-          .timeout(const Duration(seconds: 15));
+      // ── Cache-busting URL ──
+      // Append current timestamp so raw.githubusercontent.com
+      // is forced to serve fresh content instead of CDN cache.
+      final timestamp =
+          DateTime.now().millisecondsSinceEpoch;
+      final url = '$_catalogBaseUrl?t=$timestamp';
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: const {
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache',
+        },
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        final json =
-            jsonDecode(response.body) as Map<String, dynamic>;
-        _catalog = Catalog.fromJson(json);
+        // ── Safely try to parse the fresh response ──
+        Catalog? freshCatalog;
+        try {
+          final json = jsonDecode(response.body)
+              as Map<String, dynamic>;
+          freshCatalog = Catalog.fromJson(json);
+        } catch (parseError) {
+          debugPrint(
+              'CatalogService parse failed — keeping cache. Error: $parseError');
+          _error = null; // don't surface parse errors
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
 
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_cacheKey, response.body);
+        // ── Parse succeeded → REPLACE cache and state ──
+        _catalog = freshCatalog;
         _error = null;
+
+        // Save to cache
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_cacheKey, response.body);
+        } catch (e) {
+          debugPrint('Failed to write catalog cache: $e');
+        }
+
+        debugPrint(
+            'Catalog refreshed successfully. Version: ${freshCatalog.version}, Books: ${freshCatalog.books.length}');
       } else {
-        _error =
-            'Failed to load catalog (${response.statusCode})';
+        // Non-200: keep cache silently
+        debugPrint(
+            'Catalog fetch returned ${response.statusCode} — keeping cache');
       }
     } catch (e) {
+      // Network error, timeout, etc. → keep cache
+      debugPrint(
+          'CatalogService network fetch failed — keeping cache. Error: $e');
       if (_catalog == null) {
         _error =
             'No internet connection and no cached data.';
