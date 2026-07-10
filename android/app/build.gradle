@@ -53,9 +53,38 @@ android {
         multiDexEnabled true
     }
 
+    // ═══════════════════════════════════════════════════
+    // Release signing config.
+    // Reads from environment variables set by GitHub
+    // Actions (RELEASE_KEYSTORE_PATH, RELEASE_STORE_PASSWORD,
+    // RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD).
+    // Falls back to debug keystore for local builds where
+    // these env vars are not set — so nothing breaks locally.
+    // ═══════════════════════════════════════════════════
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+            def storePwd = System.getenv("RELEASE_STORE_PASSWORD")
+            def keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+            def keyPwd = System.getenv("RELEASE_KEY_PASSWORD")
+
+            if (keystorePath != null && file(keystorePath).exists()) {
+                storeFile file(keystorePath)
+                storePassword storePwd
+                keyAlias keyAlias
+                keyPassword keyPwd
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            // If release keystore is available (CI build),
+            // use it. Otherwise fall back to debug keystore
+            // so local builds still work.
+            def hasReleaseKeystore = System.getenv("RELEASE_KEYSTORE_PATH") != null &&
+                                     file(System.getenv("RELEASE_KEYSTORE_PATH") ?: "/nonexistent").exists()
+            signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
             shrinkResources false
         }
