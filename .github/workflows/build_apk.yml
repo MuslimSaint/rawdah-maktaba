@@ -32,68 +32,32 @@ jobs:
           cache: true
 
       # ══════════════════════════════════════════════════
-      # TEMPORARY STEP — GENERATE RELEASE KEYSTORE
-      # After we save the base64 + SHA-1 as secrets,
-      # this whole block will be REMOVED.
+      # Load RELEASE keystore from GitHub Secrets.
+      # This is what signs the APK with your permanent key.
       # ══════════════════════════════════════════════════
-      - name: Generate RELEASE keystore (ONE-TIME)
+      - name: Load release keystore
         run: |
-          echo "═══════════════════════════════════════════════"
-          echo "GENERATING RELEASE KEYSTORE"
-          echo "═══════════════════════════════════════════════"
-          
           mkdir -p ~/keystores
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > ~/keystores/release.keystore
           
-          keytool -genkey -v \
-            -keystore ~/keystores/release.keystore \
-            -alias rawdah \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 25000 \
-            -storepass "${{ secrets.RELEASE_PASSWORD_TEMP }}" \
-            -keypass "${{ secrets.RELEASE_PASSWORD_TEMP }}" \
-            -dname "CN=Rawdah Project, O=Rawdah Project, C=ET"
-          
-          echo ""
-          echo "═══════════════════════════════════════════════"
-          echo "RELEASE KEYSTORE BASE64 — COPY THIS ENTIRE STRING"
-          echo "═══════════════════════════════════════════════"
-          echo ""
-          base64 -w 0 ~/keystores/release.keystore
-          echo ""
-          echo ""
-          echo "═══════════════════════════════════════════════"
-          echo "END OF BASE64"
-          echo "═══════════════════════════════════════════════"
-          echo ""
-          echo "═══════════════════════════════════════════════"
-          echo "SHA-1 AND SHA-256 FINGERPRINTS — COPY SHA-1"
-          echo "═══════════════════════════════════════════════"
-          echo ""
+          # Verify keystore loaded correctly by printing SHA-1
+          echo "Release keystore loaded. SHA-1:"
           keytool -list -v \
             -keystore ~/keystores/release.keystore \
             -alias rawdah \
-            -storepass "${{ secrets.RELEASE_PASSWORD_TEMP }}" \
-            -keypass "${{ secrets.RELEASE_PASSWORD_TEMP }}" | grep -E "SHA1:|SHA256:"
-          echo ""
-          echo "═══════════════════════════════════════════════"
-          echo "END OF FINGERPRINTS"
-          echo "═══════════════════════════════════════════════"
+            -storepass "${{ secrets.RELEASE_STORE_PASSWORD }}" \
+            -keypass "${{ secrets.RELEASE_KEY_PASSWORD }}" | grep "SHA1:"
 
-      - name: Set up keystore
+      # ══════════════════════════════════════════════════
+      # Keep the old debug keystore setup for compatibility
+      # with anything that might still reference it.
+      # ══════════════════════════════════════════════════
+      - name: Set up debug keystore (fallback)
         run: |
           mkdir -p ~/.android
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "Using stored keystore from secrets..."
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ~/.android/debug.keystore
-            echo "Keystore loaded. Fingerprints:"
-            keytool -list -v \
-              -keystore ~/.android/debug.keystore \
-              -alias androiddebugkey \
-              -storepass android \
-              -keypass android | grep -E "SHA1:|SHA256:"
           else
-            echo "No keystore secret found. Generating new keystore..."
             keytool -genkey -v \
               -keystore ~/.android/debug.keystore \
               -alias androiddebugkey \
@@ -102,19 +66,6 @@ jobs:
               -storepass android \
               -keypass android \
               -dname "CN=Android Debug,O=Android,C=US"
-            echo ""
-            echo "=== COPY THIS BASE64 ==="
-            base64 -w 0 ~/.android/debug.keystore
-            echo ""
-            echo "========================"
-            echo ""
-            echo "=== FINGERPRINTS ==="
-            keytool -list -v \
-              -keystore ~/.android/debug.keystore \
-              -alias androiddebugkey \
-              -storepass android \
-              -keypass android | grep -E "SHA1:|SHA256:"
-            echo "===================="
           fi
 
       - name: Show Flutter version
@@ -126,10 +77,25 @@ jobs:
       - name: Generate app icons
         run: dart run flutter_launcher_icons
 
+      # ══════════════════════════════════════════════════
+      # Build APKs with RELEASE keystore signing.
+      # The env vars here are read by android/app/build.gradle
+      # which uses them to sign the release build.
+      # ══════════════════════════════════════════════════
       - name: Build universal release APK
+        env:
+          RELEASE_KEYSTORE_PATH: /home/runner/keystores/release.keystore
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: rawdah
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: flutter build apk --release --no-tree-shake-icons
 
       - name: Build split APKs per ABI
+        env:
+          RELEASE_KEYSTORE_PATH: /home/runner/keystores/release.keystore
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: rawdah
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: flutter build apk --release --split-per-abi --no-tree-shake-icons
 
       - name: Get version info
@@ -148,6 +114,7 @@ jobs:
             
             **Commit:** ${{ github.sha }}
             **Branch:** ${{ github.ref_name }}
+            **Signed with:** Release keystore
             
             ### Download:
             - `app-release.apk` — Universal (works on all devices)
