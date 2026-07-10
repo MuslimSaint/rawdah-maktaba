@@ -10,9 +10,6 @@ import '../core/theme.dart';
 import 'pdf_reader_screen.dart';
 
 /// Audio player screen.
-/// - Real cover on the big rectangle (tappable to open/download book)
-/// - Loading spinner tied to real audio state (no stuck spinner)
-/// - Never pauses audio when navigating back
 class AudioPlayerScreen extends StatefulWidget {
   final Book book;
   final Teacher teacher;
@@ -68,7 +65,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
       _downloadService = state.downloadService;
       _coverService = state.coverService;
 
-      // Only auto-start if this file is NOT already loaded.
       if (_audioService.currentFileId != _currentFileId) {
         if (_audioService.currentFileId == null &&
             _isCurrentDownloaded) {
@@ -104,12 +100,38 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
   bool get _isPdfDownloaded =>
       _downloadService.isDownloaded(_pdfFileId);
 
+  /// Resolves a part number to a playable AudioResolution.
+  /// Used both here and by AudioService for notification
+  /// / headphone prev/next actions.
+  Future<AudioResolution?> _resolvePart(int partNumber) async {
+    final fileId = DownloadService.audioId(
+      widget.book.id,
+      widget.teacher.id,
+      partNumber,
+    );
+    if (!_downloadService.isDownloaded(fileId)) return null;
+
+    final path = await _downloadService.localPath(fileId);
+    if (path == null) return null;
+
+    final lessonTitle = ArabicUtils.lessonTitle(partNumber);
+    final coverPath =
+        _coverService.coverPath(widget.book.id);
+
+    return AudioResolution(
+      filePath: path,
+      fileId: fileId,
+      title: '${widget.book.titleAr} — $lessonTitle',
+      subtitle: widget.teacher.nameAr,
+      artPath: coverPath,
+    );
+  }
+
   Future<void> _startPlayback() async {
     if (!_isCurrentDownloaded) return;
 
-    final path =
-        await _downloadService.localPath(_currentFileId);
-    if (path == null) {
+    final resolved = await _resolvePart(_currentPartNumber);
+    if (resolved == null) {
       if (mounted) {
         setState(() => _errorMessage =
             'Audio file not found. Please re-download.');
@@ -117,20 +139,17 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
       return;
     }
 
-    final lessonTitle =
-        ArabicUtils.lessonTitle(_currentPartNumber);
-    final coverPath =
-        _coverService.coverPath(widget.book.id);
-
     await _audioService.playFile(
-      filePath: path,
-      fileId: _currentFileId,
+      filePath: resolved.filePath,
+      fileId: resolved.fileId,
       bookId: widget.book.id,
       teacherId: widget.teacher.id,
       partNumber: _currentPartNumber,
-      title: '${widget.book.titleAr} — $lessonTitle',
-      subtitle: widget.teacher.nameAr,
-      artUri: coverPath,
+      title: resolved.title,
+      subtitle: resolved.subtitle,
+      artUri: resolved.artPath,
+      allParts: widget.teacherAudio.parts,
+      partResolver: _resolvePart,
     );
 
     if (mounted && _audioService.error != null) {
@@ -138,30 +157,22 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     }
   }
 
-  void _previousLesson() {
-    if (_currentPartIndex > 0) {
-      _audioService.stop();
-      setState(() {
-        _currentPartIndex--;
-        _errorMessage = null;
-      });
-      if (_isCurrentDownloaded) {
-        _startPlayback();
-      }
-    }
+  Future<void> _previousLesson() async {
+    if (_currentPartIndex <= 0) return;
+    setState(() {
+      _currentPartIndex--;
+      _errorMessage = null;
+    });
+    await _audioService.skipToPrevious();
   }
 
-  void _nextLesson() {
-    if (_currentPartIndex < _totalParts - 1) {
-      _audioService.stop();
-      setState(() {
-        _currentPartIndex++;
-        _errorMessage = null;
-      });
-      if (_isCurrentDownloaded) {
-        _startPlayback();
-      }
-    }
+  Future<void> _nextLesson() async {
+    if (_currentPartIndex >= _totalParts - 1) return;
+    setState(() {
+      _currentPartIndex++;
+      _errorMessage = null;
+    });
+    await _audioService.skipToNext();
   }
 
   Future<void> _onCoverTap() async {
@@ -358,7 +369,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   const SizedBox(height: 16),
 
-                  // ── Not downloaded hint ──
                   if (!_isCurrentDownloaded) ...[
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -397,7 +407,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                     const SizedBox(height: 12),
                   ],
 
-                  // ── Error ──
                   if (_errorMessage != null) ...[
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -470,7 +479,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                                 : 0,
                             min: 0,
                             max: duration.inSeconds > 0
-                                ? duration.inSeconds.toDouble()
+                                ? duration.inSeconds
+                                    .toDouble()
                                 : 1,
                             onChanged: isActive
                                 ? (v) {
@@ -487,7 +497,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                               horizontal: 8),
                           child: Row(
                             mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                                MainAxisAlignment
+                                    .spaceBetween,
                             children: [
                               Text(
                                 isActive
@@ -502,7 +513,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                               ),
                               Text(
                                 isActive &&
-                                        duration.inSeconds > 0
+                                        duration.inSeconds >
+                                            0
                                     ? AudioService
                                         .formatDuration(
                                             duration)
@@ -550,7 +562,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                           onTap: _isCurrentDownloaded
                               ? () {
                                   if (isActive) {
-                                    _audioService.togglePlay();
+                                    _audioService
+                                        .togglePlay();
                                   } else {
                                     _startPlayback();
                                   }
@@ -577,10 +590,11 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                                   ? [
                                       BoxShadow(
                                         color: c.brand
-                                            .withOpacity(0.4),
+                                            .withOpacity(
+                                                0.4),
                                         blurRadius: 20,
-                                        offset:
-                                            const Offset(0, 6),
+                                        offset: const Offset(
+                                            0, 6),
                                       ),
                                     ]
                                   : null,
@@ -610,8 +624,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                           isForward: true,
                           colors: c,
                           onTap: isActive
-                              ? () =>
-                                  _audioService.seekForward(10)
+                              ? () => _audioService
+                                  .seekForward(10)
                               : null,
                         ),
                         _ControlButton(
@@ -627,7 +641,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   const SizedBox(height: 16),
 
-                  // ── Speed ──
                   GestureDetector(
                     onTap: isActive
                         ? () => _audioService.cycleSpeed()
@@ -639,15 +652,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                       ),
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: c.divider),
+                        borderRadius:
+                            BorderRadius.circular(12),
+                        border:
+                            Border.all(color: c.divider),
                       ),
                       child: Text(
                         'Speed: ${speed}x',
                         style: AppText.latin(
-                          color: isActive
-                              ? c.brand
-                              : c.textFaint,
+                          color:
+                              isActive ? c.brand : c.textFaint,
                           size: 13,
                           weight: FontWeight.w700,
                         ),
@@ -657,7 +671,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   const Spacer(),
 
-                  // ── Info Note ──
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                         24, 0, 24, 16),
@@ -668,9 +681,11 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                       ),
                       decoration: BoxDecoration(
                         color: c.goldLine,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius:
+                            BorderRadius.circular(12),
                         border: Border.all(
-                          color: c.goldText.withOpacity(0.3),
+                          color:
+                              c.goldText.withOpacity(0.3),
                         ),
                       ),
                       child: Row(
@@ -707,7 +722,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
   }
 }
 
-// ─── Big Cover (tappable, shows real extracted cover) ────
+// ─── Big Cover ───────────────────────────────────────────
 
 class _BigCover extends StatelessWidget {
   final Book book;
@@ -783,7 +798,8 @@ class _BigCover extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.55),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius:
+                        BorderRadius.circular(20),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -797,7 +813,9 @@ class _BigCover extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        isPdfDownloaded ? 'Open' : 'Download',
+                        isPdfDownloaded
+                            ? 'Open'
+                            : 'Download',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -814,8 +832,6 @@ class _BigCover extends StatelessWidget {
     );
   }
 }
-
-// ─── Seek Button ─────────────────────────────────────────
 
 class _SeekButton extends StatelessWidget {
   final bool isForward;
@@ -852,8 +868,6 @@ class _SeekButton extends StatelessWidget {
     );
   }
 }
-
-// ─── Control Button ──────────────────────────────────────
 
 class _ControlButton extends StatelessWidget {
   final IconData icon;
