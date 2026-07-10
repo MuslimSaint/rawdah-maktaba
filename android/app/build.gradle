@@ -63,16 +63,16 @@ android {
     // ═══════════════════════════════════════════════════
     signingConfigs {
         release {
-            def keystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
-            def storePwd = System.getenv("RELEASE_STORE_PASSWORD")
-            def keyAlias = System.getenv("RELEASE_KEY_ALIAS")
-            def keyPwd = System.getenv("RELEASE_KEY_PASSWORD")
+            def envKeystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+            def envStorePwd = System.getenv("RELEASE_STORE_PASSWORD")
+            def envKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
+            def envKeyPwd = System.getenv("RELEASE_KEY_PASSWORD")
 
-            if (keystorePath != null && file(keystorePath).exists()) {
-                storeFile file(keystorePath)
-                storePassword storePwd
-                keyAlias keyAlias
-                keyPassword keyPwd
+            if (envKeystorePath != null && file(envKeystorePath).exists()) {
+                storeFile file(envKeystorePath)
+                storePassword envStorePwd
+                keyAlias envKeyAlias
+                keyPassword envKeyPwd
             }
         }
     }
@@ -82,8 +82,8 @@ android {
             // If release keystore is available (CI build),
             // use it. Otherwise fall back to debug keystore
             // so local builds still work.
-            def hasReleaseKeystore = System.getenv("RELEASE_KEYSTORE_PATH") != null &&
-                                     file(System.getenv("RELEASE_KEYSTORE_PATH") ?: "/nonexistent").exists()
+            def envPath = System.getenv("RELEASE_KEYSTORE_PATH")
+            def hasReleaseKeystore = envPath != null && file(envPath).exists()
             signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
             shrinkResources false
