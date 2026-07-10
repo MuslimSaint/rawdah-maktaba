@@ -53,15 +53,64 @@ class AuthService {
 
   // ─── Google Sign-In ─────────────────────────────────
 
-  /// Temporarily disabled — will be enabled with release keystore.
+  /// Signs in with Google account.
+  /// Returns:
+  ///   - null on success
+  ///   - 'cancelled' if user cancelled the picker
+  ///   - error message string on failure
   Future<String?> signInWithGoogle() async {
-    return 'google_unavailable';
+    try {
+      // Show the Google account picker
+      final GoogleSignInAccount? googleUser =
+          await _googleSignIn.signIn();
+
+      // User cancelled the picker
+      if (googleUser == null) {
+        return 'cancelled';
+      }
+
+      // Get authentication tokens
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Create Firebase credential from Google tokens
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credential
+      await _auth.signInWithCredential(credential);
+
+      return null;
+    } on FirebaseAuthException catch (e) {
+      return _handleAuthError(e.code);
+    } catch (e) {
+      // Common Google-specific errors
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('network')) {
+        return 'No internet connection. Please check your network.';
+      }
+      if (errorStr.contains('cancelled') ||
+          errorStr.contains('canceled')) {
+        return 'cancelled';
+      }
+      if (errorStr.contains('sign_in_failed') ||
+          errorStr.contains('developer_error')) {
+        return 'Google sign-in configuration error. Please contact support.';
+      }
+      return 'Google sign-in failed. Please try again.';
+    }
   }
 
   // ─── Sign Out ───────────────────────────────────────
 
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {
+      // If Google sign-out fails, still sign out of Firebase
+    }
     await _auth.signOut();
   }
 
@@ -87,6 +136,8 @@ class AuthService {
         return 'No internet connection. Please check your network.';
       case 'user-disabled':
         return 'This account has been disabled.';
+      case 'account-exists-with-different-credential':
+        return 'An account with this email already exists using a different sign-in method.';
       default:
         return 'Something went wrong. Please try again.';
     }
