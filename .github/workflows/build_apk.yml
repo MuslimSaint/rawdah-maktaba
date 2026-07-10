@@ -31,6 +31,55 @@ jobs:
           flutter-version: '3.24.0'
           cache: true
 
+      # ══════════════════════════════════════════════════
+      # TEMPORARY STEP — GENERATE RELEASE KEYSTORE
+      # After we save the base64 + SHA-1 as secrets,
+      # this whole block will be REMOVED.
+      # ══════════════════════════════════════════════════
+      - name: Generate RELEASE keystore (ONE-TIME)
+        run: |
+          echo "═══════════════════════════════════════════════"
+          echo "GENERATING RELEASE KEYSTORE"
+          echo "═══════════════════════════════════════════════"
+          
+          mkdir -p ~/keystores
+          
+          keytool -genkey -v \
+            -keystore ~/keystores/release.keystore \
+            -alias rawdah \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 25000 \
+            -storepass "${{ secrets.RELEASE_PASSWORD_TEMP }}" \
+            -keypass "${{ secrets.RELEASE_PASSWORD_TEMP }}" \
+            -dname "CN=Rawdah Project, O=Rawdah Project, C=ET"
+          
+          echo ""
+          echo "═══════════════════════════════════════════════"
+          echo "RELEASE KEYSTORE BASE64 — COPY THIS ENTIRE STRING"
+          echo "═══════════════════════════════════════════════"
+          echo ""
+          base64 -w 0 ~/keystores/release.keystore
+          echo ""
+          echo ""
+          echo "═══════════════════════════════════════════════"
+          echo "END OF BASE64"
+          echo "═══════════════════════════════════════════════"
+          echo ""
+          echo "═══════════════════════════════════════════════"
+          echo "SHA-1 AND SHA-256 FINGERPRINTS — COPY SHA-1"
+          echo "═══════════════════════════════════════════════"
+          echo ""
+          keytool -list -v \
+            -keystore ~/keystores/release.keystore \
+            -alias rawdah \
+            -storepass "${{ secrets.RELEASE_PASSWORD_TEMP }}" \
+            -keypass "${{ secrets.RELEASE_PASSWORD_TEMP }}" | grep -E "SHA1:|SHA256:"
+          echo ""
+          echo "═══════════════════════════════════════════════"
+          echo "END OF FINGERPRINTS"
+          echo "═══════════════════════════════════════════════"
+
       - name: Set up keystore
         run: |
           mkdir -p ~/.android
