@@ -7,13 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 /// Loads and caches the book catalog.
-///
-/// Key behaviors:
-///   • Loads cached catalog INSTANTLY (fast UI)
-///   • Fetches fresh catalog from network on every load
-///   • Cache-busting timestamp appended to URL to bypass CDN
-///   • If fresh response is VALID, it always replaces cache
-///   • If fresh response is broken/invalid, keeps cache silently
 class CatalogService extends ChangeNotifier {
   static const _cacheKey = 'catalog_json';
   static const _catalogBaseUrl =
@@ -34,6 +27,11 @@ class CatalogService extends ChangeNotifier {
   List<Teacher> get teachers => _catalog?.teachers ?? [];
   List<Reciter> get reciters => _catalog?.reciters ?? [];
   QuranData get quran => _catalog?.quran ?? QuranData.empty();
+
+  /// List of Quran sub-branches, in the order defined by
+  /// the catalog. Fully remote-controlled.
+  List<QuranSubBranch> get quranSubBranches =>
+      _catalog?.quran.subBranches ?? const [];
 
   String get audioBaseUrl =>
       _catalog?.audioBaseUrl ??
@@ -78,9 +76,6 @@ class CatalogService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // ── Cache-busting URL ──
-      // Append current timestamp so raw.githubusercontent.com
-      // is forced to serve fresh content instead of CDN cache.
       final timestamp =
           DateTime.now().millisecondsSinceEpoch;
       final url = '$_catalogBaseUrl?t=$timestamp';
@@ -94,7 +89,6 @@ class CatalogService extends ChangeNotifier {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        // ── Safely try to parse the fresh response ──
         Catalog? freshCatalog;
         try {
           final json = jsonDecode(response.body)
@@ -103,17 +97,15 @@ class CatalogService extends ChangeNotifier {
         } catch (parseError) {
           debugPrint(
               'CatalogService parse failed — keeping cache. Error: $parseError');
-          _error = null; // don't surface parse errors
+          _error = null;
           _isLoading = false;
           notifyListeners();
           return;
         }
 
-        // ── Parse succeeded → REPLACE cache and state ──
         _catalog = freshCatalog;
         _error = null;
 
-        // Save to cache
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(_cacheKey, response.body);
@@ -122,14 +114,12 @@ class CatalogService extends ChangeNotifier {
         }
 
         debugPrint(
-            'Catalog refreshed successfully. Version: ${freshCatalog.version}, Books: ${freshCatalog.books.length}');
+            'Catalog refreshed. Version: ${freshCatalog.version}, Books: ${freshCatalog.books.length}, SubBranches: ${freshCatalog.quran.subBranches.length}');
       } else {
-        // Non-200: keep cache silently
         debugPrint(
             'Catalog fetch returned ${response.statusCode} — keeping cache');
       }
     } catch (e) {
-      // Network error, timeout, etc. → keep cache
       debugPrint(
           'CatalogService network fetch failed — keeping cache. Error: $e');
       if (_catalog == null) {
@@ -163,6 +153,15 @@ class CatalogService extends ChangeNotifier {
   int bookCountForBranch(String branchId) =>
       booksInBranch(branchId).length;
 
+  /// Find a Quran sub-branch by its id.
+  QuranSubBranch? quranSubBranchById(String id) {
+    try {
+      return quranSubBranches.firstWhere((sb) => sb.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Constructs a regular book audio URL.
   String audioUrl({
     required String bookId,
@@ -172,14 +171,10 @@ class CatalogService extends ChangeNotifier {
     return '$audioBaseUrl/${bookId}_${teacherId}_$partNumber.mp3';
   }
 
-  /// Constructs a Surah PDF URL.
-  /// File name: surah_[number].pdf
   String surahPdfUrl(int surahNumber) {
     return '$quranBaseUrl/surah_$surahNumber.pdf';
   }
 
-  /// Constructs a reciter's Surah audio URL.
-  /// File name: surah_[number]_reciter_[reciterId]_[part].mp3
   String surahReciterUrl({
     required int surahNumber,
     required String reciterId,
@@ -188,8 +183,6 @@ class CatalogService extends ChangeNotifier {
     return '$quranBaseUrl/surah_${surahNumber}_reciter_${reciterId}_$partNumber.mp3';
   }
 
-  /// Constructs a teacher's Surah audio URL.
-  /// File name: surah_[number]_teacher_[teacherId]_[part].mp3
   String surahTeacherUrl({
     required int surahNumber,
     required String teacherId,
@@ -198,7 +191,6 @@ class CatalogService extends ChangeNotifier {
     return '$quranBaseUrl/surah_${surahNumber}_teacher_${teacherId}_$partNumber.mp3';
   }
 
-  /// Constructs the full Mushaf PDF URL if available.
   String? get mushafPdfUrl {
     final url = _catalog?.quran.mushafPdfUrl ?? '';
     if (url.isEmpty) return null;
