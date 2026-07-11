@@ -4,35 +4,25 @@ import '../core/models.dart';
 import '../core/quran_data.dart';
 import '../core/theme.dart';
 import 'surah_detail_screen.dart';
+import 'mushaf_reader_screen.dart';
+import 'quran_sub_branch_screen.dart';
 
-/// The Quran screen — lists all 114 Surahs.
-/// Optional Mus'haf full-book card at top.
-/// Search bar filters by number, Arabic name, or transcription.
-/// Tapping a Surah opens SurahDetailScreen.
-class QuranScreen extends StatefulWidget {
+/// The Quran screen — top-level view.
+///
+/// New behavior:
+///   • Shows the list of sub-branches (from catalog):
+///       - "Mushaf" type → tap opens the full Mus'haf reader
+///       - "Surahs" type → tap reveals the 114 Surahs list
+///       - "Branch" type → tap opens a book list (like Fiqh)
+///   • If no sub-branches are configured, falls back to showing
+///     the 114 Surahs directly (backward compat).
+class QuranScreen extends StatelessWidget {
   const QuranScreen({super.key});
-
-  @override
-  State<QuranScreen> createState() => _QuranScreenState();
-}
-
-class _QuranScreenState extends State<QuranScreen> {
-  final _searchController = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
-    final lang = state.language;
-
-    final results = QuranSkeleton.search(_query);
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -78,9 +68,285 @@ class _QuranScreenState extends State<QuranScreen> {
               ),
             ),
 
+            const SizedBox(height: 16),
+
+            // ── Sub-branch list (from catalog) ──
+            Expanded(
+              child: ListenableBuilder(
+                listenable: state.catalogService,
+                builder: (context, _) {
+                  final subs = state
+                      .catalogService.quranSubBranches;
+
+                  // Backward-compat fallback: if no sub-branches
+                  // are configured, show the 114 Surahs directly.
+                  if (subs.isEmpty) {
+                    return _SurahsList(colors: c);
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(
+                        20, 0, 20, 24),
+                    itemCount: subs.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final sub = subs[index];
+                      return _SubBranchCard(
+                        sub: sub,
+                        colors: c,
+                        language: state.language,
+                        onTap: () =>
+                            _openSubBranch(context, sub),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openSubBranch(
+      BuildContext context, QuranSubBranch sub) {
+    switch (sub.type) {
+      case QuranSubBranchType.mushaf:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MushafReaderScreen(sub: sub),
+          ),
+        );
+        break;
+      case QuranSubBranchType.surahs:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _SurahsListScreen(sub: sub),
+          ),
+        );
+        break;
+      case QuranSubBranchType.branch:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                QuranSubBranchScreen(sub: sub),
+          ),
+        );
+        break;
+      case QuranSubBranchType.unknown:
+        // Unknown types: silently ignore (older app version).
+        break;
+    }
+  }
+}
+
+// ─── Sub-branch Card ─────────────────────────────────────
+
+class _SubBranchCard extends StatelessWidget {
+  final QuranSubBranch sub;
+  final AppColors colors;
+  final String language;
+  final VoidCallback onTap;
+
+  const _SubBranchCard({
+    required this.sub,
+    required this.colors,
+    required this.language,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    IconData icon;
+    switch (sub.type) {
+      case QuranSubBranchType.mushaf:
+        icon = Icons.auto_stories_rounded;
+        break;
+      case QuranSubBranchType.surahs:
+        icon = Icons.format_list_numbered_rounded;
+        break;
+      case QuranSubBranchType.branch:
+        icon = Icons.menu_book_rounded;
+        break;
+      case QuranSubBranchType.unknown:
+        icon = Icons.help_outline_rounded;
+    }
+
+    String subtitle;
+    switch (sub.type) {
+      case QuranSubBranchType.mushaf:
+        subtitle = language == 'ar'
+            ? 'المصحف الكامل'
+            : 'Complete Mus\'haf';
+        break;
+      case QuranSubBranchType.surahs:
+        subtitle = language == 'ar'
+            ? '١١٤ سورة'
+            : '114 Surahs';
+        break;
+      case QuranSubBranchType.branch:
+        final count = sub.books.length;
+        subtitle = language == 'ar'
+            ? '$count كتاب'
+            : '$count ${count == 1 ? 'book' : 'books'}';
+        break;
+      case QuranSubBranchType.unknown:
+        subtitle = '';
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: c.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: c.goldLine, width: 1.5),
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: c.goldLine,
+                border: Border.all(
+                  color: c.goldText.withOpacity(0.35),
+                  width: 1.5,
+                ),
+              ),
+              child: Icon(icon, size: 24, color: c.goldText),
+            ),
+
+            const SizedBox(width: 14),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    sub.titleAr,
+                    textDirection: TextDirection.rtl,
+                    style: AppText.arabic(
+                      color: c.textPrimary,
+                      size: 17,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  if (subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      textDirection: language == 'ar'
+                          ? TextDirection.rtl
+                          : TextDirection.ltr,
+                      style: AppText.latin(
+                        color: c.goldText,
+                        size: 12,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 8),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: c.textFaint,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Surahs list (used when tapping a Surahs sub-branch) ─
+
+class _SurahsListScreen extends StatefulWidget {
+  final QuranSubBranch sub;
+
+  const _SurahsListScreen({required this.sub});
+
+  @override
+  State<_SurahsListScreen> createState() =>
+      _SurahsListScreenState();
+}
+
+class _SurahsListScreenState
+    extends State<_SurahsListScreen> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = AppState.of(context);
+    final c = AppColors(isDark: state.isDark);
+
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Top bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: c.surface2,
+                        borderRadius:
+                            BorderRadius.circular(11),
+                        border: Border.all(color: c.divider),
+                      ),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        size: 18,
+                        color: c.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      widget.sub.titleAr,
+                      textDirection: TextDirection.rtl,
+                      style: AppText.arabic(
+                        color: c.goldText,
+                        size: 20,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: 14),
 
-            // ── Search bar ──
+            // Search
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 20),
@@ -94,11 +360,8 @@ class _QuranScreenState extends State<QuranScreen> {
                 child: Row(
                   children: [
                     const SizedBox(width: 14),
-                    Icon(
-                      Icons.search_rounded,
-                      size: 20,
-                      color: c.textFaint,
-                    ),
+                    Icon(Icons.search_rounded,
+                        size: 20, color: c.textFaint),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
@@ -144,72 +407,8 @@ class _QuranScreenState extends State<QuranScreen> {
 
             const SizedBox(height: 14),
 
-            // ── Full Mus'haf card (if uploaded) ──
-            ListenableBuilder(
-              listenable: state.catalogService,
-              builder: (context, _) {
-                final mushafUrl =
-                    state.catalogService.mushafPdfUrl;
-                if (mushafUrl == null || _query.isNotEmpty) {
-                  return const SizedBox.shrink();
-                }
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      20, 0, 20, 14),
-                  child: _MushafCard(
-                    colors: c,
-                    onTap: () {
-                      // For now, just show a message.
-                      // TODO: route to full Mushaf PDF via
-                      // BookDetail or a dedicated screen.
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Full Mus\'haf coming soon.',
-                            style: AppText.latin(
-                              color: Colors.white,
-                              size: 13,
-                            ),
-                          ),
-                          backgroundColor: c.brand,
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-
-            // ── Surah list ──
             Expanded(
-              child: results.isEmpty
-                  ? _NoResults(colors: c)
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(
-                          20, 0, 20, 24),
-                      itemCount: results.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final surah = results[index];
-                        return _SurahRow(
-                          surah: surah,
-                          colors: c,
-                          language: lang,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    SurahDetailScreen(
-                                  meta: surah,
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+              child: _SurahsList(colors: c, query: _query),
             ),
           ],
         ),
@@ -218,89 +417,49 @@ class _QuranScreenState extends State<QuranScreen> {
   }
 }
 
-// ─── Mus'haf full-book card ──────────────────────────────
-
-class _MushafCard extends StatelessWidget {
+/// Renders the 114-Surah list. Extracted so both the direct
+/// path (no sub-branches configured) and the Surahs sub-branch
+/// screen can reuse it.
+class _SurahsList extends StatelessWidget {
   final AppColors colors;
-  final VoidCallback onTap;
+  final String query;
 
-  const _MushafCard({
+  const _SurahsList({
     required this.colors,
-    required this.onTap,
+    this.query = '',
   });
 
   @override
   Widget build(BuildContext context) {
-    final c = colors;
+    final state = AppState.of(context);
+    final lang = state.language;
+    final results = QuranSkeleton.search(query);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [c.brand, c.brandHover],
-          ),
-          border: Border.all(
-            color: c.gold.withOpacity(0.4),
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: c.gold.withOpacity(0.2),
-                border: Border.all(
-                  color: c.gold.withOpacity(0.5),
+    if (results.isEmpty) {
+      return _NoResults(colors: colors);
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      itemCount: results.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final surah = results[index];
+        return _SurahRow(
+          surah: surah,
+          colors: colors,
+          language: lang,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SurahDetailScreen(
+                  meta: surah,
                 ),
               ),
-              child: Icon(
-                Icons.auto_stories_rounded,
-                size: 22,
-                color: c.gold,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'المصحف الشريف',
-                    textDirection: TextDirection.rtl,
-                    style: AppText.arabic(
-                      color: c.gold,
-                      size: 15,
-                      weight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Full Mus\'haf — all 114 Surahs',
-                    style: AppText.latin(
-                      color: c.gold.withOpacity(0.85),
-                      size: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: c.gold,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -340,7 +499,6 @@ class _SurahRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Number in decorative circle
             Container(
               width: 40,
               height: 40,
@@ -364,7 +522,6 @@ class _SurahRow extends StatelessWidget {
 
             const SizedBox(width: 14),
 
-            // Arabic name (+ transcription if non-Arabic UI)
             Expanded(
               child: Column(
                 crossAxisAlignment:
