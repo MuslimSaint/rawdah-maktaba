@@ -265,30 +265,13 @@ class Branch {
 }
 
 // ─── SurahMeta ───────────────────────────────────────────
-// Metadata about a single Surah.
-// Names are NEVER translated — only Arabic + transcription.
-// The 114 SurahMeta entries are hardcoded in quran_data.dart
-// because Surahs are architectural (like branches), not content.
 
 class SurahMeta {
-  /// Surah number 1..114
   final int number;
-
-  /// Arabic name (e.g. الفاتحة) — the only real name.
   final String nameAr;
-
-  /// English transcription (e.g. Al-Fatiha) — NOT a translation.
-  /// Only used for display when app language is not Arabic,
-  /// and for search.
   final String nameTransliteration;
-
-  /// Number of ayat
   final int ayahCount;
-
-  /// 'meccan' or 'medinan'
   final String revelationPlace;
-
-  /// Order of revelation (1..114)
   final int revelationOrder;
 
   const SurahMeta({
@@ -300,12 +283,8 @@ class SurahMeta {
     required this.revelationOrder,
   });
 
-  /// The name shown next to the number in the list.
-  /// Arabic name for all languages.
   String get displayNameAr => nameAr;
 
-  /// The transliteration shown when app language is en or am.
-  /// Not shown when app language is ar.
   String? transliterationFor(String lang) {
     if (lang == 'ar') return null;
     return nameTransliteration;
@@ -362,15 +341,103 @@ class Surah {
       hasPdf || hasReciters || hasTeachers;
 }
 
+// ─── QuranSubBranch ──────────────────────────────────────
+// Sub-branch under the Quran main branch.
+// Three types:
+//   • mushaf → single PDF, special local reader
+//   • surahs → reveals the 114 Surahs list
+//   • branch → contains books (like Fiqh branch)
+enum QuranSubBranchType { mushaf, surahs, branch, unknown }
+
+class QuranSubBranch {
+  final String id;
+  final QuranSubBranchType type;
+  final String titleAr;
+  final String titleEn;
+  final String titleAm;
+
+  /// For type=mushaf only: URL of the full Mus'haf PDF.
+  final String pdfUrl;
+
+  /// For type=branch only: books inside this sub-branch.
+  final List<Book> books;
+
+  const QuranSubBranch({
+    required this.id,
+    required this.type,
+    required this.titleAr,
+    required this.titleEn,
+    required this.titleAm,
+    required this.pdfUrl,
+    required this.books,
+  });
+
+  factory QuranSubBranch.fromJson(Map<String, dynamic> json) {
+    final typeStr = (json['type'] as String? ?? '').toLowerCase();
+    QuranSubBranchType type;
+    switch (typeStr) {
+      case 'mushaf':
+        type = QuranSubBranchType.mushaf;
+        break;
+      case 'surahs':
+        type = QuranSubBranchType.surahs;
+        break;
+      case 'branch':
+        type = QuranSubBranchType.branch;
+        break;
+      default:
+        type = QuranSubBranchType.unknown;
+    }
+
+    final titleAr = json['titleAr'] as String? ?? '';
+    final titleEn = json['titleEn'] as String? ?? '';
+    final titleAmRaw = json['titleAm'] as String? ?? '';
+
+    return QuranSubBranch(
+      id: json['id'] as String,
+      type: type,
+      titleAr: titleAr,
+      titleEn: titleEn.isNotEmpty ? titleEn : titleAr,
+      titleAm: titleAmRaw.isNotEmpty ? titleAmRaw : titleEn,
+      pdfUrl: json['pdfUrl'] as String? ?? '',
+      books: json['books'] != null
+          ? (json['books'] as List)
+              .map((b) => Book.fromJson(b as Map<String, dynamic>))
+              .toList()
+          : const [],
+    );
+  }
+
+  String titleFor(String lang) {
+    switch (lang) {
+      case 'ar':
+        return titleAr;
+      case 'am':
+        return titleAm.isNotEmpty ? titleAm : titleEn;
+      default:
+        return titleEn.isNotEmpty ? titleEn : titleAr;
+    }
+  }
+}
+
 // ─── QuranData (catalog part) ────────────────────────────
 
 class QuranData {
+  /// Legacy full-Mushaf field (kept for backward compat).
+  /// New apps read from the `mushaf` sub-branch instead.
   final String mushafPdfUrl;
+
+  /// The 114-Surah per-Surah content.
   final Map<int, Surah> surahs;
+
+  /// Ordered list of sub-branches under the Quran branch.
+  /// Fully catalog-controlled.
+  final List<QuranSubBranch> subBranches;
 
   const QuranData({
     required this.mushafPdfUrl,
     required this.surahs,
+    required this.subBranches,
   });
 
   factory QuranData.fromJson(Map<String, dynamic> json) {
@@ -383,9 +450,19 @@ class QuranData {
         surahs[n] = Surah.fromJson(n, value);
       }
     });
+
+    final subBranchesRaw =
+        json['subBranches'] as List? ?? const [];
+    final subBranches = subBranchesRaw
+        .whereType<Map<String, dynamic>>()
+        .map((m) => QuranSubBranch.fromJson(m))
+        .where((sb) => sb.type != QuranSubBranchType.unknown)
+        .toList();
+
     return QuranData(
       mushafPdfUrl: json['mushafPdfUrl'] as String? ?? '',
       surahs: surahs,
+      subBranches: subBranches,
     );
   }
 
@@ -393,6 +470,7 @@ class QuranData {
     return const QuranData(
       mushafPdfUrl: '',
       surahs: {},
+      subBranches: [],
     );
   }
 
