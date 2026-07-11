@@ -21,6 +21,10 @@ class AppState extends ChangeNotifier {
   static const _keyDismissedAnnouncements =
       'dismissed_announcements';
 
+  /// Local-only last page for the Full Mus'haf.
+  /// Independent of the Firebase-synced reading progress.
+  static const _keyMushafLastPage = 'mushaf_last_page';
+
   late SharedPreferences _prefs;
 
   bool _isDark = false;
@@ -33,9 +37,10 @@ class AppState extends ChangeNotifier {
   int _lastBookPage = 0;
   int _lastBookTotalPages = 0;
 
-  // Set of announcement fingerprints the user has dismissed.
-  // If a new announcement is posted with different text,
-  // its fingerprint will differ and the banner shows again.
+  /// Last page the user was on in the Full Mus'haf.
+  /// Stored locally only. Zero means "not started yet."
+  int _mushafLastPage = 0;
+
   final Set<String> _dismissedAnnouncements = <String>{};
 
   // ─── Shared Services ───────────────────────────────
@@ -55,6 +60,8 @@ class AppState extends ChangeNotifier {
   String? get lastBookTitle => _lastBookTitle;
   int get lastBookPage => _lastBookPage;
   int get lastBookTotalPages => _lastBookTotalPages;
+
+  int get mushafLastPage => _mushafLastPage;
 
   bool get hasLastBook =>
       _lastBookId != null && _lastBookId!.isNotEmpty;
@@ -91,13 +98,14 @@ class AppState extends ChangeNotifier {
     _lastBookTotalPages =
         _prefs.getInt(_keyLastBookTotalPages) ?? 0;
 
-    // Load dismissed announcements
+    _mushafLastPage =
+        _prefs.getInt(_keyMushafLastPage) ?? 0;
+
     final dismissed = _prefs
             .getStringList(_keyDismissedAnnouncements) ??
         [];
     _dismissedAnnouncements.addAll(dismissed);
 
-    // Initialize services
     await downloadService.init();
     await coverService.init();
 
@@ -127,6 +135,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _extractCoversForDownloadedBooks() async {
+    // Extract covers for regular books
     final books = catalogService.books;
     for (final book in books) {
       final fileId = 'pdf_${book.id}';
@@ -141,6 +150,27 @@ class AppState extends ChangeNotifier {
                 pdfPath: path,
               )
               .catchError((_) {});
+        }
+      }
+    }
+
+    // Also extract covers for books inside Quran sub-branches
+    // (like Tafseer books).
+    for (final sub in catalogService.quranSubBranches) {
+      for (final book in sub.books) {
+        final fileId = 'pdf_${book.id}';
+        if (downloadService.isDownloaded(fileId) &&
+            !coverService.hasCover(book.id)) {
+          final path =
+              await downloadService.localPath(fileId);
+          if (path != null) {
+            coverService
+                .extractCover(
+                  bookId: book.id,
+                  pdfPath: path,
+                )
+                .catchError((_) {});
+          }
         }
       }
     }
@@ -224,7 +254,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── Reading Progress ──────────────────────────────
+  // ─── Reading Progress (books, synced to Firebase) ──
 
   Future<void> setLastOpenedBook({
     required String bookId,
@@ -272,26 +302,29 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── Announcement Dismissal ────────────────────────
-  // Fingerprint = a simple hash of the announcement's
-  // message + type. Same message → same fingerprint →
-  // stays dismissed. Different message → new fingerprint
-  // → banner shows again.
+  // ─── Mus'haf Position (local only, no Firebase) ────
 
-  /// Generates a stable fingerprint from message + type.
+  /// Saves the current Full Mus'haf reading page locally.
+  /// This is INTENTIONALLY not synced to Firebase because
+  /// the Mus'haf is a special local-first reading experience.
+  Future<void> setMushafLastPage(int page) async {
+    if (page < 0) return;
+    _mushafLastPage = page;
+    await _prefs.setInt(_keyMushafLastPage, page);
+    notifyListeners();
+  }
+
+  // ─── Announcement Dismissal ────────────────────────
+
   static String announcementFingerprint(
       String message, String type) {
-    // Simple stable hash — no external package needed
     return '${type}::${message.hashCode}';
   }
 
-  /// Returns true if this announcement has been dismissed
-  /// by the user.
   bool isAnnouncementDismissed(String fingerprint) {
     return _dismissedAnnouncements.contains(fingerprint);
   }
 
-  /// Persistently marks an announcement as dismissed.
   Future<void> dismissAnnouncement(String fingerprint) async {
     if (_dismissedAnnouncements.contains(fingerprint)) return;
     _dismissedAnnouncements.add(fingerprint);
@@ -302,8 +335,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Clears all dismissed announcements. Handy if you want
-  /// a "reset banners" option in Settings later.
   Future<void> clearDismissedAnnouncements() async {
     _dismissedAnnouncements.clear();
     await _prefs.remove(_keyDismissedAnnouncements);
