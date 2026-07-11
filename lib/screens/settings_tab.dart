@@ -148,7 +148,6 @@ class SettingsTab extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      // Dark Mode
                       Row(
                         children: [
                           _IconBox(
@@ -193,7 +192,6 @@ class SettingsTab extends StatelessWidget {
 
                       Divider(color: c.divider, height: 24),
 
-                      // Language
                       Row(
                         children: [
                           _IconBox(
@@ -454,16 +452,11 @@ class SettingsTab extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      // App icon
+                      // ── Real app icon (replaces the old book icon) ──
                       Container(
-                        width: 68,
-                        height: 68,
+                        width: 72,
+                        height: 72,
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [c.brand, c.brandHover],
-                          ),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: c.goldLine,
@@ -471,16 +464,28 @@ class SettingsTab extends StatelessWidget {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: c.brand.withOpacity(0.25),
+                              color: c.brand.withOpacity(0.18),
                               blurRadius: 16,
                               offset: const Offset(0, 6),
                             ),
                           ],
                         ),
-                        child: Icon(
-                          Icons.menu_book_rounded,
-                          size: 32,
-                          color: c.gold,
+                        child: ClipRRect(
+                          borderRadius:
+                              BorderRadius.circular(18),
+                          child: Image.asset(
+                            'assets/icon.png',
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                Container(
+                              color: c.brand.withOpacity(0.15),
+                              child: Icon(
+                                Icons.menu_book_rounded,
+                                size: 32,
+                                color: c.gold,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
 
