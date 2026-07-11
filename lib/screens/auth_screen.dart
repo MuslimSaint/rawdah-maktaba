@@ -125,27 +125,42 @@ class _AuthScreenState extends State<AuthScreen> {
               children: [
                 const SizedBox(height: 48),
 
-                // ── App Icon ──
+                // ── Real App Icon (replaces the old book icon) ──
                 Container(
-                  width: 72,
-                  height: 72,
+                  width: 80,
+                  height: 80,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [c.brand, c.brandHover],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(22),
                     border: Border.all(color: c.goldLine, width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: c.brand.withOpacity(0.3),
-                        blurRadius: 16,
+                        color: c.brand.withOpacity(0.25),
+                        blurRadius: 20,
                         offset: const Offset(0, 6),
                       ),
                     ],
                   ),
-                  child: Icon(Icons.menu_book_rounded, size: 36, color: c.gold),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/icon.png',
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [c.brand, c.brandHover],
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.menu_book_rounded,
+                          size: 36,
+                          color: c.gold,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
 
                 const SizedBox(height: 16),
@@ -169,7 +184,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 const SizedBox(height: 32),
 
-                // ── Mode Toggle ──
                 _ModeToggle(
                   isSignIn: _isSignIn,
                   onToggle: _switchMode,
@@ -178,7 +192,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 const SizedBox(height: 28),
 
-                // ── Google Button ──
                 _GoogleButton(
                   isLoading: _isGoogleLoading,
                   onTap: _signInWithGoogle,
@@ -187,12 +200,10 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 const SizedBox(height: 20),
 
-                // ── Divider ──
                 _OrDivider(colors: c),
 
                 const SizedBox(height: 20),
 
-                // ── Form ──
                 Form(
                   key: _formKey,
                   child: Column(
@@ -273,7 +284,6 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
 
-                // ── Error Message ──
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 12),
                   Container(
@@ -305,7 +315,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 const SizedBox(height: 24),
 
-                // ── Submit Button ──
                 _SubmitButton(
                   isSignIn: _isSignIn,
                   isLoading: _isLoading,
