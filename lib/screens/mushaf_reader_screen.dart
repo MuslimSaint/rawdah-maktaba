@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../core/app_state.dart';
+import '../core/bookmark_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 
 /// Dedicated reader for the Full Mus'haf sub-branch.
 ///
-/// Behavior:
-///   • Downloads the sub-branch's PDF if not present (auto).
-///   • Opens the PDF at the last locally-saved page.
-///   • Saves position locally on every page turn (no Firebase).
-///   • Extra features (bookmarks, keep-screen-on, etc.) added
-///     in a follow-up batch — this file exposes the plumbing.
+/// Features:
+///   • Auto-download on first tap
+///   • Local position saving (resumes last page)
+///   • Bookmarks (multiple named positions, bottom sheet)
+///   • Keep screen on toggle
+///   • Horizontal page-swipe reading
 class MushafReaderScreen extends StatefulWidget {
   final QuranSubBranch sub;
 
@@ -36,28 +38,39 @@ class _MushafReaderScreenState
   bool _showLoadingOverlay = true;
   String? _localPath;
   String? _errorMessage;
+  bool _keepScreenOn = false;
 
   PDFViewController? _pdfController;
   int _defaultPage = 0;
 
+  final BookmarkService _bookmarkService = BookmarkService();
+
   @override
   void initState() {
     super.initState();
+    _bookmarkService.init();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _init();
     });
   }
 
+  @override
+  void dispose() {
+    // Always release wakelock when leaving
+    if (_keepScreenOn) {
+      WakelockPlus.disable();
+    }
+    super.dispose();
+  }
+
   Future<void> _init() async {
     final state = AppState.of(context);
 
-    // Read the saved local last page BEFORE loading the PDF.
     _defaultPage = state.mushafLastPage;
     _currentPage = _defaultPage;
 
     final downloadService = state.downloadService;
 
-    // Already downloaded?
     if (downloadService.isDownloaded(_fileId)) {
       final path = await downloadService.localPath(_fileId);
       if (path != null && mounted) {
@@ -66,7 +79,6 @@ class _MushafReaderScreenState
       return;
     }
 
-    // Not downloaded — start download
     if (widget.sub.pdfUrl.isEmpty) {
       if (mounted) {
         setState(() {
@@ -115,8 +127,269 @@ class _MushafReaderScreenState
       _totalPages = total;
       _showLoadingOverlay = false;
     });
-    // Persist locally — no Firebase.
     await AppState.of(context).setMushafLastPage(page);
+  }
+
+  void _toggleKeepScreenOn() {
+    setState(() {
+      _keepScreenOn = !_keepScreenOn;
+    });
+    if (_keepScreenOn) {
+      WakelockPlus.enable();
+    } else {
+      WakelockPlus.disable();
+    }
+  }
+
+  // ─── Bookmark dialog ──────────────────────────────
+
+  void _showAddBookmarkDialog() {
+    if (_bookmarkService.isBookmarked(_currentPage)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Page ${_currentPage + 1} is already bookmarked.',
+            style: const TextStyle(fontSize: 13),
+          ),
+          backgroundColor: AppColors(isDark: false).brand,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final controller = TextEditingController(
+      text: 'Page ${_currentPage + 1}',
+    );
+
+    final c = AppColors(
+        isDark: AppState.of(context).isDark);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Save Bookmark',
+          style: AppText.latin(
+            color: c.textPrimary,
+            size: 16,
+            weight: FontWeight.w700,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Name this bookmark (or keep the default):',
+              style: AppText.latin(
+                color: c.textMuted,
+                size: 13,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: AppText.latin(
+                color: c.textPrimary,
+                size: 14,
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: c.surface2,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: c.divider),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: c.divider),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: c.goldText,
+                    width: 1.5,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: AppText.latin(
+                color: c.textMuted,
+                size: 14,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              _bookmarkService.addBookmark(
+                page: _currentPage,
+                name: controller.text.trim(),
+              );
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Bookmark saved: ${controller.text.trim()}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  backgroundColor: c.brand,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            child: Text(
+              'Save',
+              style: AppText.latin(
+                color: c.goldText,
+                size: 14,
+                weight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBookmarksSheet() {
+    final c = AppColors(isDark: AppState.of(context).isDark);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: c.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
+      builder: (ctx) {
+        return ListenableBuilder(
+          listenable: _bookmarkService,
+          builder: (ctx, _) {
+            final bookmarks = _bookmarkService.bookmarks;
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  20, 16, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  // Handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: c.divider,
+                        borderRadius:
+                            BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.bookmark_rounded,
+                        color: c.goldText,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Bookmarks',
+                        style: AppText.latin(
+                          color: c.textPrimary,
+                          size: 16,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${bookmarks.length}',
+                        style: AppText.latin(
+                          color: c.goldText,
+                          size: 14,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  if (bookmarks.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'No bookmarks yet.\nTap the bookmark icon to save your position.',
+                          textAlign: TextAlign.center,
+                          style: AppText.latin(
+                            color: c.textMuted,
+                            size: 13,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight:
+                            MediaQuery.of(ctx).size.height *
+                                0.4,
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: bookmarks.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 8),
+                        itemBuilder: (ctx, index) {
+                          final bm = bookmarks[index];
+                          return _BookmarkRow(
+                            bookmark: bm,
+                            colors: c,
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              _pdfController
+                                  ?.setPage(bm.page);
+                            },
+                            onDelete: () {
+                              _bookmarkService
+                                  .removeBookmark(
+                                      bm.page);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -136,6 +409,7 @@ class _MushafReaderScreenState
                   const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
                 children: [
+                  // Back button
                   GestureDetector(
                     onTap: () =>
                         Navigator.of(context).pop(),
@@ -155,7 +429,10 @@ class _MushafReaderScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+
+                  const SizedBox(width: 8),
+
+                  // Title
                   Expanded(
                     child: Text(
                       widget.sub.titleAr,
@@ -170,11 +447,160 @@ class _MushafReaderScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+
+                  const SizedBox(width: 6),
+
+                  // Keep screen on toggle
+                  if (_isReady && !_showLoadingOverlay)
+                    GestureDetector(
+                      onTap: _toggleKeepScreenOn,
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: _keepScreenOn
+                              ? c.goldLine
+                              : c.surface2,
+                          borderRadius:
+                              BorderRadius.circular(9),
+                          border: Border.all(
+                            color: _keepScreenOn
+                                ? c.goldText
+                                    .withOpacity(0.5)
+                                : c.divider,
+                          ),
+                        ),
+                        child: Icon(
+                          _keepScreenOn
+                              ? Icons
+                                  .visibility_rounded
+                              : Icons
+                                  .visibility_off_rounded,
+                          size: 16,
+                          color: _keepScreenOn
+                              ? c.goldText
+                              : c.textFaint,
+                        ),
+                      ),
+                    ),
+
+                  const SizedBox(width: 6),
+
+                  // Add bookmark button
+                  if (_isReady && !_showLoadingOverlay)
+                    GestureDetector(
+                      onTap: _showAddBookmarkDialog,
+                      child: ListenableBuilder(
+                        listenable: _bookmarkService,
+                        builder: (context, _) {
+                          final isMarked =
+                              _bookmarkService
+                                  .isBookmarked(
+                                      _currentPage);
+                          return Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: isMarked
+                                  ? c.goldLine
+                                  : c.surface2,
+                              borderRadius:
+                                  BorderRadius.circular(9),
+                              border: Border.all(
+                                color: isMarked
+                                    ? c.goldText
+                                        .withOpacity(0.5)
+                                    : c.divider,
+                              ),
+                            ),
+                            child: Icon(
+                              isMarked
+                                  ? Icons.bookmark_rounded
+                                  : Icons
+                                      .bookmark_border_rounded,
+                              size: 16,
+                              color: isMarked
+                                  ? c.goldText
+                                  : c.textFaint,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                  const SizedBox(width: 6),
+
+                  // View bookmarks list
+                  if (_isReady && !_showLoadingOverlay)
+                    GestureDetector(
+                      onTap: _showBookmarksSheet,
+                      child: ListenableBuilder(
+                        listenable: _bookmarkService,
+                        builder: (context, _) {
+                          return Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: c.surface2,
+                              borderRadius:
+                                  BorderRadius.circular(9),
+                              border: Border.all(
+                                  color: c.divider),
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Icon(
+                                  Icons
+                                      .bookmarks_outlined,
+                                  size: 16,
+                                  color: c.textPrimary,
+                                ),
+                                if (_bookmarkService
+                                        .count >
+                                    0)
+                                  Positioned(
+                                    top: 2,
+                                    right: 2,
+                                    child: Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration:
+                                          BoxDecoration(
+                                        color: c.goldText,
+                                        shape:
+                                            BoxShape.circle,
+                                      ),
+                                      alignment:
+                                          Alignment.center,
+                                      child: Text(
+                                        '${_bookmarkService.count}',
+                                        style:
+                                            const TextStyle(
+                                          color:
+                                              Colors.white,
+                                          fontSize: 8,
+                                          fontWeight:
+                                              FontWeight
+                                                  .w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                  const SizedBox(width: 6),
+
+                  // Page counter
                   if (_isReady && !_showLoadingOverlay)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
+                        horizontal: 8,
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
@@ -185,10 +611,10 @@ class _MushafReaderScreenState
                             Border.all(color: c.divider),
                       ),
                       child: Text(
-                        '${_currentPage + 1} / $_totalPages',
+                        '${_currentPage + 1}/$_totalPages',
                         style: AppText.latin(
                           color: c.textMuted,
-                          size: 11,
+                          size: 10,
                           weight: FontWeight.w700,
                         ),
                       ),
@@ -227,7 +653,6 @@ class _MushafReaderScreenState
             Expanded(
               child: Stack(
                 children: [
-                  // Only build PDFView once we have a path
                   if (_localPath != null)
                     PDFView(
                       key: ValueKey(_localPath),
@@ -265,7 +690,6 @@ class _MushafReaderScreenState
                       },
                     ),
 
-                  // Loading / progress overlay
                   if (_showLoadingOverlay ||
                       _localPath == null)
                     _LoadingOverlay(
@@ -304,17 +728,139 @@ class _MushafReaderScreenState
                             c.goldText.withOpacity(0.35),
                       ),
                     ),
-                    child: Text(
-                      'Mus\'haf · Page ${_currentPage + 1} of $_totalPages',
-                      style: AppText.latin(
-                        color: c.goldText,
-                        size: 12,
-                        weight: FontWeight.w700,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_keepScreenOn) ...[
+                          Icon(
+                            Icons.visibility_rounded,
+                            size: 12,
+                            color: c.goldText,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(
+                          'Mus\'haf · Page ${_currentPage + 1} of $_totalPages',
+                          style: AppText.latin(
+                            color: c.goldText,
+                            size: 12,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Bookmark Row ────────────────────────────────────────
+
+class _BookmarkRow extends StatelessWidget {
+  final MushafBookmark bookmark;
+  final AppColors colors;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _BookmarkRow({
+    required this.bookmark,
+    required this.colors,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        decoration: BoxDecoration(
+          color: c.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: c.divider),
+        ),
+        child: Row(
+          children: [
+            // Page number circle
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: c.goldLine,
+                border: Border.all(
+                  color: c.goldText.withOpacity(0.35),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                '${bookmark.page + 1}',
+                style: AppText.latin(
+                  color: c.goldText,
+                  size: 11,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Name
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    bookmark.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.latin(
+                      color: c.textPrimary,
+                      size: 13,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Page ${bookmark.page + 1}',
+                    style: AppText.latin(
+                      color: c.textFaint,
+                      size: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Delete button
+            GestureDetector(
+              onTap: onDelete,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: c.dangerBg,
+                ),
+                child: Icon(
+                  Icons.delete_outline_rounded,
+                  size: 14,
+                  color: c.danger,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -356,7 +902,8 @@ class _LoadingOverlay extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
                 children: [
                   if (errorMessage != null) ...[
                     Icon(
@@ -379,7 +926,9 @@ class _LoadingOverlay extends StatelessWidget {
                       width: 60,
                       height: 60,
                       child: CircularProgressIndicator(
-                        value: progress > 0 ? progress : null,
+                        value: progress > 0
+                            ? progress
+                            : null,
                         color: c.goldText,
                         strokeWidth: 3,
                         backgroundColor: c.surface2,
@@ -407,7 +956,7 @@ class _LoadingOverlay extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'This is a one-time download. After this, the Mus\'haf opens instantly.',
+                      'This is a one-time download.',
                       textAlign: TextAlign.center,
                       style: AppText.latin(
                         color: c.textMuted,
