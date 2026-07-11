@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 import '../core/app_state.dart';
 import '../core/bookmark_service.dart';
 import '../core/download_service.dart';
@@ -13,7 +12,6 @@ import '../core/theme.dart';
 ///   • Auto-download on first tap
 ///   • Local position saving (resumes last page)
 ///   • Bookmarks (multiple named positions, bottom sheet)
-///   • Keep screen on toggle
 ///   • Horizontal page-swipe reading
 class MushafReaderScreen extends StatefulWidget {
   final QuranSubBranch sub;
@@ -38,7 +36,6 @@ class _MushafReaderScreenState
   bool _showLoadingOverlay = true;
   String? _localPath;
   String? _errorMessage;
-  bool _keepScreenOn = false;
 
   PDFViewController? _pdfController;
   int _defaultPage = 0;
@@ -52,15 +49,6 @@ class _MushafReaderScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _init();
     });
-  }
-
-  @override
-  void dispose() {
-    // Always release wakelock when leaving
-    if (_keepScreenOn) {
-      WakelockPlus.disable();
-    }
-    super.dispose();
   }
 
   Future<void> _init() async {
@@ -128,17 +116,6 @@ class _MushafReaderScreenState
       _showLoadingOverlay = false;
     });
     await AppState.of(context).setMushafLastPage(page);
-  }
-
-  void _toggleKeepScreenOn() {
-    setState(() {
-      _keepScreenOn = !_keepScreenOn;
-    });
-    if (_keepScreenOn) {
-      WakelockPlus.enable();
-    } else {
-      WakelockPlus.disable();
-    }
   }
 
   // ─── Bookmark dialog ──────────────────────────────
@@ -292,7 +269,6 @@ class _MushafReaderScreenState
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
-                  // Handle
                   Center(
                     child: Container(
                       width: 40,
@@ -409,7 +385,6 @@ class _MushafReaderScreenState
                   const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
                 children: [
-                  // Back button
                   GestureDetector(
                     onTap: () =>
                         Navigator.of(context).pop(),
@@ -432,7 +407,6 @@ class _MushafReaderScreenState
 
                   const SizedBox(width: 8),
 
-                  // Title
                   Expanded(
                     child: Text(
                       widget.sub.titleAr,
@@ -447,42 +421,6 @@ class _MushafReaderScreenState
                       ),
                     ),
                   ),
-
-                  const SizedBox(width: 6),
-
-                  // Keep screen on toggle
-                  if (_isReady && !_showLoadingOverlay)
-                    GestureDetector(
-                      onTap: _toggleKeepScreenOn,
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: _keepScreenOn
-                              ? c.goldLine
-                              : c.surface2,
-                          borderRadius:
-                              BorderRadius.circular(9),
-                          border: Border.all(
-                            color: _keepScreenOn
-                                ? c.goldText
-                                    .withOpacity(0.5)
-                                : c.divider,
-                          ),
-                        ),
-                        child: Icon(
-                          _keepScreenOn
-                              ? Icons
-                                  .visibility_rounded
-                              : Icons
-                                  .visibility_off_rounded,
-                          size: 16,
-                          color: _keepScreenOn
-                              ? c.goldText
-                              : c.textFaint,
-                        ),
-                      ),
-                    ),
 
                   const SizedBox(width: 6),
 
@@ -728,26 +666,13 @@ class _MushafReaderScreenState
                             c.goldText.withOpacity(0.35),
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_keepScreenOn) ...[
-                          Icon(
-                            Icons.visibility_rounded,
-                            size: 12,
-                            color: c.goldText,
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Text(
-                          'Mus\'haf · Page ${_currentPage + 1} of $_totalPages',
-                          style: AppText.latin(
-                            color: c.goldText,
-                            size: 12,
-                            weight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'Mus\'haf · Page ${_currentPage + 1} of $_totalPages',
+                      style: AppText.latin(
+                        color: c.goldText,
+                        size: 12,
+                        weight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -792,7 +717,6 @@ class _BookmarkRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Page number circle
             Container(
               width: 36,
               height: 36,
@@ -813,10 +737,7 @@ class _BookmarkRow extends StatelessWidget {
                 ),
               ),
             ),
-
             const SizedBox(width: 12),
-
-            // Name
             Expanded(
               child: Column(
                 crossAxisAlignment:
@@ -843,8 +764,6 @@ class _BookmarkRow extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Delete button
             GestureDetector(
               onTap: onDelete,
               child: Container(
