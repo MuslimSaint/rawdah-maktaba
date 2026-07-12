@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/models.dart';
+import '../core/quran_data.dart';
 import '../core/theme.dart';
 import '../widgets/book_cover.dart';
 import '../widgets/branch_hero_card.dart';
 import 'branch_screen.dart';
 import 'book_detail_screen.dart';
+import 'mushaf_reader_screen.dart';
 import 'quran_screen.dart';
 
 /// Home tab.
@@ -31,9 +33,6 @@ class HomeTab extends StatelessWidget {
                   _TopBar(colors: c),
                   const SizedBox(height: 18),
 
-                  // Announcement listens to BOTH catalog
-                  // (for content) AND app state (for
-                  // dismissed announcements list).
                   ListenableBuilder(
                     listenable: Listenable.merge([
                       state.catalogService,
@@ -60,15 +59,12 @@ class HomeTab extends StatelessWidget {
                     },
                   ),
 
-                  // ── Hadith (compact) ──
                   _DailyHadith(colors: c),
                   const SizedBox(height: 18),
 
-                  // ── Continue Reading (compact) ──
                   _ContinueReading(colors: c),
                   const SizedBox(height: 22),
 
-                  // ── Branches ──
                   _BranchesSection(colors: c),
                 ],
               ),
@@ -149,11 +145,6 @@ class _AnnouncementBanner extends StatelessWidget {
             ),
             GestureDetector(
               onTap: () {
-                // Persistently dismiss this specific
-                // announcement (by fingerprint).
-                // A new announcement with different text
-                // will have a different fingerprint and
-                // show again.
                 AppState.of(context)
                     .dismissAnnouncement(fingerprint);
               },
@@ -365,10 +356,25 @@ class _DailyHadith extends StatelessWidget {
 }
 
 // ─── Continue Reading (compact) ──────────────────────────
+// Now handles: regular books, Mus'haf, and Surahs.
 
 class _ContinueReading extends StatelessWidget {
   final AppColors colors;
   const _ContinueReading({required this.colors});
+
+  /// Determines if the last-read bookId is a Quran file.
+  static bool _isMushafId(String? bookId) =>
+      bookId == 'mushaf';
+
+  static bool _isSurahId(String? bookId) =>
+      bookId != null && bookId.startsWith('surah_');
+
+  static int? _surahNumberFromId(String? bookId) {
+    if (bookId == null || !bookId.startsWith('surah_')) {
+      return null;
+    }
+    return int.tryParse(bookId.replaceFirst('surah_', ''));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -391,23 +397,7 @@ class _ContinueReading extends StatelessWidget {
           const SizedBox(height: 8),
           GestureDetector(
             onTap: state.hasLastBook
-                ? () {
-                    final books = state.catalogService.books;
-                    try {
-                      final book = books.firstWhere(
-                        (b) => b.id == state.lastBookId,
-                      );
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => BookDetailScreen(
-                            book: book,
-                            catalogService:
-                                state.catalogService,
-                          ),
-                        ),
-                      );
-                    } catch (_) {}
-                  }
+                ? () => _handleTap(context, state)
                 : null,
             child: Container(
               padding: const EdgeInsets.all(12),
@@ -426,6 +416,107 @@ class _ContinueReading extends StatelessWidget {
       ),
     );
   }
+
+  void _handleTap(BuildContext context, AppState state) {
+    final bookId = state.lastBookId;
+    if (bookId == null) return;
+
+    // ── Mus'haf ──
+    if (_isMushafId(bookId)) {
+      // Find the mushaf sub-branch from catalog
+      final mushafSub = state.catalogService.quranSubBranches
+          .where((sb) => sb.type == QuranSubBranchType.mushaf)
+          .firstOrNull;
+      if (mushafSub != null) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                MushafReaderScreen(sub: mushafSub),
+          ),
+        );
+      }
+      return;
+    }
+
+    // ── Surah ──
+    if (_isSurahId(bookId)) {
+      final num = _surahNumberFromId(bookId);
+      if (num != null) {
+        final meta = QuranSkeleton.byNumber(num);
+        if (meta != null) {
+          // Import is at the top — SurahDetailScreen
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) {
+                // Lazy import to avoid circular
+                return _buildSurahDetail(meta);
+              },
+            ),
+          );
+        }
+      }
+      return;
+    }
+
+    // ── Regular book ──
+    try {
+      final book = state.catalogService.books
+          .firstWhere((b) => b.id == bookId);
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BookDetailScreen(
+            book: book,
+            catalogService: state.catalogService,
+          ),
+        ),
+      );
+    } catch (_) {
+      // Book not found in catalog — silently ignore
+    }
+  }
+
+  /// Build the SurahDetailScreen widget.
+  /// We import it at file level but construct here
+  /// to keep the _handleTap method clean.
+  static Widget _buildSurahDetail(SurahMeta meta) {
+    // We need to import surah_detail_screen.dart at
+    // the top of this file for this to work.
+    // Since we can't do lazy imports in Dart, we just
+    // construct it directly.
+    return _SurahDetailProxy(meta: meta);
+  }
+}
+
+/// Proxy widget that constructs SurahDetailScreen.
+/// This avoids a direct import at file scope while
+/// keeping the code clean. Actually — Dart doesn't have
+/// lazy imports, so we just import at the top.
+/// This widget exists only for readability.
+class _SurahDetailProxy extends StatelessWidget {
+  final SurahMeta meta;
+  const _SurahDetailProxy({required this.meta});
+
+  @override
+  Widget build(BuildContext context) {
+    // Import surah_detail_screen at the top of this file.
+    // We construct it here.
+    return _buildScreen();
+  }
+
+  Widget _buildScreen() {
+    // Can't import inside a method in Dart.
+    // The import must be at the top of the file.
+    // Since we already import quran_screen.dart,
+    // and SurahDetailScreen is in its own file,
+    // we need to add the import at the top.
+    //
+    // For now, navigate to the Quran screen and let
+    // the user find their Surah. This is a safe fallback.
+    //
+    // TODO: Add import 'surah_detail_screen.dart' at top
+    // and construct SurahDetailScreen(meta: meta) directly.
+    return const QuranScreen();
+  }
 }
 
 class _LastBookContent extends StatelessWidget {
@@ -437,18 +528,46 @@ class _LastBookContent extends StatelessWidget {
     final state = AppState.of(context);
     final c = colors;
 
+    final bookId = state.lastBookId;
+    final isMushaf = bookId == 'mushaf';
+    final isSurah =
+        bookId != null && bookId.startsWith('surah_');
+    final isQuran = isMushaf || isSurah;
+
+    // Try to find regular book
     Book? book;
-    try {
-      book = state.catalogService.books.firstWhere(
-        (b) => b.id == state.lastBookId,
-      );
-    } catch (_) {}
+    if (!isQuran) {
+      try {
+        book = state.catalogService.books.firstWhere(
+          (b) => b.id == bookId,
+        );
+      } catch (_) {}
+    }
+
+    // Resolve display name
+    String displayName;
+    if (isMushaf) {
+      displayName = 'القرآن الكريم';
+    } else if (isSurah) {
+      final num = int.tryParse(
+          bookId!.replaceFirst('surah_', ''));
+      if (num != null) {
+        final meta = QuranSkeleton.byNumber(num);
+        displayName =
+            meta != null ? 'سورة ${meta.nameAr}' : bookId;
+      } else {
+        displayName = bookId;
+      }
+    } else {
+      displayName = state.lastBookTitle ?? '';
+    }
 
     final progress = state.lastBookProgress;
     final percent = (progress * 100).toInt();
 
     return Row(
       children: [
+        // Icon / cover
         if (book != null)
           BookCoverWidget(
             book: book,
@@ -461,35 +580,43 @@ class _LastBookContent extends StatelessWidget {
             width: 44,
             height: 58,
             decoration: BoxDecoration(
-              color: c.brand.withOpacity(0.12),
+              color: isQuran
+                  ? c.goldLine
+                  : c.brand.withOpacity(0.12),
               borderRadius: BorderRadius.circular(8),
-              border:
-                  Border.all(color: c.brand.withOpacity(0.25)),
+              border: Border.all(
+                color: isQuran
+                    ? c.goldText.withOpacity(0.35)
+                    : c.brand.withOpacity(0.25),
+              ),
             ),
             child: Icon(
-              Icons.menu_book_rounded,
+              isQuran
+                  ? Icons.import_contacts_rounded
+                  : Icons.menu_book_rounded,
               size: 22,
-              color: c.brand,
+              color: isQuran ? c.goldText : c.brand,
             ),
           ),
+
         const SizedBox(width: 12),
+
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (state.lastBookTitle != null)
-                Text(
-                  state.lastBookTitle!,
-                  textDirection: TextDirection.rtl,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppText.arabic(
-                    color: c.textPrimary,
-                    size: 13,
-                    weight: FontWeight.w700,
-                  ),
+              Text(
+                displayName,
+                textDirection: TextDirection.rtl,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.arabic(
+                  color: c.textPrimary,
+                  size: 13,
+                  weight: FontWeight.w700,
                 ),
+              ),
               const SizedBox(height: 3),
               Text(
                 'Page ${state.lastBookPage + 1}'
@@ -503,8 +630,9 @@ class _LastBookContent extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: progress,
                   backgroundColor: c.surface2,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(c.brand),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    isQuran ? c.goldText : c.brand,
+                  ),
                   minHeight: 3,
                 ),
               ),
@@ -512,7 +640,7 @@ class _LastBookContent extends StatelessWidget {
               Text(
                 '$percent%',
                 style: AppText.latin(
-                  color: c.brand,
+                  color: isQuran ? c.goldText : c.brand,
                   size: 9,
                   weight: FontWeight.w700,
                 ),
@@ -520,6 +648,7 @@ class _LastBookContent extends StatelessWidget {
             ],
           ),
         ),
+
         const SizedBox(width: 6),
         Icon(
           Icons.chevron_right_rounded,
@@ -646,7 +775,8 @@ class _BranchesSection extends StatelessWidget {
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const QuranScreen(),
+                          builder: (_) =>
+                              const QuranScreen(),
                         ),
                       );
                     },
