@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/models.dart';
+import '../core/quran_data.dart';
 import '../core/theme.dart';
 import '../core/download_service.dart';
 import '../widgets/book_cover.dart';
 import 'book_detail_screen.dart';
 
 /// Downloads tab — active downloads + completed downloads.
+/// Now supports Quran file names (Mus'haf + Surahs).
 class DownloadsTab extends StatefulWidget {
   const DownloadsTab({super.key});
 
@@ -114,6 +116,95 @@ class _DownloadsTabState extends State<DownloadsTab> {
     if (confirm == true) {
       await state.downloadService.deleteAll();
       await _loadData();
+    }
+  }
+
+  // ─── Name resolution for ALL file types ────────────
+
+  /// Resolves a human-readable Arabic name for any fileId,
+  /// including Quran files that don't exist in the books list.
+  String _displayNameForFileId(String fileId) {
+    // Full Mus'haf
+    if (fileId == 'pdf_mushaf') {
+      return 'القرآن الكريم';
+    }
+    // Surah PDF: pdf_surah_N
+    if (fileId.startsWith('pdf_surah_')) {
+      final numStr = fileId.replaceFirst('pdf_surah_', '');
+      final num = int.tryParse(numStr);
+      if (num != null && num >= 1 && num <= 114) {
+        final surah = QuranSkeleton.byNumber(num);
+        if (surah != null) {
+          return 'سورة ${surah.nameAr}';
+        }
+      }
+      return 'سورة $numStr';
+    }
+    // Surah audio: audio_surah_N_...
+    if (fileId.startsWith('audio_surah_')) {
+      final parts = fileId.split('_');
+      if (parts.length >= 3) {
+        final num = int.tryParse(parts[2]);
+        if (num != null && num >= 1 && num <= 114) {
+          final surah = QuranSkeleton.byNumber(num);
+          if (surah != null) {
+            return 'سورة ${surah.nameAr}';
+          }
+        }
+      }
+    }
+    // Fallback: show the raw fileId
+    return fileId;
+  }
+
+  /// Returns the English transliteration for Quran file IDs.
+  String? _transliterationForFileId(String fileId) {
+    if (fileId == 'pdf_mushaf') {
+      return 'The Noble Quran';
+    }
+    if (fileId.startsWith('pdf_surah_')) {
+      final numStr = fileId.replaceFirst('pdf_surah_', '');
+      final num = int.tryParse(numStr);
+      if (num != null && num >= 1 && num <= 114) {
+        final surah = QuranSkeleton.byNumber(num);
+        if (surah != null) {
+          return surah.nameTransliteration;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Returns true if this fileId is a Quran-related file
+  /// (not a regular book).
+  bool _isQuranFileId(String fileId) {
+    return fileId == 'pdf_mushaf' ||
+        fileId.startsWith('pdf_surah_') ||
+        fileId.startsWith('audio_surah_');
+  }
+
+  Book? _bookForId(String bookId, List<Book> books) {
+    try {
+      return books.firstWhere((b) => b.id == bookId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Book? _bookForFileId(String fileId, List<Book> books) {
+    String bookId;
+    if (fileId.startsWith('pdf_')) {
+      bookId = fileId.replaceFirst('pdf_', '');
+    } else if (fileId.startsWith('audio_')) {
+      final parts = fileId.split('_');
+      bookId = parts.length > 1 ? parts[1] : '';
+    } else {
+      return null;
+    }
+    try {
+      return books.firstWhere((b) => b.id == bookId);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -243,6 +334,14 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                   state.catalogService.books,
                                 );
 
+                                // Use book name, or Quran name,
+                                // or the display name from download
+                                final name = book?.titleAr ??
+                                    (_isQuranFileId(fileId)
+                                        ? _displayNameForFileId(
+                                            fileId)
+                                        : displayName);
+
                                 return Padding(
                                   padding:
                                       const EdgeInsets.only(
@@ -250,9 +349,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                   child: _ActiveDownloadCard(
                                     fileId: fileId,
                                     book: book,
-                                    displayName:
-                                        book?.titleAr ??
-                                            displayName,
+                                    displayName: name,
                                     progress: prog,
                                     speedKbps: speed,
                                     isPaused: paused,
@@ -299,6 +396,17 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                   fileId,
                                   state.catalogService.books,
                                 );
+
+                                // Resolve display name:
+                                // book name > Quran name > raw fileId
+                                final displayName =
+                                    book?.titleAr ??
+                                        _displayNameForFileId(
+                                            fileId);
+                                final transliteration =
+                                    _transliterationForFileId(
+                                        fileId);
+
                                 return Padding(
                                   padding:
                                       const EdgeInsets.only(
@@ -306,6 +414,9 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                   child: _DownloadedFileCard(
                                     fileId: fileId,
                                     book: book,
+                                    displayName: displayName,
+                                    transliteration:
+                                        transliteration,
                                     sizeMb: sizeMb,
                                     colors: c,
                                     onDelete: () =>
@@ -341,31 +452,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
       ),
     );
   }
-
-  Book? _bookForId(String bookId, List<Book> books) {
-    try {
-      return books.firstWhere((b) => b.id == bookId);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Book? _bookForFileId(String fileId, List<Book> books) {
-    String bookId;
-    if (fileId.startsWith('pdf_')) {
-      bookId = fileId.replaceFirst('pdf_', '');
-    } else if (fileId.startsWith('audio_')) {
-      final parts = fileId.split('_');
-      bookId = parts.length > 1 ? parts[1] : '';
-    } else {
-      return null;
-    }
-    try {
-      return books.firstWhere((b) => b.id == bookId);
-    } catch (_) {
-      return null;
-    }
-  }
 }
 
 // ─── Active Download Card ────────────────────────────────
@@ -400,6 +486,8 @@ class _ActiveDownloadCard extends StatelessWidget {
     final c = colors;
     final isPdf = fileId.startsWith('pdf_');
     final percent = (progress * 100).toInt();
+    final isQuran = fileId == 'pdf_mushaf' ||
+        fileId.startsWith('pdf_surah_');
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -417,7 +505,6 @@ class _ActiveDownloadCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Book cover or icon
               if (book != null)
                 BookCoverWidget(
                   book: book!,
@@ -430,18 +517,24 @@ class _ActiveDownloadCard extends StatelessWidget {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: c.brand.withOpacity(0.12),
+                    color: isQuran
+                        ? c.goldLine
+                        : c.brand.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(13),
                     border: Border.all(
-                      color: c.brand.withOpacity(0.25),
+                      color: isQuran
+                          ? c.goldText.withOpacity(0.35)
+                          : c.brand.withOpacity(0.25),
                     ),
                   ),
                   child: Icon(
-                    isPdf
-                        ? Icons.picture_as_pdf_rounded
-                        : Icons.headphones_rounded,
+                    isQuran
+                        ? Icons.import_contacts_rounded
+                        : isPdf
+                            ? Icons.picture_as_pdf_rounded
+                            : Icons.headphones_rounded,
                     size: 22,
-                    color: c.brand,
+                    color: isQuran ? c.goldText : c.brand,
                   ),
                 ),
 
@@ -474,16 +567,24 @@ class _ActiveDownloadCard extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: isPaused
                                 ? c.goldLine
-                                : c.brand.withOpacity(0.1),
+                                : isQuran
+                                    ? c.goldLine
+                                    : c.brand.withOpacity(0.1),
                             borderRadius:
                                 BorderRadius.circular(5),
                           ),
                           child: Text(
-                            isPaused ? 'Paused' : (isPdf ? 'PDF' : 'Audio'),
+                            isPaused
+                                ? 'Paused'
+                                : isQuran
+                                    ? 'Quran'
+                                    : (isPdf ? 'PDF' : 'Audio'),
                             style: AppText.latin(
                               color: isPaused
                                   ? c.goldText
-                                  : c.brand,
+                                  : isQuran
+                                      ? c.goldText
+                                      : c.brand,
                               size: 10,
                               weight: FontWeight.w700,
                             ),
@@ -512,7 +613,6 @@ class _ActiveDownloadCard extends StatelessWidget {
                 ),
               ),
 
-              // Pause/Resume button
               GestureDetector(
                 onTap: isPaused ? onResume : onPause,
                 child: Container(
@@ -535,7 +635,6 @@ class _ActiveDownloadCard extends StatelessWidget {
 
               const SizedBox(width: 8),
 
-              // Cancel button
               GestureDetector(
                 onTap: onCancel,
                 child: Container(
@@ -560,7 +659,6 @@ class _ActiveDownloadCard extends StatelessWidget {
 
           const SizedBox(height: 10),
 
-          // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
@@ -746,6 +844,8 @@ class _StorageCard extends StatelessWidget {
 class _DownloadedFileCard extends StatelessWidget {
   final String fileId;
   final Book? book;
+  final String displayName;
+  final String? transliteration;
   final double sizeMb;
   final AppColors colors;
   final VoidCallback onDelete;
@@ -754,6 +854,8 @@ class _DownloadedFileCard extends StatelessWidget {
   const _DownloadedFileCard({
     required this.fileId,
     required this.book,
+    required this.displayName,
+    required this.transliteration,
     required this.sizeMb,
     required this.colors,
     required this.onDelete,
@@ -764,6 +866,8 @@ class _DownloadedFileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     final isPdf = fileId.startsWith('pdf_');
+    final isQuran = fileId == 'pdf_mushaf' ||
+        fileId.startsWith('pdf_surah_');
     final sizeDisplay = sizeMb < 1
         ? '${(sizeMb * 1024).toStringAsFixed(0)} KB'
         : '${sizeMb.toStringAsFixed(1)} MB';
@@ -779,7 +883,7 @@ class _DownloadedFileCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // ← Real cover from PDF
+            // Cover or icon
             if (book != null && isPdf)
               BookCoverWidget(
                 book: book!,
@@ -792,17 +896,24 @@ class _DownloadedFileCard extends StatelessWidget {
                 width: 46,
                 height: 58,
                 decoration: BoxDecoration(
-                  color: c.brand.withOpacity(0.1),
+                  color: isQuran
+                      ? c.goldLine
+                      : c.brand.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: c.brand.withOpacity(0.2)),
+                    color: isQuran
+                        ? c.goldText.withOpacity(0.35)
+                        : c.brand.withOpacity(0.2),
+                  ),
                 ),
                 child: Icon(
-                  isPdf
-                      ? Icons.picture_as_pdf_rounded
-                      : Icons.headphones_rounded,
+                  isQuran
+                      ? Icons.import_contacts_rounded
+                      : isPdf
+                          ? Icons.picture_as_pdf_rounded
+                          : Icons.headphones_rounded,
                   size: 22,
-                  color: c.brand,
+                  color: isQuran ? c.goldText : c.brand,
                 ),
               ),
 
@@ -812,20 +923,35 @@ class _DownloadedFileCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (book != null) ...[
+                  // Always show the display name (Arabic)
+                  Text(
+                    displayName,
+                    textDirection: TextDirection.rtl,
+                    style: AppText.arabic(
+                      color: c.textPrimary,
+                      size: 13,
+                      weight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+
+                  // Show transliteration for Quran files
+                  if (transliteration != null) ...[
+                    const SizedBox(height: 2),
                     Text(
-                      book!.titleAr,
-                      textDirection: TextDirection.rtl,
-                      style: AppText.arabic(
-                        color: c.textPrimary,
-                        size: 13,
-                        weight: FontWeight.w700,
+                      transliteration!,
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 10,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
                   ],
+
+                  const SizedBox(height: 4),
+
                   Row(
                     children: [
                       Container(
@@ -834,14 +960,22 @@ class _DownloadedFileCard extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: c.brand.withOpacity(0.08),
+                          color: isQuran
+                              ? c.goldLine
+                              : c.brand.withOpacity(0.08),
                           borderRadius:
                               BorderRadius.circular(5),
                         ),
                         child: Text(
-                          isPdf ? 'PDF' : 'Audio',
+                          isQuran
+                              ? 'Quran'
+                              : isPdf
+                                  ? 'PDF'
+                                  : 'Audio',
                           style: AppText.latin(
-                            color: c.brand,
+                            color: isQuran
+                                ? c.goldText
+                                : c.brand,
                             size: 10,
                             weight: FontWeight.w700,
                           ),
