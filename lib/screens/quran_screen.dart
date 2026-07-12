@@ -4,18 +4,10 @@ import '../core/models.dart';
 import '../core/quran_data.dart';
 import '../core/theme.dart';
 import 'surah_detail_screen.dart';
-import 'mushaf_reader_screen.dart';
+import 'mushaf_detail_screen.dart';
 import 'quran_sub_branch_screen.dart';
 
-/// The Quran screen — top-level view.
-///
-/// New behavior:
-///   • Shows the list of sub-branches (from catalog):
-///       - "Mushaf" type → tap opens the full Mus'haf reader
-///       - "Surahs" type → tap reveals the 114 Surahs list
-///       - "Branch" type → tap opens a book list (like Fiqh)
-///   • If no sub-branches are configured, falls back to showing
-///     the 114 Surahs directly (backward compat).
+/// The Quran screen — shows sub-branches from catalog.
 class QuranScreen extends StatelessWidget {
   const QuranScreen({super.key});
 
@@ -29,7 +21,6 @@ class QuranScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top bar ──
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
@@ -41,8 +32,7 @@ class QuranScreen extends StatelessWidget {
                       height: 38,
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius:
-                            BorderRadius.circular(11),
+                        borderRadius: BorderRadius.circular(11),
                         border: Border.all(color: c.divider),
                       ),
                       child: Icon(
@@ -70,16 +60,13 @@ class QuranScreen extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // ── Sub-branch list (from catalog) ──
             Expanded(
               child: ListenableBuilder(
                 listenable: state.catalogService,
                 builder: (context, _) {
-                  final subs = state
-                      .catalogService.quranSubBranches;
+                  final subs =
+                      state.catalogService.quranSubBranches;
 
-                  // Backward-compat fallback: if no sub-branches
-                  // are configured, show the 114 Surahs directly.
                   if (subs.isEmpty) {
                     return _SurahsList(colors: c);
                   }
@@ -114,9 +101,11 @@ class QuranScreen extends StatelessWidget {
       BuildContext context, QuranSubBranch sub) {
     switch (sub.type) {
       case QuranSubBranchType.mushaf:
+        // Open detail screen FIRST (not reader directly).
+        // User sees Quran facts + intentionally taps download.
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => MushafReaderScreen(sub: sub),
+            builder: (_) => MushafDetailScreen(sub: sub),
           ),
         );
         break;
@@ -136,7 +125,6 @@ class QuranScreen extends StatelessWidget {
         );
         break;
       case QuranSubBranchType.unknown:
-        // Unknown types: silently ignore (older app version).
         break;
     }
   }
@@ -180,8 +168,8 @@ class _SubBranchCard extends StatelessWidget {
     switch (sub.type) {
       case QuranSubBranchType.mushaf:
         subtitle = language == 'ar'
-            ? 'المصحف الكامل'
-            : 'Complete Mus\'haf';
+            ? 'القرآن الكريم كاملاً'
+            : 'Complete Noble Quran';
         break;
       case QuranSubBranchType.surahs:
         subtitle = language == 'ar'
@@ -209,7 +197,6 @@ class _SubBranchCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Icon
             Container(
               width: 52,
               height: 52,
@@ -223,13 +210,10 @@ class _SubBranchCard extends StatelessWidget {
               ),
               child: Icon(icon, size: 24, color: c.goldText),
             ),
-
             const SizedBox(width: 14),
-
             Expanded(
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
@@ -258,7 +242,6 @@ class _SubBranchCard extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(width: 8),
             Icon(
               Icons.chevron_right_rounded,
@@ -272,11 +255,10 @@ class _SubBranchCard extends StatelessWidget {
   }
 }
 
-// ─── Surahs list (used when tapping a Surahs sub-branch) ─
+// ─── Surahs list screen ──────────────────────────────────
 
 class _SurahsListScreen extends StatefulWidget {
   final QuranSubBranch sub;
-
   const _SurahsListScreen({required this.sub});
 
   @override
@@ -305,7 +287,6 @@ class _SurahsListScreenState
       body: SafeArea(
         child: Column(
           children: [
-            // Top bar
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
@@ -317,8 +298,7 @@ class _SurahsListScreenState
                       height: 38,
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius:
-                            BorderRadius.circular(11),
+                        borderRadius: BorderRadius.circular(11),
                         border: Border.all(color: c.divider),
                       ),
                       child: Icon(
@@ -343,13 +323,9 @@ class _SurahsListScreenState
                 ],
               ),
             ),
-
             const SizedBox(height: 14),
-
-            // Search
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
                 height: 46,
                 decoration: BoxDecoration(
@@ -391,8 +367,8 @@ class _SurahsListScreenState
                           setState(() => _query = '');
                         },
                         child: Padding(
-                          padding: const EdgeInsets.only(
-                              right: 12),
+                          padding:
+                              const EdgeInsets.only(right: 12),
                           child: Icon(
                             Icons.close_rounded,
                             size: 18,
@@ -404,9 +380,7 @@ class _SurahsListScreenState
                 ),
               ),
             ),
-
             const SizedBox(height: 14),
-
             Expanded(
               child: _SurahsList(colors: c, query: _query),
             ),
@@ -417,9 +391,6 @@ class _SurahsListScreenState
   }
 }
 
-/// Renders the 114-Surah list. Extracted so both the direct
-/// path (no sub-branches configured) and the Surahs sub-branch
-/// screen can reuse it.
 class _SurahsList extends StatelessWidget {
   final AppColors colors;
   final String query;
@@ -452,9 +423,8 @@ class _SurahsList extends StatelessWidget {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => SurahDetailScreen(
-                  meta: surah,
-                ),
+                builder: (_) =>
+                    SurahDetailScreen(meta: surah),
               ),
             );
           },
@@ -463,8 +433,6 @@ class _SurahsList extends StatelessWidget {
     );
   }
 }
-
-// ─── Surah Row ───────────────────────────────────────────
 
 class _SurahRow extends StatelessWidget {
   final SurahMeta surah;
@@ -482,8 +450,7 @@ class _SurahRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    final transliteration =
-        surah.transliterationFor(language);
+    final transliteration = surah.transliterationFor(language);
 
     return GestureDetector(
       onTap: onTap,
@@ -519,13 +486,10 @@ class _SurahRow extends StatelessWidget {
                 ),
               ),
             ),
-
             const SizedBox(width: 14),
-
             Expanded(
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
@@ -550,7 +514,6 @@ class _SurahRow extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(width: 8),
             Icon(
               Icons.chevron_right_rounded,
@@ -564,8 +527,6 @@ class _SurahRow extends StatelessWidget {
   }
 }
 
-// ─── No results ──────────────────────────────────────────
-
 class _NoResults extends StatelessWidget {
   final AppColors colors;
   const _NoResults({required this.colors});
@@ -577,11 +538,8 @@ class _NoResults extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.search_off_rounded,
-            size: 40,
-            color: c.textFaint,
-          ),
+          Icon(Icons.search_off_rounded,
+              size: 40, color: c.textFaint),
           const SizedBox(height: 12),
           Text(
             'No Surah found',
