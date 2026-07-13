@@ -6,15 +6,6 @@ import '../core/theme.dart';
 import 'mushaf_reader_screen.dart';
 
 /// Detail screen for the Full Mus'haf (القرآن الكريم).
-///
-/// Shows:
-///   • Beautiful hero with Quran facts
-///   • File size warning
-///   • Download / Open button
-///   • Reciters section (future — placeholder ready)
-///
-/// This screen acts as a gate — user sees the info first,
-/// then intentionally taps download. No auto-download.
 class MushafDetailScreen extends StatelessWidget {
   final QuranSubBranch sub;
 
@@ -33,7 +24,6 @@ class MushafDetailScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top Bar ──
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
@@ -71,16 +61,15 @@ class MushafDetailScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _QuranHeroCard(colors: c, language: state.language),
+                    _QuranHeroCard(
+                        colors: c, language: state.language),
                     const SizedBox(height: 20),
                     _DownloadSection(
                       sub: sub,
@@ -88,8 +77,6 @@ class MushafDetailScreen extends StatelessWidget {
                       downloadService: state.downloadService,
                     ),
                     const SizedBox(height: 20),
-                    // Reciters section placeholder
-                    // TODO: Wire reciters from catalog when available
                   ],
                 ),
               ),
@@ -137,26 +124,34 @@ class _QuranHeroCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Icon
+          // ── Mus'haf image (not app icon) ──
           Container(
-            width: 72,
-            height: 72,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: c.goldText.withOpacity(0.15),
               border: Border.all(
                 color: c.goldText.withOpacity(0.5),
                 width: 2,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: c.goldText.withOpacity(0.2),
+                  blurRadius: 16,
+                ),
+              ],
             ),
             child: ClipOval(
               child: Image.asset(
-                'assets/icon.png',
+                'assets/mushaf.png',
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Icon(
-                  Icons.import_contacts_rounded,
-                  size: 36,
-                  color: c.goldText,
+                errorBuilder: (_, __, ___) => Container(
+                  color: c.goldText.withOpacity(0.15),
+                  child: Icon(
+                    Icons.import_contacts_rounded,
+                    size: 36,
+                    color: c.goldText,
+                  ),
                 ),
               ),
             ),
@@ -187,10 +182,10 @@ class _QuranHeroCard extends StatelessWidget {
           ),
 
           const SizedBox(height: 16),
-          Divider(color: c.goldText.withOpacity(0.2), height: 1),
+          Divider(
+              color: c.goldText.withOpacity(0.2), height: 1),
           const SizedBox(height: 16),
 
-          // Facts grid
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -414,20 +409,25 @@ class _DownloadSectionState extends State<_DownloadSection> {
                                 ? c.brand
                                 : !hasUrl
                                     ? c.surface2
-                                    : c.brand.withOpacity(0.12),
+                                    : c.brand
+                                        .withOpacity(0.12),
                             border: Border.all(
                               color: isDownloaded
                                   ? c.brand
                                   : !hasUrl
                                       ? c.divider
-                                      : c.brand.withOpacity(0.3),
+                                      : c.brand
+                                          .withOpacity(0.3),
                               width: 1.5,
                             ),
                           ),
                           child: isDownloading
                               ? Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: CircularProgressIndicator(
+                                  padding:
+                                      const EdgeInsets.all(
+                                          14),
+                                  child:
+                                      CircularProgressIndicator(
                                     value: progress > 0
                                         ? progress
                                         : null,
@@ -437,10 +437,13 @@ class _DownloadSectionState extends State<_DownloadSection> {
                                 )
                               : Icon(
                                   isDownloaded
-                                      ? Icons.menu_book_rounded
+                                      ? Icons
+                                          .menu_book_rounded
                                       : !hasUrl
-                                          ? Icons.hourglass_empty_rounded
-                                          : Icons.download_rounded,
+                                          ? Icons
+                                              .hourglass_empty_rounded
+                                          : Icons
+                                              .download_rounded,
                                   size: 22,
                                   color: isDownloaded
                                       ? Colors.white
@@ -485,15 +488,19 @@ class _DownloadSectionState extends State<_DownloadSection> {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(
+                          padding:
+                              const EdgeInsets.symmetric(
                             horizontal: 10,
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: c.brand.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
+                            color:
+                                c.brand.withOpacity(0.1),
+                            borderRadius:
+                                BorderRadius.circular(8),
                             border: Border.all(
-                              color: c.brand.withOpacity(0.25),
+                              color:
+                                  c.brand.withOpacity(0.25),
                             ),
                           ),
                           child: Text(
@@ -511,12 +518,16 @@ class _DownloadSectionState extends State<_DownloadSection> {
                     if (isDownloading) ...[
                       const SizedBox(height: 12),
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius:
+                            BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: progress > 0 ? progress : null,
+                          value: progress > 0
+                              ? progress
+                              : null,
                           backgroundColor: c.surface2,
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(c.brand),
+                              AlwaysStoppedAnimation<Color>(
+                                  c.brand),
                           minHeight: 4,
                         ),
                       ),
@@ -536,7 +547,8 @@ class _DownloadSectionState extends State<_DownloadSection> {
                             ),
                           ),
                           GestureDetector(
-                            onTap: () => widget.downloadService
+                            onTap: () => widget
+                                .downloadService
                                 .cancelDownload(_fileId),
                             child: Text(
                               'Cancel',
@@ -557,15 +569,20 @@ class _DownloadSectionState extends State<_DownloadSection> {
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: c.dangerBg,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius:
+                              BorderRadius.circular(8),
                           border: Border.all(
-                            color: c.danger.withOpacity(0.3),
+                            color:
+                                c.danger.withOpacity(0.3),
                           ),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.error_outline_rounded,
-                                color: c.danger, size: 14),
+                            Icon(
+                                Icons
+                                    .error_outline_rounded,
+                                color: c.danger,
+                                size: 14),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -585,7 +602,7 @@ class _DownloadSectionState extends State<_DownloadSection> {
               ),
             ),
 
-            // ── File size warning ──
+            // File size warning
             if (!isDownloaded && hasUrl) ...[
               const SizedBox(height: 10),
               Container(
