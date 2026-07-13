@@ -8,13 +8,7 @@ import '../core/quran_data.dart';
 import '../core/theme.dart';
 
 /// Dedicated reader for the Full Mus'haf.
-///
-/// Features:
-///   • Auto-download on first tap
-///   • Local position saving (resumes last page)
-///   • Bookmarks (universal — per-PDF)
-///   • Surah index side drawer with catalog-controlled page numbers
-///   • Horizontal page-swipe reading
+/// RTL swipe direction for Arabic reading.
 class MushafReaderScreen extends StatefulWidget {
   final QuranSubBranch sub;
 
@@ -156,8 +150,6 @@ class _MushafReaderScreenState
               scrollController: scrollController,
               onSurahTap: (page) {
                 Navigator.of(ctx).pop();
-                // Pages in catalog are 1-indexed,
-                // PDFView uses 0-indexed
                 _jumpToPage(page - 1);
               },
             );
@@ -445,9 +437,7 @@ class _MushafReaderScreenState
                       ),
                     ),
                   ),
-
                   const SizedBox(width: 8),
-
                   Expanded(
                     child: Text(
                       'القرآن الكريم',
@@ -462,10 +452,7 @@ class _MushafReaderScreenState
                       ),
                     ),
                   ),
-
                   const SizedBox(width: 6),
-
-                  // Surah index button
                   if (_isReady &&
                       !_showLoadingOverlay &&
                       widget.sub.hasContentTable)
@@ -490,10 +477,7 @@ class _MushafReaderScreenState
                         ),
                       ),
                     ),
-
                   const SizedBox(width: 6),
-
-                  // Add bookmark
                   if (_isReady && !_showLoadingOverlay)
                     GestureDetector(
                       onTap: _showAddBookmarkDialog,
@@ -534,10 +518,7 @@ class _MushafReaderScreenState
                         },
                       ),
                     ),
-
                   const SizedBox(width: 6),
-
-                  // Bookmarks list
                   if (_isReady && !_showLoadingOverlay)
                     GestureDetector(
                       onTap: _showBookmarksSheet,
@@ -600,10 +581,7 @@ class _MushafReaderScreenState
                         },
                       ),
                     ),
-
                   const SizedBox(width: 6),
-
-                  // Page counter
                   if (_isReady && !_showLoadingOverlay)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -630,7 +608,6 @@ class _MushafReaderScreenState
               ),
             ),
 
-            // Progress bar
             if (_isReady &&
                 !_showLoadingOverlay &&
                 _totalPages > 0) ...[
@@ -656,45 +633,48 @@ class _MushafReaderScreenState
 
             const SizedBox(height: 8),
 
-            // PDF viewer + overlays
+            // ── PDF viewer (RTL swipe direction) ──
             Expanded(
               child: Stack(
                 children: [
                   if (_localPath != null)
-                    PDFView(
-                      key: ValueKey(_localPath),
-                      filePath: _localPath!,
-                      enableSwipe: true,
-                      swipeHorizontal: true,
-                      autoSpacing: false,
-                      pageFling: true,
-                      pageSnap: true,
-                      fitPolicy: FitPolicy.BOTH,
-                      defaultPage: _defaultPage,
-                      onRender: (pages) {
-                        setState(() {
-                          _totalPages = pages ?? 0;
-                          _isReady = true;
-                          _currentPage = _defaultPage;
-                        });
-                        _hideLoadingOverlay();
-                      },
-                      onViewCreated: (controller) {
-                        _pdfController = controller;
-                      },
-                      onPageChanged: (page, total) {
-                        _onPageChanged(
-                            page ?? 0, total ?? 0);
-                      },
-                      onError: (error) {
-                        if (mounted) {
+                    Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: PDFView(
+                        key: ValueKey(_localPath),
+                        filePath: _localPath!,
+                        enableSwipe: true,
+                        swipeHorizontal: true,
+                        autoSpacing: false,
+                        pageFling: true,
+                        pageSnap: true,
+                        fitPolicy: FitPolicy.BOTH,
+                        defaultPage: _defaultPage,
+                        onRender: (pages) {
                           setState(() {
-                            _showLoadingOverlay = false;
-                            _errorMessage =
-                                'Could not open Mus\'haf: $error';
+                            _totalPages = pages ?? 0;
+                            _isReady = true;
+                            _currentPage = _defaultPage;
                           });
-                        }
-                      },
+                          _hideLoadingOverlay();
+                        },
+                        onViewCreated: (controller) {
+                          _pdfController = controller;
+                        },
+                        onPageChanged: (page, total) {
+                          _onPageChanged(
+                              page ?? 0, total ?? 0);
+                        },
+                        onError: (error) {
+                          if (mounted) {
+                            setState(() {
+                              _showLoadingOverlay = false;
+                              _errorMessage =
+                                  'Could not open Mus\'haf: $error';
+                            });
+                          }
+                        },
+                      ),
                     ),
 
                   if (_showLoadingOverlay ||
@@ -709,7 +689,6 @@ class _MushafReaderScreenState
               ),
             ),
 
-            // Bottom indicator
             if (_isReady && !_showLoadingOverlay)
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -774,7 +753,6 @@ class _SurahIndexContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
 
-    // Build list: 114 Surahs + extras (like Du'a Khatm)
     final items = <_IndexItem>[];
 
     for (int i = 1; i <= 114; i++) {
@@ -792,7 +770,6 @@ class _SurahIndexContent extends StatelessWidget {
       }
     }
 
-    // Add extras (like Du'a Khatm)
     for (final extra in sub.extras) {
       if (extra.page > 0 && extra.titleAr.isNotEmpty) {
         items.add(_IndexItem(
@@ -810,7 +787,6 @@ class _SurahIndexContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Handle
           Center(
             child: Container(
               width: 40,
@@ -822,8 +798,6 @@ class _SurahIndexContent extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-
-          // Header
           Row(
             children: [
               Icon(Icons.list_rounded,
@@ -849,10 +823,7 @@ class _SurahIndexContent extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 12),
-
-          // List
           Expanded(
             child: ListView.separated(
               controller: scrollController,
@@ -914,9 +885,7 @@ class _IndexRow extends StatelessWidget {
           vertical: 10,
         ),
         decoration: BoxDecoration(
-          color: item.isExtra
-              ? c.goldLine
-              : c.surface2,
+          color: item.isExtra ? c.goldLine : c.surface2,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: item.isExtra
@@ -926,7 +895,6 @@ class _IndexRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Number circle (or star for extras)
             Container(
               width: 32,
               height: 32,
@@ -955,10 +923,7 @@ class _IndexRow extends StatelessWidget {
                       color: c.goldText,
                     ),
             ),
-
             const SizedBox(width: 10),
-
-            // Name
             Expanded(
               child: Column(
                 crossAxisAlignment:
@@ -987,10 +952,7 @@ class _IndexRow extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(width: 8),
-
-            // Page number
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 8,
