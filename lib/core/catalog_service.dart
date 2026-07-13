@@ -7,10 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 /// Loads and caches the book catalog.
+/// Tries primary URL first, falls back to backup if primary fails.
 class CatalogService extends ChangeNotifier {
   static const _cacheKey = 'catalog_json';
-  static const _catalogBaseUrl =
+  static const _primaryUrl =
       'https://raw.githubusercontent.com/MuslimSaint/rawdah-catalog/main/catalog.json';
+  static const _backupUrl =
+      'https://raw.githubusercontent.com/SaintMuslim/rawdah-catalog-backup/main/catalog.json';
 
   Catalog? _catalog;
   bool _isLoading = false;
@@ -28,8 +31,6 @@ class CatalogService extends ChangeNotifier {
   List<Reciter> get reciters => _catalog?.reciters ?? [];
   QuranData get quran => _catalog?.quran ?? QuranData.empty();
 
-  /// List of Quran sub-branches, in the order defined by
-  /// the catalog. Fully remote-controlled.
   List<QuranSubBranch> get quranSubBranches =>
       _catalog?.quran.subBranches ?? const [];
 
@@ -75,10 +76,40 @@ class CatalogService extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    // Try primary URL first
+    final primaryResult = await _tryFetchFrom(_primaryUrl);
+
+    if (primaryResult != null) {
+      _applyCatalog(primaryResult);
+      return;
+    }
+
+    // Primary failed — try backup
+    debugPrint('Primary catalog URL failed. Trying backup...');
+    final backupResult = await _tryFetchFrom(_backupUrl);
+
+    if (backupResult != null) {
+      debugPrint('Backup catalog loaded successfully.');
+      _applyCatalog(backupResult);
+      return;
+    }
+
+    // Both failed
+    debugPrint('Both catalog URLs failed — keeping cache.');
+    if (_catalog == null) {
+      _error = 'No internet connection and no cached data.';
+    }
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Tries to fetch and parse catalog from a URL.
+  /// Returns the raw response body on success, null on failure.
+  Future<String?> _tryFetchFrom(String baseUrl) async {
     try {
       final timestamp =
           DateTime.now().millisecondsSinceEpoch;
-      final url = '$_catalogBaseUrl?t=$timestamp';
+      final url = '$baseUrl?t=$timestamp';
 
       final response = await http.get(
         Uri.parse(url),
@@ -89,43 +120,47 @@ class CatalogService extends ChangeNotifier {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        Catalog? freshCatalog;
+        // Verify it parses correctly before accepting
         try {
           final json = jsonDecode(response.body)
               as Map<String, dynamic>;
-          freshCatalog = Catalog.fromJson(json);
+          Catalog.fromJson(json); // test parse
+          return response.body;
         } catch (parseError) {
           debugPrint(
-              'CatalogService parse failed — keeping cache. Error: $parseError');
-          _error = null;
-          _isLoading = false;
-          notifyListeners();
-          return;
+              'Catalog parse failed from $baseUrl: $parseError');
+          return null;
         }
-
-        _catalog = freshCatalog;
-        _error = null;
-
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(_cacheKey, response.body);
-        } catch (e) {
-          debugPrint('Failed to write catalog cache: $e');
-        }
-
-        debugPrint(
-            'Catalog refreshed. Version: ${freshCatalog.version}, Books: ${freshCatalog.books.length}, SubBranches: ${freshCatalog.quran.subBranches.length}');
       } else {
         debugPrint(
-            'Catalog fetch returned ${response.statusCode} — keeping cache');
+            'Catalog fetch from $baseUrl returned ${response.statusCode}');
+        return null;
       }
     } catch (e) {
       debugPrint(
-          'CatalogService network fetch failed — keeping cache. Error: $e');
-      if (_catalog == null) {
-        _error =
-            'No internet connection and no cached data.';
-      }
+          'Catalog fetch from $baseUrl failed: $e');
+      return null;
+    }
+  }
+
+  void _applyCatalog(String responseBody) {
+    try {
+      final json =
+          jsonDecode(responseBody) as Map<String, dynamic>;
+      _catalog = Catalog.fromJson(json);
+      _error = null;
+
+      // Save to cache
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setString(_cacheKey, responseBody);
+      });
+
+      debugPrint(
+          'Catalog refreshed. Version: ${_catalog!.version}, '
+          'Books: ${_catalog!.books.length}, '
+          'SubBranches: ${_catalog!.quran.subBranches.length}');
+    } catch (e) {
+      debugPrint('Catalog apply failed: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -153,7 +188,6 @@ class CatalogService extends ChangeNotifier {
   int bookCountForBranch(String branchId) =>
       booksInBranch(branchId).length;
 
-  /// Find a Quran sub-branch by its id.
   QuranSubBranch? quranSubBranchById(String id) {
     try {
       return quranSubBranches.firstWhere((sb) => sb.id == id);
@@ -162,7 +196,6 @@ class CatalogService extends ChangeNotifier {
     }
   }
 
-  /// Constructs a regular book audio URL.
   String audioUrl({
     required String bookId,
     required String teacherId,
