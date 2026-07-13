@@ -7,7 +7,7 @@ import '../core/models.dart';
 import '../core/theme.dart';
 
 /// PDF reader screen — universal for all books and Surahs.
-/// Now with bookmarks (add/list/delete) for every PDF.
+/// With bookmarks + RTL horizontal swipe direction.
 class PdfReaderScreen extends StatefulWidget {
   final Book book;
   final String filePath;
@@ -406,8 +406,6 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                     ),
                   ),
                   const SizedBox(width: 6),
-
-                  // Mode toggle
                   GestureDetector(
                     onTap: _toggleMode,
                     child: Container(
@@ -427,10 +425,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(width: 6),
-
-                  // Add bookmark
                   if (_isReady && !_showLoadingOverlay)
                     GestureDetector(
                       onTap: _showAddBookmarkDialog,
@@ -468,10 +463,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                         },
                       ),
                     ),
-
                   const SizedBox(width: 6),
-
-                  // Bookmarks list
                   if (_isReady && !_showLoadingOverlay)
                     GestureDetector(
                       onTap: _showBookmarksSheet,
@@ -526,9 +518,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                         },
                       ),
                     ),
-
                   const SizedBox(width: 6),
-
                   if (_isReady && !_showLoadingOverlay)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -553,7 +543,6 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
               ),
             ),
 
-            // Progress Bar
             if (_isReady &&
                 !_showLoadingOverlay &&
                 _totalPages > 0) ...[
@@ -578,60 +567,63 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
 
             const SizedBox(height: 8),
 
-            // PDF Viewer
+            // ── PDF Viewer (RTL swipe direction) ──
             Expanded(
               child: Stack(
                 children: [
-                  PDFView(
-                    key: ValueKey(
-                        'pdf_${_rebuildKey}_${_horizontalMode}'),
-                    filePath: widget.filePath,
-                    enableSwipe: true,
-                    swipeHorizontal: _horizontalMode,
-                    autoSpacing: !_horizontalMode,
-                    pageFling: _horizontalMode,
-                    pageSnap: _horizontalMode,
-                    fitPolicy: FitPolicy.BOTH,
-                    defaultPage: _defaultPage,
-                    onRender: (pages) {
-                      setState(() {
-                        _totalPages = pages ?? 0;
-                        _isReady = true;
-                        _currentPage = _defaultPage;
-                      });
-                      AppState.of(context).setLastOpenedBook(
-                        bookId: widget.book.id,
-                        bookTitle: widget.book.titleAr,
-                        page: _defaultPage,
-                        totalPages: pages ?? 0,
-                      );
-                      _hideLoadingOverlay();
-                    },
-                    onViewCreated: (controller) {
-                      _pdfController = controller;
-                    },
-                    onPageChanged: (page, total) {
-                      _onPageChanged(page ?? 0, total ?? 0);
-                    },
-                    onError: (error) {
-                      if (mounted) {
-                        setState(
-                            () => _showLoadingOverlay = false);
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Could not open PDF: $error',
-                              style: AppText.latin(
-                                color: Colors.white,
-                                size: 13,
-                              ),
-                            ),
-                            backgroundColor: c.danger,
-                          ),
+                  Directionality(
+                    textDirection: TextDirection.rtl,
+                    child: PDFView(
+                      key: ValueKey(
+                          'pdf_${_rebuildKey}_${_horizontalMode}'),
+                      filePath: widget.filePath,
+                      enableSwipe: true,
+                      swipeHorizontal: _horizontalMode,
+                      autoSpacing: !_horizontalMode,
+                      pageFling: _horizontalMode,
+                      pageSnap: _horizontalMode,
+                      fitPolicy: FitPolicy.BOTH,
+                      defaultPage: _defaultPage,
+                      onRender: (pages) {
+                        setState(() {
+                          _totalPages = pages ?? 0;
+                          _isReady = true;
+                          _currentPage = _defaultPage;
+                        });
+                        AppState.of(context).setLastOpenedBook(
+                          bookId: widget.book.id,
+                          bookTitle: widget.book.titleAr,
+                          page: _defaultPage,
+                          totalPages: pages ?? 0,
                         );
-                      }
-                    },
+                        _hideLoadingOverlay();
+                      },
+                      onViewCreated: (controller) {
+                        _pdfController = controller;
+                      },
+                      onPageChanged: (page, total) {
+                        _onPageChanged(page ?? 0, total ?? 0);
+                      },
+                      onError: (error) {
+                        if (mounted) {
+                          setState(
+                              () => _showLoadingOverlay = false);
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Could not open PDF: $error',
+                                style: AppText.latin(
+                                  color: Colors.white,
+                                  size: 13,
+                                ),
+                              ),
+                              backgroundColor: c.danger,
+                            ),
+                          );
+                        }
+                      },
+                    ),
                   ),
 
                   if (_showLoadingOverlay)
@@ -664,7 +656,6 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
               ),
             ),
 
-            // Bottom indicator
             if (_isReady && !_showLoadingOverlay)
               Container(
                 padding:
