@@ -341,12 +341,29 @@ class Surah {
       hasPdf || hasReciters || hasTeachers;
 }
 
+// ─── MushafExtra ─────────────────────────────────────────
+// An extra entry in the Mus'haf content table.
+// For things like Du'a Khatm Al-Quran that aren't Surahs.
+
+class MushafExtra {
+  final String titleAr;
+  final int page;
+
+  const MushafExtra({
+    required this.titleAr,
+    required this.page,
+  });
+
+  factory MushafExtra.fromJson(Map<String, dynamic> json) {
+    return MushafExtra(
+      titleAr: json['titleAr'] as String? ?? '',
+      page: json['page'] as int? ?? 0,
+    );
+  }
+}
+
 // ─── QuranSubBranch ──────────────────────────────────────
-// Sub-branch under the Quran main branch.
-// Three types:
-//   • mushaf → single PDF, special local reader
-//   • surahs → reveals the 114 Surahs list
-//   • branch → contains books (like Fiqh branch)
+
 enum QuranSubBranchType { mushaf, surahs, branch, unknown }
 
 class QuranSubBranch {
@@ -359,6 +376,16 @@ class QuranSubBranch {
   /// For type=mushaf only: URL of the full Mus'haf PDF.
   final String pdfUrl;
 
+  /// For type=mushaf only: page number for each Surah
+  /// in the Mus'haf PDF. Keyed by Surah number (1..114).
+  /// Catalog-controlled so you can swap Mus'haf editions.
+  final Map<int, int> surahPages;
+
+  /// For type=mushaf only: extra entries in the content
+  /// table (like Du'a Khatm Al-Quran). Each has a title
+  /// and a page number.
+  final List<MushafExtra> extras;
+
   /// For type=branch only: books inside this sub-branch.
   final List<Book> books;
 
@@ -369,6 +396,8 @@ class QuranSubBranch {
     required this.titleEn,
     required this.titleAm,
     required this.pdfUrl,
+    required this.surahPages,
+    required this.extras,
     required this.books,
   });
 
@@ -393,6 +422,24 @@ class QuranSubBranch {
     final titleEn = json['titleEn'] as String? ?? '';
     final titleAmRaw = json['titleAm'] as String? ?? '';
 
+    // Parse surahPages: {"1": 1, "2": 2, ...}
+    final surahPagesRaw =
+        json['surahPages'] as Map<String, dynamic>? ?? {};
+    final surahPages = <int, int>{};
+    surahPagesRaw.forEach((key, value) {
+      final n = int.tryParse(key);
+      if (n != null && value is int) {
+        surahPages[n] = value;
+      }
+    });
+
+    // Parse extras: [{"titleAr": "...", "page": 605}, ...]
+    final extrasRaw = json['extras'] as List? ?? const [];
+    final extras = extrasRaw
+        .whereType<Map<String, dynamic>>()
+        .map((m) => MushafExtra.fromJson(m))
+        .toList();
+
     return QuranSubBranch(
       id: json['id'] as String,
       type: type,
@@ -400,6 +447,8 @@ class QuranSubBranch {
       titleEn: titleEn.isNotEmpty ? titleEn : titleAr,
       titleAm: titleAmRaw.isNotEmpty ? titleAmRaw : titleEn,
       pdfUrl: json['pdfUrl'] as String? ?? '',
+      surahPages: surahPages,
+      extras: extras,
       books: json['books'] != null
           ? (json['books'] as List)
               .map((b) => Book.fromJson(b as Map<String, dynamic>))
@@ -418,20 +467,22 @@ class QuranSubBranch {
         return titleEn.isNotEmpty ? titleEn : titleAr;
     }
   }
+
+  /// Returns the page number for a specific Surah in
+  /// this Mus'haf, or null if not specified.
+  int? pageForSurah(int surahNumber) =>
+      surahPages[surahNumber];
+
+  /// Returns true if this Mus'haf has a content table
+  /// (at least one Surah page number defined).
+  bool get hasContentTable => surahPages.isNotEmpty;
 }
 
 // ─── QuranData (catalog part) ────────────────────────────
 
 class QuranData {
-  /// Legacy full-Mushaf field (kept for backward compat).
-  /// New apps read from the `mushaf` sub-branch instead.
   final String mushafPdfUrl;
-
-  /// The 114-Surah per-Surah content.
   final Map<int, Surah> surahs;
-
-  /// Ordered list of sub-branches under the Quran branch.
-  /// Fully catalog-controlled.
   final List<QuranSubBranch> subBranches;
 
   const QuranData({
@@ -567,7 +618,6 @@ class Catalog {
     }).toList();
   }
 
-  // ─── The 6 fixed branches ─────────────────────────────
   static const List<Branch> branches = [
     Branch(
       id: 'quran',
