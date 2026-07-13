@@ -4,14 +4,16 @@ import '../core/app_state.dart';
 import '../core/bookmark_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
+import '../core/quran_data.dart';
 import '../core/theme.dart';
 
-/// Dedicated reader for the Full Mus'haf sub-branch.
+/// Dedicated reader for the Full Mus'haf.
 ///
 /// Features:
 ///   • Auto-download on first tap
 ///   • Local position saving (resumes last page)
-///   • Bookmarks (multiple named positions, bottom sheet)
+///   • Bookmarks (universal — per-PDF)
+///   • Surah index side drawer with catalog-controlled page numbers
 ///   • Horizontal page-swipe reading
 class MushafReaderScreen extends StatefulWidget {
   final QuranSubBranch sub;
@@ -29,6 +31,7 @@ class MushafReaderScreen extends StatefulWidget {
 class _MushafReaderScreenState
     extends State<MushafReaderScreen> {
   static const _fileId = 'pdf_mushaf';
+  static const _pdfKey = 'mushaf';
 
   int _currentPage = 0;
   int _totalPages = 0;
@@ -45,7 +48,9 @@ class _MushafReaderScreenState
   @override
   void initState() {
     super.initState();
-    _bookmarkService.init();
+    _bookmarkService.init().then((_) {
+      _bookmarkService.setActivePdf(_pdfKey);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _init();
     });
@@ -81,7 +86,7 @@ class _MushafReaderScreenState
     await downloadService.download(
       fileId: _fileId,
       url: widget.sub.pdfUrl,
-      displayName: widget.sub.titleAr,
+      displayName: 'القرآن الكريم',
       bookId: 'mushaf',
       onError: (msg) {
         if (mounted) {
@@ -116,6 +121,50 @@ class _MushafReaderScreenState
       _showLoadingOverlay = false;
     });
     await AppState.of(context).setMushafLastPage(page);
+  }
+
+  void _jumpToPage(int page) {
+    _pdfController?.setPage(page);
+  }
+
+  // ─── Surah Index Drawer ───────────────────────────
+
+  void _showSurahIndex() {
+    final c = AppColors(isDark: AppState.of(context).isDark);
+    final lang = AppState.of(context).language;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: c.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.3,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (ctx, scrollController) {
+            return _SurahIndexContent(
+              sub: widget.sub,
+              colors: c,
+              language: lang,
+              scrollController: scrollController,
+              onSurahTap: (page) {
+                Navigator.of(ctx).pop();
+                // Pages in catalog are 1-indexed,
+                // PDFView uses 0-indexed
+                _jumpToPage(page - 1);
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   // ─── Bookmark dialog ──────────────────────────────
@@ -281,14 +330,10 @@ class _MushafReaderScreenState
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   Row(
                     children: [
-                      Icon(
-                        Icons.bookmark_rounded,
-                        color: c.goldText,
-                        size: 20,
-                      ),
+                      Icon(Icons.bookmark_rounded,
+                          color: c.goldText, size: 20),
                       const SizedBox(width: 8),
                       Text(
                         'Bookmarks',
@@ -309,9 +354,7 @@ class _MushafReaderScreenState
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 12),
-
                   if (bookmarks.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -347,13 +390,11 @@ class _MushafReaderScreenState
                             colors: c,
                             onTap: () {
                               Navigator.of(ctx).pop();
-                              _pdfController
-                                  ?.setPage(bm.page);
+                              _jumpToPage(bm.page);
                             },
                             onDelete: () {
                               _bookmarkService
-                                  .removeBookmark(
-                                      bm.page);
+                                  .removeBookmark(bm.page);
                             },
                           );
                         },
@@ -409,7 +450,7 @@ class _MushafReaderScreenState
 
                   Expanded(
                     child: Text(
-                      widget.sub.titleAr,
+                      'القرآن الكريم',
                       textDirection: TextDirection.rtl,
                       textAlign: TextAlign.right,
                       maxLines: 1,
@@ -424,7 +465,35 @@ class _MushafReaderScreenState
 
                   const SizedBox(width: 6),
 
-                  // Add bookmark button
+                  // Surah index button
+                  if (_isReady &&
+                      !_showLoadingOverlay &&
+                      widget.sub.hasContentTable)
+                    GestureDetector(
+                      onTap: _showSurahIndex,
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: c.goldLine,
+                          borderRadius:
+                              BorderRadius.circular(9),
+                          border: Border.all(
+                            color:
+                                c.goldText.withOpacity(0.5),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.list_rounded,
+                          size: 18,
+                          color: c.goldText,
+                        ),
+                      ),
+                    ),
+
+                  const SizedBox(width: 6),
+
+                  // Add bookmark
                   if (_isReady && !_showLoadingOverlay)
                     GestureDetector(
                       onTap: _showAddBookmarkDialog,
@@ -468,7 +537,7 @@ class _MushafReaderScreenState
 
                   const SizedBox(width: 6),
 
-                  // View bookmarks list
+                  // Bookmarks list
                   if (_isReady && !_showLoadingOverlay)
                     GestureDetector(
                       onTap: _showBookmarksSheet,
@@ -684,10 +753,276 @@ class _MushafReaderScreenState
   }
 }
 
+// ─── Surah Index Content ─────────────────────────────────
+
+class _SurahIndexContent extends StatelessWidget {
+  final QuranSubBranch sub;
+  final AppColors colors;
+  final String language;
+  final ScrollController scrollController;
+  final void Function(int page) onSurahTap;
+
+  const _SurahIndexContent({
+    required this.sub,
+    required this.colors,
+    required this.language,
+    required this.scrollController,
+    required this.onSurahTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    // Build list: 114 Surahs + extras (like Du'a Khatm)
+    final items = <_IndexItem>[];
+
+    for (int i = 1; i <= 114; i++) {
+      final meta = QuranSkeleton.byNumber(i);
+      final page = sub.pageForSurah(i);
+      if (meta != null && page != null) {
+        items.add(_IndexItem(
+          number: i,
+          titleAr: meta.nameAr,
+          transliteration:
+              meta.transliterationFor(language),
+          page: page,
+          isExtra: false,
+        ));
+      }
+    }
+
+    // Add extras (like Du'a Khatm)
+    for (final extra in sub.extras) {
+      if (extra.page > 0 && extra.titleAr.isNotEmpty) {
+        items.add(_IndexItem(
+          number: null,
+          titleAr: extra.titleAr,
+          transliteration: null,
+          page: extra.page,
+          isExtra: true,
+        ));
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: c.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Header
+          Row(
+            children: [
+              Icon(Icons.list_rounded,
+                  color: c.goldText, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'فهرس السور',
+                textDirection: TextDirection.rtl,
+                style: AppText.arabic(
+                  color: c.textPrimary,
+                  size: 16,
+                  weight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${items.length}',
+                style: AppText.latin(
+                  color: c.goldText,
+                  size: 14,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // List
+          Expanded(
+            child: ListView.separated(
+              controller: scrollController,
+              itemCount: items.length,
+              separatorBuilder: (_, __) =>
+                  const SizedBox(height: 6),
+              itemBuilder: (ctx, index) {
+                final item = items[index];
+                return _IndexRow(
+                  item: item,
+                  colors: c,
+                  onTap: () => onSurahTap(item.page),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IndexItem {
+  final int? number;
+  final String titleAr;
+  final String? transliteration;
+  final int page;
+  final bool isExtra;
+
+  const _IndexItem({
+    required this.number,
+    required this.titleAr,
+    required this.transliteration,
+    required this.page,
+    required this.isExtra,
+  });
+}
+
+class _IndexRow extends StatelessWidget {
+  final _IndexItem item;
+  final AppColors colors;
+  final VoidCallback onTap;
+
+  const _IndexRow({
+    required this.item,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          color: item.isExtra
+              ? c.goldLine
+              : c.surface2,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: item.isExtra
+                ? c.goldText.withOpacity(0.35)
+                : c.divider,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Number circle (or star for extras)
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: item.isExtra
+                    ? c.goldText.withOpacity(0.2)
+                    : c.goldLine,
+                border: Border.all(
+                  color: c.goldText.withOpacity(0.35),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: item.number != null
+                  ? Text(
+                      '${item.number}',
+                      style: AppText.latin(
+                        color: c.goldText,
+                        size: 10,
+                        weight: FontWeight.w700,
+                      ),
+                    )
+                  : Icon(
+                      Icons.star_rounded,
+                      size: 14,
+                      color: c.goldText,
+                    ),
+            ),
+
+            const SizedBox(width: 10),
+
+            // Name
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.titleAr,
+                    textDirection: TextDirection.rtl,
+                    style: AppText.arabic(
+                      color: c.textPrimary,
+                      size: 14,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  if (item.transliteration != null) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      item.transliteration!,
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 10,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            // Page number
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: c.goldLine,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: c.goldText.withOpacity(0.3),
+                ),
+              ),
+              child: Text(
+                '${item.page}',
+                style: AppText.latin(
+                  color: c.goldText,
+                  size: 11,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Bookmark Row ────────────────────────────────────────
 
 class _BookmarkRow extends StatelessWidget {
-  final MushafBookmark bookmark;
+  final PdfBookmark bookmark;
   final AppColors colors;
   final VoidCallback onTap;
   final VoidCallback onDelete;
@@ -825,11 +1160,8 @@ class _LoadingOverlay extends StatelessWidget {
                     MainAxisAlignment.center,
                 children: [
                   if (errorMessage != null) ...[
-                    Icon(
-                      Icons.error_outline_rounded,
-                      color: c.danger,
-                      size: 48,
-                    ),
+                    Icon(Icons.error_outline_rounded,
+                        color: c.danger, size: 48),
                     const SizedBox(height: 16),
                     Text(
                       errorMessage!,
