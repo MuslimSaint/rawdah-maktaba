@@ -7,41 +7,36 @@ import '../core/models.dart';
 import '../core/quran_data.dart';
 import '../core/theme.dart';
 
-/// Dedicated Mus'haf reader — horizontal only, RTL page mapping.
+/// Dedicated Mus'haf reader — horizontal swipe + Surah index + bookmarks.
 class MushafReaderScreen extends StatefulWidget {
   final QuranSubBranch sub;
-  const MushafReaderScreen({super.key, required this.sub});
+
+  const MushafReaderScreen({
+    super.key,
+    required this.sub,
+  });
 
   @override
-  State<MushafReaderScreen> createState() => _MushafReaderScreenState();
+  State<MushafReaderScreen> createState() =>
+      _MushafReaderScreenState();
 }
 
-class _MushafReaderScreenState extends State<MushafReaderScreen> {
+class _MushafReaderScreenState
+    extends State<MushafReaderScreen> {
   static const _fileId = 'pdf_mushaf';
   static const _pdfKey = 'mushaf';
 
-  int _currentRealPage = 0;
+  int _currentPage = 0;
   int _totalPages = 0;
   bool _isReady = false;
   bool _showLoadingOverlay = true;
   String? _localPath;
   String? _errorMessage;
-  int _savedRealPage = 0;
 
   PDFViewController? _pdfController;
+  int _defaultPage = 0;
+
   final BookmarkService _bookmarkService = BookmarkService();
-
-  // ─── RTL Page Mapping ─────────────────────────────
-
-  int _toViewerPage(int realPage) {
-    if (_totalPages <= 0) return realPage;
-    return (_totalPages - 1) - realPage;
-  }
-
-  int _toRealPage(int viewerPage) {
-    if (_totalPages <= 0) return viewerPage;
-    return (_totalPages - 1) - viewerPage;
-  }
 
   @override
   void initState() {
@@ -49,89 +44,114 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     _bookmarkService.init().then((_) {
       _bookmarkService.setActivePdf(_pdfKey);
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _init());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _init();
+    });
   }
 
   Future<void> _init() async {
     final state = AppState.of(context);
-    _savedRealPage = state.mushafLastPage;
-    _currentRealPage = _savedRealPage;
 
-    final ds = state.downloadService;
+    _defaultPage = state.mushafLastPage;
+    _currentPage = _defaultPage;
 
-    if (ds.isDownloaded(_fileId)) {
-      final path = await ds.localPath(_fileId);
-      if (path != null && mounted) setState(() => _localPath = path);
+    final downloadService = state.downloadService;
+
+    if (downloadService.isDownloaded(_fileId)) {
+      final path = await downloadService.localPath(_fileId);
+      if (path != null && mounted) {
+        setState(() => _localPath = path);
+      }
       return;
     }
 
     if (widget.sub.pdfUrl.isEmpty) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Mus\'haf PDF is not available. Please try again later.';
+          _errorMessage =
+              'Mus\'haf PDF is not available. Please try again later.';
           _showLoadingOverlay = false;
         });
       }
       return;
     }
 
-    await ds.download(
-      fileId: _fileId, url: widget.sub.pdfUrl,
-      displayName: 'القرآن الكريم', bookId: 'mushaf',
+    await downloadService.download(
+      fileId: _fileId,
+      url: widget.sub.pdfUrl,
+      displayName: 'القرآن الكريم',
+      bookId: 'mushaf',
       onError: (msg) {
-        if (mounted) setState(() { _errorMessage = msg; _showLoadingOverlay = false; });
+        if (mounted) {
+          setState(() {
+            _errorMessage = msg;
+            _showLoadingOverlay = false;
+          });
+        }
       },
       onComplete: () async {
-        final path = await ds.localPath(_fileId);
-        if (path != null && mounted) setState(() => _localPath = path);
+        final path =
+            await downloadService.localPath(_fileId);
+        if (path != null && mounted) {
+          setState(() => _localPath = path);
+        }
       },
     );
   }
 
   void _hideLoadingOverlay() {
     Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) setState(() => _showLoadingOverlay = false);
+      if (mounted) {
+        setState(() => _showLoadingOverlay = false);
+      }
     });
   }
 
-  Future<void> _onViewerPageChanged(int viewerPage, int total) async {
-    final realPage = _toRealPage(viewerPage);
+  Future<void> _onPageChanged(int page, int total) async {
     setState(() {
-      _currentRealPage = realPage;
+      _currentPage = page;
       _totalPages = total;
       _showLoadingOverlay = false;
     });
-    await AppState.of(context).setMushafLastPage(realPage);
+    await AppState.of(context).setMushafLastPage(page);
   }
 
-  void _jumpToRealPage(int realPage) {
-    if (_totalPages <= 0) return;
-    _pdfController?.setPage(_toViewerPage(realPage));
+  void _jumpToPage(int page) {
+    _pdfController?.setPage(page);
   }
 
-  // ─── Surah Index ──────────────────────────────────
+  // ─── Surah Index Drawer ───────────────────────────
 
   void _showSurahIndex() {
     final c = AppColors(isDark: AppState.of(context).isDark);
     final lang = AppState.of(context).language;
 
     showModalBottomSheet(
-      context: context, backgroundColor: c.card,
+      context: context,
+      backgroundColor: c.card,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
       builder: (ctx) {
         return DraggableScrollableSheet(
-          initialChildSize: 0.6, minChildSize: 0.3, maxChildSize: 0.85,
+          initialChildSize: 0.6,
+          minChildSize: 0.3,
+          maxChildSize: 0.85,
           expand: false,
           builder: (ctx, scrollController) {
             return _SurahIndexContent(
-              sub: widget.sub, colors: c, language: lang,
+              sub: widget.sub,
+              colors: c,
+              language: lang,
               scrollController: scrollController,
               onSurahTap: (page) {
                 Navigator.of(ctx).pop();
-                // Catalog pages are 1-indexed, real pages are 0-indexed
-                _jumpToRealPage(page - 1);
+                // Catalog pages are 1-indexed,
+                // PDFView uses 0-indexed
+                _jumpToPage(page - 1);
               },
             );
           },
@@ -140,63 +160,126 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     );
   }
 
-  // ─── Bookmark Dialog ──────────────────────────────
+  // ─── Bookmark dialog ──────────────────────────────
 
   void _showAddBookmarkDialog() {
-    if (_bookmarkService.isBookmarked(_currentRealPage)) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Page ${_currentRealPage + 1} is already bookmarked.',
-            style: const TextStyle(fontSize: 13)),
-        backgroundColor: AppColors(isDark: false).brand,
-        duration: const Duration(seconds: 2),
-      ));
+    if (_bookmarkService.isBookmarked(_currentPage)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Page ${_currentPage + 1} is already bookmarked.',
+            style: const TextStyle(fontSize: 13),
+          ),
+          backgroundColor: AppColors(isDark: false).brand,
+          duration: const Duration(seconds: 2),
+        ),
+      );
       return;
     }
 
-    final controller = TextEditingController(text: 'Page ${_currentRealPage + 1}');
-    final c = AppColors(isDark: AppState.of(context).isDark);
+    final controller = TextEditingController(
+      text: 'Page ${_currentPage + 1}',
+    );
+
+    final c = AppColors(
+        isDark: AppState.of(context).isDark);
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: c.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Save Bookmark',
-            style: AppText.latin(color: c.textPrimary, size: 16, weight: FontWeight.w700)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Name this bookmark (or keep the default):',
-              style: AppText.latin(color: c.textMuted, size: 13)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: controller, autofocus: true,
-            style: AppText.latin(color: c.textPrimary, size: 14),
-            decoration: InputDecoration(
-              filled: true, fillColor: c.surface2,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.divider)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.divider)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.goldText, width: 1.5)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Save Bookmark',
+          style: AppText.latin(
+            color: c.textPrimary,
+            size: 16,
+            weight: FontWeight.w700,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Name this bookmark (or keep the default):',
+              style: AppText.latin(
+                color: c.textMuted,
+                size: 13,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: AppText.latin(
+                color: c.textPrimary,
+                size: 14,
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: c.surface2,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: c.divider),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: c.divider),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: c.goldText,
+                    width: 1.5,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: AppText.latin(
+                color: c.textMuted,
+                size: 14,
+              ),
             ),
           ),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('Cancel', style: AppText.latin(color: c.textMuted, size: 14))),
           TextButton(
             onPressed: () {
-              _bookmarkService.addBookmark(page: _currentRealPage, name: controller.text.trim());
+              _bookmarkService.addBookmark(
+                page: _currentPage,
+                name: controller.text.trim(),
+              );
               Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text('Bookmark saved: ${controller.text.trim()}',
-                    style: const TextStyle(fontSize: 13)),
-                backgroundColor: c.brand, duration: const Duration(seconds: 2),
-              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Bookmark saved: ${controller.text.trim()}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  backgroundColor: c.brand,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
             },
-            child: Text('Save',
-                style: AppText.latin(color: c.goldText, size: 14, weight: FontWeight.w700)),
+            child: Text(
+              'Save',
+              style: AppText.latin(
+                color: c.goldText,
+                size: 14,
+                weight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -205,52 +288,108 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
 
   void _showBookmarksSheet() {
     final c = AppColors(isDark: AppState.of(context).isDark);
+
     showModalBottomSheet(
-      context: context, backgroundColor: c.card,
+      context: context,
+      backgroundColor: c.card,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
       builder: (ctx) {
         return ListenableBuilder(
           listenable: _bookmarkService,
           builder: (ctx, _) {
             final bookmarks = _bookmarkService.bookmarks;
+
             return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              padding: const EdgeInsets.fromLTRB(
+                  20, 16, 20, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
-                  Center(child: Container(width: 40, height: 4,
-                      decoration: BoxDecoration(color: c.divider, borderRadius: BorderRadius.circular(2)))),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: c.divider,
+                        borderRadius:
+                            BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 16),
-                  Row(children: [
-                    Icon(Icons.bookmark_rounded, color: c.goldText, size: 20),
-                    const SizedBox(width: 8),
-                    Text('Bookmarks', style: AppText.latin(
-                        color: c.textPrimary, size: 16, weight: FontWeight.w700)),
-                    const Spacer(),
-                    Text('${bookmarks.length}', style: AppText.latin(
-                        color: c.goldText, size: 14, weight: FontWeight.w700)),
-                  ]),
+                  Row(
+                    children: [
+                      Icon(Icons.bookmark_rounded,
+                          color: c.goldText, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Bookmarks',
+                        style: AppText.latin(
+                          color: c.textPrimary,
+                          size: 16,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${bookmarks.length}',
+                        style: AppText.latin(
+                          color: c.goldText,
+                          size: 14,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 12),
                   if (bookmarks.isEmpty)
-                    Padding(padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: Text(
-                        'No bookmarks yet.\nTap the bookmark icon to save your position.',
-                        textAlign: TextAlign.center,
-                        style: AppText.latin(color: c.textMuted, size: 13, height: 1.5),
-                      )))
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'No bookmarks yet.\nTap the bookmark icon to save your position.',
+                          textAlign: TextAlign.center,
+                          style: AppText.latin(
+                            color: c.textMuted,
+                            size: 13,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    )
                   else
                     ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.4),
+                      constraints: BoxConstraints(
+                        maxHeight:
+                            MediaQuery.of(ctx).size.height *
+                                0.4,
+                      ),
                       child: ListView.separated(
-                        shrinkWrap: true, itemCount: bookmarks.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        shrinkWrap: true,
+                        itemCount: bookmarks.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 8),
                         itemBuilder: (ctx, index) {
                           final bm = bookmarks[index];
-                          return _BookmarkRow(bookmark: bm, colors: c,
-                            onTap: () { Navigator.of(ctx).pop(); _jumpToRealPage(bm.page); },
-                            onDelete: () => _bookmarkService.removeBookmark(bm.page));
+                          return _BookmarkRow(
+                            bookmark: bm,
+                            colors: c,
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              _jumpToPage(bm.page);
+                            },
+                            onDelete: () {
+                              _bookmarkService
+                                  .removeBookmark(bm.page);
+                            },
+                          );
                         },
                       ),
                     ),
@@ -267,7 +406,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   Widget build(BuildContext context) {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
-    final ds = state.downloadService;
+    final downloadService = state.downloadService;
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -276,34 +415,75 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
           children: [
             // ── Top Bar ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding:
+                  const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Container(width: 38, height: 38,
-                      decoration: BoxDecoration(color: c.surface2,
-                          borderRadius: BorderRadius.circular(11),
-                          border: Border.all(color: c.divider)),
-                      child: Icon(Icons.arrow_back_rounded, size: 18, color: c.textPrimary)),
+                    onTap: () =>
+                        Navigator.of(context).pop(),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: c.surface2,
+                        borderRadius:
+                            BorderRadius.circular(11),
+                        border: Border.all(color: c.divider),
+                      ),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        size: 18,
+                        color: c.textPrimary,
+                      ),
+                    ),
                   ),
+
                   const SizedBox(width: 8),
-                  Expanded(child: Text('القرآن الكريم',
-                      textDirection: TextDirection.rtl, textAlign: TextAlign.right,
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: AppText.arabic(color: c.goldText, size: 16, weight: FontWeight.w700))),
+
+                  Expanded(
+                    child: Text(
+                      'القرآن الكريم',
+                      textDirection: TextDirection.rtl,
+                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.arabic(
+                        color: c.goldText,
+                        size: 16,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+
                   const SizedBox(width: 6),
 
-                  // Surah index
-                  if (_isReady && !_showLoadingOverlay && widget.sub.hasContentTable)
+                  // Surah index button
+                  if (_isReady &&
+                      !_showLoadingOverlay &&
+                      widget.sub.hasContentTable)
                     GestureDetector(
                       onTap: _showSurahIndex,
-                      child: Container(width: 34, height: 34,
-                        decoration: BoxDecoration(color: c.goldLine,
-                            borderRadius: BorderRadius.circular(9),
-                            border: Border.all(color: c.goldText.withOpacity(0.5))),
-                        child: Icon(Icons.list_rounded, size: 18, color: c.goldText)),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: c.goldLine,
+                          borderRadius:
+                              BorderRadius.circular(9),
+                          border: Border.all(
+                            color:
+                                c.goldText.withOpacity(0.5),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.list_rounded,
+                          size: 18,
+                          color: c.goldText,
+                        ),
+                      ),
                     ),
+
                   const SizedBox(width: 6),
 
                   // Add bookmark
@@ -313,18 +493,41 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                       child: ListenableBuilder(
                         listenable: _bookmarkService,
                         builder: (context, _) {
-                          final isMarked = _bookmarkService.isBookmarked(_currentRealPage);
-                          return Container(width: 34, height: 34,
+                          final isMarked =
+                              _bookmarkService
+                                  .isBookmarked(
+                                      _currentPage);
+                          return Container(
+                            width: 34,
+                            height: 34,
                             decoration: BoxDecoration(
-                              color: isMarked ? c.goldLine : c.surface2,
-                              borderRadius: BorderRadius.circular(9),
+                              color: isMarked
+                                  ? c.goldLine
+                                  : c.surface2,
+                              borderRadius:
+                                  BorderRadius.circular(9),
                               border: Border.all(
-                                  color: isMarked ? c.goldText.withOpacity(0.5) : c.divider)),
-                            child: Icon(isMarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                                size: 16, color: isMarked ? c.goldText : c.textFaint));
+                                color: isMarked
+                                    ? c.goldText
+                                        .withOpacity(0.5)
+                                    : c.divider,
+                              ),
+                            ),
+                            child: Icon(
+                              isMarked
+                                  ? Icons.bookmark_rounded
+                                  : Icons
+                                      .bookmark_border_rounded,
+                              size: 16,
+                              color: isMarked
+                                  ? c.goldText
+                                  : c.textFaint,
+                            ),
+                          );
                         },
                       ),
                     ),
+
                   const SizedBox(width: 6),
 
                   // Bookmarks list
@@ -334,59 +537,119 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                       child: ListenableBuilder(
                         listenable: _bookmarkService,
                         builder: (context, _) {
-                          return Container(width: 34, height: 34,
-                            decoration: BoxDecoration(color: c.surface2,
-                                borderRadius: BorderRadius.circular(9),
-                                border: Border.all(color: c.divider)),
-                            child: Stack(alignment: Alignment.center, children: [
-                              Icon(Icons.bookmarks_outlined, size: 16, color: c.textPrimary),
-                              if (_bookmarkService.count > 0)
-                                Positioned(top: 2, right: 2,
-                                  child: Container(width: 14, height: 14,
-                                    decoration: BoxDecoration(color: c.goldText, shape: BoxShape.circle),
-                                    alignment: Alignment.center,
-                                    child: Text('${_bookmarkService.count}',
-                                        style: const TextStyle(color: Colors.white, fontSize: 8,
-                                            fontWeight: FontWeight.w700)))),
-                            ]));
+                          return Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: c.surface2,
+                              borderRadius:
+                                  BorderRadius.circular(9),
+                              border: Border.all(
+                                  color: c.divider),
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Icon(
+                                  Icons
+                                      .bookmarks_outlined,
+                                  size: 16,
+                                  color: c.textPrimary,
+                                ),
+                                if (_bookmarkService
+                                        .count >
+                                    0)
+                                  Positioned(
+                                    top: 2,
+                                    right: 2,
+                                    child: Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration:
+                                          BoxDecoration(
+                                        color: c.goldText,
+                                        shape:
+                                            BoxShape.circle,
+                                      ),
+                                      alignment:
+                                          Alignment.center,
+                                      child: Text(
+                                        '${_bookmarkService.count}',
+                                        style:
+                                            const TextStyle(
+                                          color:
+                                              Colors.white,
+                                          fontSize: 8,
+                                          fontWeight:
+                                              FontWeight
+                                                  .w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
                         },
                       ),
                     ),
+
                   const SizedBox(width: 6),
 
                   // Page counter
                   if (_isReady && !_showLoadingOverlay)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      decoration: BoxDecoration(color: c.surface2,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: c.divider)),
-                      child: Text('${_currentRealPage + 1}/$_totalPages',
-                          style: AppText.latin(color: c.textMuted, size: 10, weight: FontWeight.w700)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: c.surface2,
+                        borderRadius:
+                            BorderRadius.circular(10),
+                        border:
+                            Border.all(color: c.divider),
+                      ),
+                      child: Text(
+                        '${_currentPage + 1}/$_totalPages',
+                        style: AppText.latin(
+                          color: c.textMuted,
+                          size: 10,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                 ],
               ),
             ),
 
             // Progress bar
-            if (_isReady && !_showLoadingOverlay && _totalPages > 0) ...[
+            if (_isReady &&
+                !_showLoadingOverlay &&
+                _totalPages > 0) ...[
               const SizedBox(height: 8),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(
-                    value: _totalPages > 0 ? (_currentRealPage + 1) / _totalPages : 0,
+                    value: _totalPages > 0
+                        ? (_currentPage + 1) / _totalPages
+                        : 0,
                     backgroundColor: c.surface2,
-                    valueColor: AlwaysStoppedAnimation<Color>(c.goldText),
-                    minHeight: 3),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(
+                            c.goldText),
+                    minHeight: 3,
+                  ),
                 ),
               ),
             ],
 
             const SizedBox(height: 8),
 
-            // ── PDF Viewer (horizontal, RTL mapped) ──
+            // PDF viewer
             Expanded(
               child: Stack(
                 children: [
@@ -400,43 +663,41 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                       pageFling: true,
                       pageSnap: true,
                       fitPolicy: FitPolicy.BOTH,
-                      defaultPage: _totalPages > 0
-                          ? _toViewerPage(_savedRealPage)
-                          : 0,
+                      defaultPage: _defaultPage,
                       onRender: (pages) {
-                        final total = pages ?? 0;
                         setState(() {
-                          _totalPages = total;
+                          _totalPages = pages ?? 0;
                           _isReady = true;
-                          _currentRealPage = _savedRealPage;
+                          _currentPage = _defaultPage;
                         });
-                        // Jump to correct viewer page after render
-                        if (total > 0) {
-                          Future.delayed(const Duration(milliseconds: 100), () {
-                            _pdfController?.setPage(_toViewerPage(_savedRealPage));
-                          });
-                        }
                         _hideLoadingOverlay();
                       },
                       onViewCreated: (controller) {
                         _pdfController = controller;
                       },
                       onPageChanged: (page, total) {
-                        _onViewerPageChanged(page ?? 0, total ?? 0);
+                        _onPageChanged(
+                            page ?? 0, total ?? 0);
                       },
                       onError: (error) {
                         if (mounted) {
                           setState(() {
                             _showLoadingOverlay = false;
-                            _errorMessage = 'Could not open Mus\'haf: $error';
+                            _errorMessage =
+                                'Could not open Mus\'haf: $error';
                           });
                         }
                       },
                     ),
 
-                  if (_showLoadingOverlay || _localPath == null)
-                    _LoadingOverlay(colors: c, downloadService: ds,
-                        errorMessage: _errorMessage, defaultPage: _savedRealPage),
+                  if (_showLoadingOverlay ||
+                      _localPath == null)
+                    _LoadingOverlay(
+                      colors: c,
+                      downloadService: downloadService,
+                      errorMessage: _errorMessage,
+                      defaultPage: _defaultPage,
+                    ),
                 ],
               ),
             ),
@@ -444,17 +705,39 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
             // Bottom indicator
             if (_isReady && !_showLoadingOverlay)
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(color: c.card,
-                    border: Border(top: BorderSide(color: c.divider))),
-                child: Center(child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  decoration: BoxDecoration(color: c.goldLine,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: c.goldText.withOpacity(0.35))),
-                  child: Text('Mus\'haf · Page ${_currentRealPage + 1} of $_totalPages',
-                      style: AppText.latin(color: c.goldText, size: 12, weight: FontWeight.w700)),
-                )),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 10),
+                decoration: BoxDecoration(
+                  color: c.card,
+                  border: Border(
+                    top: BorderSide(color: c.divider),
+                  ),
+                ),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: c.goldLine,
+                      borderRadius:
+                          BorderRadius.circular(20),
+                      border: Border.all(
+                        color:
+                            c.goldText.withOpacity(0.35),
+                      ),
+                    ),
+                    child: Text(
+                      'Mus\'haf · Page ${_currentPage + 1} of $_totalPages',
+                      style: AppText.latin(
+                        color: c.goldText,
+                        size: 12,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
               ),
           ],
         ),
@@ -473,28 +756,43 @@ class _SurahIndexContent extends StatelessWidget {
   final void Function(int page) onSurahTap;
 
   const _SurahIndexContent({
-    required this.sub, required this.colors, required this.language,
-    required this.scrollController, required this.onSurahTap,
+    required this.sub,
+    required this.colors,
+    required this.language,
+    required this.scrollController,
+    required this.onSurahTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
+
     final items = <_IndexItem>[];
 
     for (int i = 1; i <= 114; i++) {
       final meta = QuranSkeleton.byNumber(i);
       final page = sub.pageForSurah(i);
       if (meta != null && page != null) {
-        items.add(_IndexItem(number: i, titleAr: meta.nameAr,
-            transliteration: meta.transliterationFor(language),
-            page: page, isExtra: false));
+        items.add(_IndexItem(
+          number: i,
+          titleAr: meta.nameAr,
+          transliteration:
+              meta.transliterationFor(language),
+          page: page,
+          isExtra: false,
+        ));
       }
     }
+
     for (final extra in sub.extras) {
       if (extra.page > 0 && extra.titleAr.isNotEmpty) {
-        items.add(_IndexItem(number: null, titleAr: extra.titleAr,
-            transliteration: null, page: extra.page, isExtra: true));
+        items.add(_IndexItem(
+          number: null,
+          titleAr: extra.titleAr,
+          transliteration: null,
+          page: extra.page,
+          isExtra: true,
+        ));
       }
     }
 
@@ -503,26 +801,59 @@ class _SurahIndexContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(child: Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: c.divider, borderRadius: BorderRadius.circular(2)))),
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: c.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
-          Row(children: [
-            Icon(Icons.list_rounded, color: c.goldText, size: 20),
-            const SizedBox(width: 8),
-            Text('فهرس السور', textDirection: TextDirection.rtl,
-                style: AppText.arabic(color: c.textPrimary, size: 16, weight: FontWeight.w700)),
-            const Spacer(),
-            Text('${items.length}',
-                style: AppText.latin(color: c.goldText, size: 14, weight: FontWeight.w700)),
-          ]),
+
+          Row(
+            children: [
+              Icon(Icons.list_rounded,
+                  color: c.goldText, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'فهرس السور',
+                textDirection: TextDirection.rtl,
+                style: AppText.arabic(
+                  color: c.textPrimary,
+                  size: 16,
+                  weight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${items.length}',
+                style: AppText.latin(
+                  color: c.goldText,
+                  size: 14,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+
           const SizedBox(height: 12),
+
           Expanded(
             child: ListView.separated(
-              controller: scrollController, itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              controller: scrollController,
+              itemCount: items.length,
+              separatorBuilder: (_, __) =>
+                  const SizedBox(height: 6),
               itemBuilder: (ctx, index) {
                 final item = items[index];
-                return _IndexRow(item: item, colors: c, onTap: () => onSurahTap(item.page));
+                return _IndexRow(
+                  item: item,
+                  colors: c,
+                  onTap: () => onSurahTap(item.page),
+                );
               },
             ),
           ),
@@ -538,59 +869,136 @@ class _IndexItem {
   final String? transliteration;
   final int page;
   final bool isExtra;
-  const _IndexItem({required this.number, required this.titleAr,
-      required this.transliteration, required this.page, required this.isExtra});
+
+  const _IndexItem({
+    required this.number,
+    required this.titleAr,
+    required this.transliteration,
+    required this.page,
+    required this.isExtra,
+  });
 }
 
 class _IndexRow extends StatelessWidget {
   final _IndexItem item;
   final AppColors colors;
   final VoidCallback onTap;
-  const _IndexRow({required this.item, required this.colors, required this.onTap});
+
+  const _IndexRow({
+    required this.item,
+    required this.colors,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
         decoration: BoxDecoration(
-          color: item.isExtra ? c.goldLine : c.surface2,
+          color: item.isExtra
+              ? c.goldLine
+              : c.surface2,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: item.isExtra ? c.goldText.withOpacity(0.35) : c.divider)),
-        child: Row(children: [
-          Container(width: 32, height: 32,
-            decoration: BoxDecoration(shape: BoxShape.circle,
-                color: item.isExtra ? c.goldText.withOpacity(0.2) : c.goldLine,
-                border: Border.all(color: c.goldText.withOpacity(0.35))),
-            alignment: Alignment.center,
-            child: item.number != null
-                ? Text('${item.number}', style: AppText.latin(
-                    color: c.goldText, size: 10, weight: FontWeight.w700))
-                : Icon(Icons.star_rounded, size: 14, color: c.goldText)),
-          const SizedBox(width: 10),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(item.titleAr, textDirection: TextDirection.rtl,
-                  style: AppText.arabic(color: c.textPrimary, size: 14, weight: FontWeight.w700)),
-              if (item.transliteration != null) ...[
-                const SizedBox(height: 1),
-                Text(item.transliteration!, style: AppText.latin(color: c.textMuted, size: 10)),
-              ],
-            ],
-          )),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: c.goldLine,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: c.goldText.withOpacity(0.3))),
-            child: Text('${item.page}',
-                style: AppText.latin(color: c.goldText, size: 11, weight: FontWeight.w700)),
+          border: Border.all(
+            color: item.isExtra
+                ? c.goldText.withOpacity(0.35)
+                : c.divider,
           ),
-        ]),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: item.isExtra
+                    ? c.goldText.withOpacity(0.2)
+                    : c.goldLine,
+                border: Border.all(
+                  color: c.goldText.withOpacity(0.35),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: item.number != null
+                  ? Text(
+                      '${item.number}',
+                      style: AppText.latin(
+                        color: c.goldText,
+                        size: 10,
+                        weight: FontWeight.w700,
+                      ),
+                    )
+                  : Icon(
+                      Icons.star_rounded,
+                      size: 14,
+                      color: c.goldText,
+                    ),
+            ),
+
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.titleAr,
+                    textDirection: TextDirection.rtl,
+                    style: AppText.arabic(
+                      color: c.textPrimary,
+                      size: 14,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  if (item.transliteration != null) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      item.transliteration!,
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 10,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: c.goldLine,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: c.goldText.withOpacity(0.3),
+                ),
+              ),
+              child: Text(
+                '${item.page}',
+                style: AppText.latin(
+                  color: c.goldText,
+                  size: 11,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -603,42 +1011,97 @@ class _BookmarkRow extends StatelessWidget {
   final AppColors colors;
   final VoidCallback onTap;
   final VoidCallback onDelete;
-  const _BookmarkRow({required this.bookmark, required this.colors,
-      required this.onTap, required this.onDelete});
+
+  const _BookmarkRow({
+    required this.bookmark,
+    required this.colors,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(color: c.surface2,
-            borderRadius: BorderRadius.circular(12), border: Border.all(color: c.divider)),
-        child: Row(children: [
-          Container(width: 36, height: 36,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: c.goldLine,
-                border: Border.all(color: c.goldText.withOpacity(0.35))),
-            alignment: Alignment.center,
-            child: Text('${bookmark.page + 1}',
-                style: AppText.latin(color: c.goldText, size: 11, weight: FontWeight.w700))),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(bookmark.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: AppText.latin(color: c.textPrimary, size: 13, weight: FontWeight.w600)),
-              const SizedBox(height: 2),
-              Text('Page ${bookmark.page + 1}', style: AppText.latin(color: c.textFaint, size: 10)),
-            ],
-          )),
-          GestureDetector(
-            onTap: onDelete,
-            child: Container(width: 30, height: 30,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: c.dangerBg),
-              child: Icon(Icons.delete_outline_rounded, size: 14, color: c.danger)),
-          ),
-        ]),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        decoration: BoxDecoration(
+          color: c.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: c.divider),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: c.goldLine,
+                border: Border.all(
+                  color: c.goldText.withOpacity(0.35),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                '${bookmark.page + 1}',
+                style: AppText.latin(
+                  color: c.goldText,
+                  size: 11,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    bookmark.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.latin(
+                      color: c.textPrimary,
+                      size: 13,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Page ${bookmark.page + 1}',
+                    style: AppText.latin(
+                      color: c.textFaint,
+                      size: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: onDelete,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: c.dangerBg,
+                ),
+                child: Icon(
+                  Icons.delete_outline_rounded,
+                  size: 14,
+                  color: c.danger,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -651,54 +1114,115 @@ class _LoadingOverlay extends StatelessWidget {
   final DownloadService downloadService;
   final String? errorMessage;
   final int defaultPage;
-  const _LoadingOverlay({required this.colors, required this.downloadService,
-      required this.errorMessage, required this.defaultPage});
+
+  const _LoadingOverlay({
+    required this.colors,
+    required this.downloadService,
+    required this.errorMessage,
+    required this.defaultPage,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
+
     return ListenableBuilder(
       listenable: downloadService,
       builder: (context, _) {
-        final isDownloading = downloadService.isDownloading('pdf_mushaf');
-        final progress = downloadService.progress('pdf_mushaf');
+        final isDownloading =
+            downloadService.isDownloading('pdf_mushaf');
+        final progress =
+            downloadService.progress('pdf_mushaf');
         final percent = (progress * 100).toInt();
 
         return Container(
           color: c.bg,
-          child: Center(child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (errorMessage != null) ...[
-                  Icon(Icons.error_outline_rounded, color: c.danger, size: 48),
-                  const SizedBox(height: 16),
-                  Text(errorMessage!, textAlign: TextAlign.center,
-                      style: AppText.latin(color: c.danger, size: 13, height: 1.5)),
-                ] else if (isDownloading) ...[
-                  SizedBox(width: 60, height: 60,
-                    child: CircularProgressIndicator(
-                      value: progress > 0 ? progress : null,
-                      color: c.goldText, strokeWidth: 3, backgroundColor: c.surface2)),
-                  const SizedBox(height: 20),
-                  Text('Downloading Mus\'haf...',
-                      style: AppText.latin(color: c.textPrimary, size: 15, weight: FontWeight.w700)),
-                  const SizedBox(height: 6),
-                  Text(progress > 0 ? '$percent%' : 'Connecting...',
-                      style: AppText.latin(color: c.goldText, size: 13, weight: FontWeight.w700)),
-                  const SizedBox(height: 12),
-                  Text('This is a one-time download.', textAlign: TextAlign.center,
-                      style: AppText.latin(color: c.textMuted, size: 12, height: 1.5)),
-                ] else ...[
-                  CircularProgressIndicator(color: c.goldText, strokeWidth: 2),
-                  const SizedBox(height: 16),
-                  Text(defaultPage > 0 ? 'Opening to page ${defaultPage + 1}...' : 'Loading Mus\'haf...',
-                      style: AppText.latin(color: c.textMuted, size: 13)),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+                children: [
+                  if (errorMessage != null) ...[
+                    Icon(
+                      Icons.error_outline_rounded,
+                      color: c.danger,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: AppText.latin(
+                        color: c.danger,
+                        size: 13,
+                        height: 1.5,
+                      ),
+                    ),
+                  ] else if (isDownloading) ...[
+                    SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: CircularProgressIndicator(
+                        value: progress > 0
+                            ? progress
+                            : null,
+                        color: c.goldText,
+                        strokeWidth: 3,
+                        backgroundColor: c.surface2,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Downloading Mus\'haf...',
+                      style: AppText.latin(
+                        color: c.textPrimary,
+                        size: 15,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      progress > 0
+                          ? '$percent%'
+                          : 'Connecting...',
+                      style: AppText.latin(
+                        color: c.goldText,
+                        size: 13,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'This is a one-time download.',
+                      textAlign: TextAlign.center,
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 12,
+                        height: 1.5,
+                      ),
+                    ),
+                  ] else ...[
+                    CircularProgressIndicator(
+                      color: c.goldText,
+                      strokeWidth: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      defaultPage > 0
+                          ? 'Opening to page ${defaultPage + 1}...'
+                          : 'Loading Mus\'haf...',
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 13,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          )),
+          ),
         );
       },
     );
