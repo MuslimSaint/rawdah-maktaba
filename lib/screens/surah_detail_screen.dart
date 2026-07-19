@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
+import '../core/arabic_utils.dart';
 import '../core/catalog_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import 'pdf_reader_screen.dart';
 import 'surah_lessons_screen.dart';
+import 'surah_audio_player_screen.dart';
 
 /// Surah detail screen — the equivalent of BookDetailScreen
 /// but tailored for a Quran Surah.
-///
-/// Sections:
-///   1. Hero (Arabic name, transcription, ayah count,
-///      Meccan/Medinan, revelation order)
-///   2. PDF section (download / open)
-///   3. Reciters (Qaris) — audio recitation
-///   4. Teachers — tafseer/explanation
 class SurahDetailScreen extends StatelessWidget {
   final SurahMeta meta;
 
@@ -114,6 +109,8 @@ class SurahDetailScreen extends StatelessWidget {
                             meta: meta,
                             catalogService:
                                 state.catalogService,
+                            downloadService:
+                                state.downloadService,
                             colors: c,
                             language: state.language,
                           ),
@@ -190,7 +187,6 @@ class _HeroCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Big number circle
           Container(
             width: 68,
             height: 68,
@@ -351,7 +347,7 @@ class _PdfSectionState extends State<_PdfSection> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PdfReaderScreen(
-          book: _fakeBookForSurah(widget.meta),
+          book: fakeBookForSurah(widget.meta),
           filePath: path,
         ),
       ),
@@ -629,7 +625,9 @@ class _PdfSectionState extends State<_PdfSection> {
 
 /// Wraps a SurahMeta in a lightweight fake Book so the
 /// existing PdfReaderScreen can accept it without changes.
-Book _fakeBookForSurah(SurahMeta m) {
+/// Made public (no underscore) so surah_audio_player_screen
+/// can also open the same PDF from the mushaf cover tap.
+Book fakeBookForSurah(SurahMeta m) {
   return Book(
     id: 'surah_${m.number}',
     titleAr: m.nameAr,
@@ -648,11 +646,13 @@ Book _fakeBookForSurah(SurahMeta m) {
 }
 
 // ─── Reciters Section ────────────────────────────────────
+// Direct download & play — no lessons screen.
 
 class _RecitersSection extends StatelessWidget {
   final Surah surah;
   final SurahMeta meta;
   final CatalogService catalogService;
+  final DownloadService downloadService;
   final AppColors colors;
   final String language;
 
@@ -660,6 +660,7 @@ class _RecitersSection extends StatelessWidget {
     required this.surah,
     required this.meta,
     required this.catalogService,
+    required this.downloadService,
     required this.colors,
     required this.language,
   });
@@ -708,19 +709,11 @@ class _RecitersSection extends StatelessWidget {
             child: _ReciterCard(
               reciter: pair.reciter,
               audio: pair.audio,
+              meta: meta,
+              catalogService: catalogService,
+              downloadService: downloadService,
               colors: c,
               language: language,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => SurahLessonsScreen.reciter(
-                      meta: meta,
-                      reciter: pair.reciter,
-                      reciterAudio: pair.audio,
-                    ),
-                  ),
-                );
-              },
             ),
           );
         }),
@@ -729,103 +722,231 @@ class _RecitersSection extends StatelessWidget {
   }
 }
 
-class _ReciterCard extends StatelessWidget {
+/// Reciter card with built-in download/play button.
+/// Since each reciter has exactly 1 part, we skip the
+/// lessons screen entirely.
+class _ReciterCard extends StatefulWidget {
   final Reciter reciter;
   final ReciterAudio audio;
+  final SurahMeta meta;
+  final CatalogService catalogService;
+  final DownloadService downloadService;
   final AppColors colors;
   final String language;
-  final VoidCallback onTap;
 
   const _ReciterCard({
     required this.reciter,
     required this.audio,
+    required this.meta,
+    required this.catalogService,
+    required this.downloadService,
     required this.colors,
     required this.language,
-    required this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: c.card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: c.divider),
+  State<_ReciterCard> createState() => _ReciterCardState();
+}
+
+class _ReciterCardState extends State<_ReciterCard> {
+  /// The reciter's first part number (they typically have only 1).
+  int get _partNumber => widget.audio.parts.isNotEmpty
+      ? widget.audio.parts.first
+      : 1;
+
+  String get _fileId => DownloadService.surahReciterAudioId(
+        widget.meta.number,
+        widget.reciter.id,
+        _partNumber,
+      );
+
+  String get _url => widget.catalogService.surahReciterUrl(
+        surahNumber: widget.meta.number,
+        reciterId: widget.reciter.id,
+        partNumber: _partNumber,
+      );
+
+  void _openPlayer() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SurahAudioPlayerScreen.reciter(
+          meta: widget.meta,
+          reciter: widget.reciter,
+          reciterAudio: widget.audio,
+          initialPartIndex: 0,
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: c.goldLine,
-                border: Border.all(
-                  color: c.goldText.withOpacity(0.35),
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.mic_rounded,
-                size: 20,
-                color: c.goldText,
-              ),
+      ),
+    );
+  }
+
+  void _startDownload() {
+    final lessonTitle = ArabicUtils.lessonTitle(_partNumber);
+    widget.downloadService.download(
+      fileId: _fileId,
+      url: _url,
+      displayName: '${widget.meta.nameAr} - $lessonTitle',
+      bookId: 'surah_${widget.meta.number}',
+      onError: (_) {},
+      onComplete: () {},
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.colors;
+
+    return ListenableBuilder(
+      listenable: widget.downloadService,
+      builder: (context, _) {
+        final isDownloaded =
+            widget.downloadService.isDownloaded(_fileId);
+        final isDownloading =
+            widget.downloadService.isDownloading(_fileId);
+        final progress =
+            widget.downloadService.progress(_fileId);
+
+        return GestureDetector(
+          // Whole card is tappable only if downloaded → opens player
+          onTap: isDownloaded ? _openPlayer : null,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: c.card,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: c.divider),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    reciter.nameAr,
-                    textDirection: TextDirection.rtl,
-                    style: AppText.arabic(
-                      color: c.textPrimary,
-                      size: 14,
-                      weight: FontWeight.w700,
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: c.goldLine,
+                        border: Border.all(
+                          color:
+                              c.goldText.withOpacity(0.35),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.mic_rounded,
+                        size: 20,
+                        color: c.goldText,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    reciter.nameFor(language),
-                    style: AppText.latin(
-                      color: c.textMuted,
-                      size: 12,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.reciter.nameAr,
+                            textDirection: TextDirection.rtl,
+                            style: AppText.arabic(
+                              color: c.textPrimary,
+                              size: 14,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.reciter
+                                .nameFor(widget.language),
+                            style: AppText.latin(
+                              color: c.textMuted,
+                              size: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+
+                    // Download / Play / Cancel button
+                    GestureDetector(
+                      onTap: () {
+                        if (isDownloading) {
+                          widget.downloadService
+                              .cancelDownload(_fileId);
+                        } else if (isDownloaded) {
+                          _openPlayer();
+                        } else {
+                          _startDownload();
+                        }
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(
+                            milliseconds: 200),
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDownloading
+                              ? c.dangerBg
+                              : isDownloaded
+                                  ? c.goldText
+                                  : c.goldText
+                                      .withOpacity(0.12),
+                          border: Border.all(
+                            color: isDownloading
+                                ? c.danger.withOpacity(0.3)
+                                : isDownloaded
+                                    ? c.goldText
+                                    : c.goldText
+                                        .withOpacity(0.3),
+                          ),
+                        ),
+                        child: isDownloading
+                            ? Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: c.danger,
+                              )
+                            : Icon(
+                                isDownloaded
+                                    ? Icons
+                                        .play_arrow_rounded
+                                    : Icons
+                                        .download_rounded,
+                                size: 20,
+                                color: isDownloaded
+                                    ? Colors.white
+                                    : c.goldText,
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (isDownloading) ...[
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress > 0 ? progress : null,
+                      backgroundColor: c.surface2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(
+                              c.goldText),
+                      minHeight: 3,
                     ),
                   ),
                 ],
-              ),
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 4,
-              ),
-              decoration: BoxDecoration(
-                color: c.goldLine,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '${audio.totalParts} parts',
-                style: AppText.latin(
-                  color: c.goldText,
-                  size: 10,
-                  weight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
 // ─── Teachers Section (Tafseer) ──────────────────────────
+// Teachers keep the lessons screen flow (multiple parts).
 
 class _TeachersSection extends StatelessWidget {
   final Surah surah;
