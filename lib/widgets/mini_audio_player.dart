@@ -78,13 +78,8 @@ class _MiniPlayerBody extends StatelessWidget {
     if (surahNum == null) return;
 
     // Find the SurahMeta from the hardcoded skeleton
-    SurahMeta? meta;
-    try {
-      meta = QuranSkeleton.all
-          .firstWhere((s) => s.number == surahNum);
-    } catch (_) {
-      return;
-    }
+    final meta = QuranSkeleton.byNumber(surahNum);
+    if (meta == null) return;
 
     final surah = state.catalogService.quran.surahFor(surahNum);
 
@@ -101,7 +96,7 @@ class _MiniPlayerBody extends StatelessWidget {
         Navigator.of(context, rootNavigator: true).push(
           MaterialPageRoute(
             builder: (_) => SurahAudioPlayerScreen.reciter(
-              meta: meta!,
+              meta: meta,
               reciter: reciter,
               reciterAudio: reciterAudio,
               initialPartIndex: partIndex,
@@ -125,7 +120,7 @@ class _MiniPlayerBody extends StatelessWidget {
         Navigator.of(context, rootNavigator: true).push(
           MaterialPageRoute(
             builder: (_) => SurahAudioPlayerScreen.teacher(
-              meta: meta!,
+              meta: meta,
               teacher: teacher,
               teacherAudio: teacherAudio,
               initialPartIndex: partIndex,
@@ -424,4 +419,5 @@ class _MiniButton extends StatelessWidget {
       ),
     );
   }
+
 }
