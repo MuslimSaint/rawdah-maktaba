@@ -375,6 +375,20 @@ class DownloadService extends ChangeNotifier {
           String bookId, String teacherId, int part) =>
       'audio_${bookId}_${teacherId}_$part';
 
+  /// Surah reciter audio ID (Qari recitations).
+  /// Unique prefix `saudio_r_` avoids collision with
+  /// book audio (`audio_`) and PDFs (`pdf_`).
+  static String surahReciterAudioId(
+          int surahNumber, String reciterId, int part) =>
+      'saudio_r_${surahNumber}_${reciterId}_$part';
+
+  /// Surah teacher audio ID (Tafseer/explanation).
+  /// Unique prefix `saudio_t_` avoids collision with
+  /// book audio (`audio_`) and PDFs (`pdf_`).
+  static String surahTeacherAudioId(
+          int surahNumber, String teacherId, int part) =>
+      'saudio_t_${surahNumber}_${teacherId}_$part';
+
   static String formatSpeed(double kbps) {
     if (kbps >= 1024) {
       return '${(kbps / 1024).toStringAsFixed(1)} MB/s';
