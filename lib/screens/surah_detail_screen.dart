@@ -187,24 +187,36 @@ class _HeroCard extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // Mus'haf image (replaces gold number circle)
           Container(
-            width: 68,
-            height: 68,
+            width: 76,
+            height: 76,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: c.goldText.withOpacity(0.15),
               border: Border.all(
                 color: c.goldText.withOpacity(0.5),
                 width: 2,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: c.goldText.withOpacity(0.2),
+                  blurRadius: 14,
+                ),
+              ],
             ),
-            alignment: Alignment.center,
-            child: Text(
-              '${meta.number}',
-              style: AppText.latin(
-                color: c.goldText,
-                size: 24,
-                weight: FontWeight.w700,
+            child: ClipOval(
+              child: Image.asset(
+                'assets/mushaf.png',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: c.goldText.withOpacity(0.15),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.import_contacts_rounded,
+                    size: 32,
+                    color: c.goldText,
+                  ),
+                ),
               ),
             ),
           ),
