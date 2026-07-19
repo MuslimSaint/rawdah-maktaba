@@ -5,6 +5,7 @@ import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import 'pdf_reader_screen.dart';
+import 'surah_lessons_screen.dart';
 
 /// Surah detail screen — the equivalent of BookDetailScreen
 /// but tailored for a Quran Surah.
@@ -15,10 +16,6 @@ import 'pdf_reader_screen.dart';
 ///   2. PDF section (download / open)
 ///   3. Reciters (Qaris) — audio recitation
 ///   4. Teachers — tafseer/explanation
-///
-/// Note: audio playback wiring for reciters/teachers will
-/// be enabled once the SurahLessonsScreen is added. For now
-/// the sections display who is available.
 class SurahDetailScreen extends StatelessWidget {
   final SurahMeta meta;
 
@@ -114,6 +111,7 @@ class SurahDetailScreen extends StatelessWidget {
                         if (surah.hasReciters)
                           _RecitersSection(
                             surah: surah,
+                            meta: meta,
                             catalogService:
                                 state.catalogService,
                             colors: c,
@@ -125,6 +123,7 @@ class SurahDetailScreen extends StatelessWidget {
                         if (surah.hasTeachers)
                           _TeachersSection(
                             surah: surah,
+                            meta: meta,
                             catalogService:
                                 state.catalogService,
                             colors: c,
@@ -389,8 +388,6 @@ class _PdfSectionState extends State<_PdfSection> {
         widget.downloadService.isDownloading(_fileId);
     final progress =
         widget.downloadService.progress(_fileId);
-    final hasUrl = widget.surah.pdfUrl.isNotEmpty ||
-        widget.catalogService.quran.hasMushaf;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -654,12 +651,14 @@ Book _fakeBookForSurah(SurahMeta m) {
 
 class _RecitersSection extends StatelessWidget {
   final Surah surah;
+  final SurahMeta meta;
   final CatalogService catalogService;
   final AppColors colors;
   final String language;
 
   const _RecitersSection({
     required this.surah,
+    required this.meta,
     required this.catalogService,
     required this.colors,
     required this.language,
@@ -712,16 +711,13 @@ class _RecitersSection extends StatelessWidget {
               colors: c,
               language: language,
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Surah audio player coming soon.',
-                      style: AppText.latin(
-                        color: Colors.white,
-                        size: 13,
-                      ),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SurahLessonsScreen.reciter(
+                      meta: meta,
+                      reciter: pair.reciter,
+                      reciterAudio: pair.audio,
                     ),
-                    backgroundColor: c.brand,
                   ),
                 );
               },
@@ -833,12 +829,14 @@ class _ReciterCard extends StatelessWidget {
 
 class _TeachersSection extends StatelessWidget {
   final Surah surah;
+  final SurahMeta meta;
   final CatalogService catalogService;
   final AppColors colors;
   final String language;
 
   const _TeachersSection({
     required this.surah,
+    required this.meta,
     required this.catalogService,
     required this.colors,
     required this.language,
@@ -892,16 +890,13 @@ class _TeachersSection extends StatelessWidget {
               colors: c,
               language: language,
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Surah audio player coming soon.',
-                      style: AppText.latin(
-                        color: Colors.white,
-                        size: 13,
-                      ),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SurahLessonsScreen.teacher(
+                      meta: meta,
+                      teacher: pair.teacher,
+                      teacherAudio: pair.audio,
                     ),
-                    backgroundColor: c.brand,
                   ),
                 );
               },
