@@ -5,11 +5,13 @@ import '../core/audio_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import 'pdf_reader_screen.dart';
+import 'surah_detail_screen.dart' show fakeBookForSurah;
 import 'surah_lessons_screen.dart';
 
 /// Audio player for a Surah recitation (Qari) or
-/// tafseer (Teacher). Shows Surah metadata instead of
-/// a book cover.
+/// tafseer (Teacher). Shows the Mus'haf cover image
+/// (tappable → opens/downloads Surah PDF).
 class SurahAudioPlayerScreen extends StatefulWidget {
   final SurahMeta meta;
   final SurahNarratorType narratorType;
@@ -74,6 +76,9 @@ class _SurahAudioPlayerScreenState
       ? widget.reciter!.nameAr
       : widget.teacher!.nameAr;
 
+  String get _surahPdfFileId =>
+      'pdf_surah_${widget.meta.number}';
+
   @override
   void initState() {
     super.initState();
@@ -131,9 +136,16 @@ class _SurahAudioPlayerScreenState
   bool get _isCurrentDownloaded =>
       _downloadService.isDownloaded(_currentFileId);
 
-  /// Resolves a part number to a playable AudioResolution.
-  /// Used both here and by AudioService for notification
-  /// / headphone prev/next actions.
+  bool get _isPdfDownloaded =>
+      _downloadService.isDownloaded(_surahPdfFileId);
+
+  bool get _hasPdfUrl {
+    final state = AppState.of(context);
+    final surah = state.catalogService.quran
+        .surahFor(widget.meta.number);
+    return surah.hasPdf;
+  }
+
   Future<AudioResolution?> _resolvePart(int partNumber) async {
     final fileId = _isReciter
         ? DownloadService.surahReciterAudioId(
@@ -205,6 +217,42 @@ class _SurahAudioPlayerScreenState
     await _audioService.skipToNext();
   }
 
+  Future<void> _onCoverTap() async {
+    // Same behavior as book audio player: tap cover =
+    // open PDF if downloaded, otherwise download it.
+    if (_isPdfDownloaded) {
+      final path =
+          await _downloadService.localPath(_surahPdfFileId);
+      if (path != null && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PdfReaderScreen(
+              book: fakeBookForSurah(widget.meta),
+              filePath: path,
+            ),
+          ),
+        );
+      }
+    } else {
+      if (!_hasPdfUrl) return;
+      final state = AppState.of(context);
+      final surah = state.catalogService.quran
+          .surahFor(widget.meta.number);
+      final url = surah.pdfUrl.isNotEmpty
+          ? surah.pdfUrl
+          : state.catalogService
+              .surahPdfUrl(widget.meta.number);
+      _downloadService.download(
+        fileId: _surahPdfFileId,
+        url: url,
+        displayName: widget.meta.nameAr,
+        bookId: 'surah_${widget.meta.number}',
+        onError: (_) {},
+        onComplete: () {},
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AppState.of(context);
@@ -215,7 +263,6 @@ class _SurahAudioPlayerScreenState
     final lessonTitle =
         ArabicUtils.lessonTitle(_currentPartNumber);
 
-    // Accent color: gold for reciters, brand green for teachers
     final accent = _isReciter ? c.goldText : c.brand;
     final accentHover = _isReciter ? c.goldText : c.brandHover;
 
@@ -317,12 +364,17 @@ class _SurahAudioPlayerScreenState
 
                   const SizedBox(height: 24),
 
-                  // ── Surah Hero (instead of book cover) ──
-                  _SurahHero(
-                    meta: widget.meta,
-                    colors: c,
-                    accent: accent,
-                    isReciter: _isReciter,
+                  // ── Mus'haf cover (tappable → opens Surah PDF) ──
+                  GestureDetector(
+                    onTap: _onCoverTap,
+                    child: _MushafCover(
+                      meta: widget.meta,
+                      colors: c,
+                      accent: accent,
+                      isReciter: _isReciter,
+                      isPdfDownloaded: _isPdfDownloaded,
+                      hasPdfUrl: _hasPdfUrl,
+                    ),
                   ),
 
                   const SizedBox(height: 20),
@@ -357,9 +409,7 @@ class _SurahAudioPlayerScreenState
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          _isReciter
-                              ? 'تلاوة'
-                              : 'تفسير',
+                          _isReciter ? 'تلاوة' : 'تفسير',
                           textDirection: TextDirection.rtl,
                           style: AppText.arabic(
                             color: c.textMuted,
@@ -705,7 +755,7 @@ class _SurahAudioPlayerScreenState
                             child: Text(
                               isActive && isPlaying
                                   ? 'Audio continues in the background — control from the notification'
-                                  : 'Tap play to begin the recitation',
+                                  : 'Tap the cover to open or download the Surah PDF',
                               style: AppText.latin(
                                 color: c.goldText,
                                 size: 11,
@@ -727,42 +777,37 @@ class _SurahAudioPlayerScreenState
   }
 }
 
-// ─── Surah Hero ──────────────────────────────────────────
+// ─── Mus'haf Cover ───────────────────────────────────────
+// Uses assets/mushaf.png with tap overlay just like the
+// book audio player uses the book cover.
 
-class _SurahHero extends StatelessWidget {
+class _MushafCover extends StatelessWidget {
   final SurahMeta meta;
   final AppColors colors;
   final Color accent;
   final bool isReciter;
+  final bool isPdfDownloaded;
+  final bool hasPdfUrl;
 
-  const _SurahHero({
+  const _MushafCover({
     required this.meta,
     required this.colors,
     required this.accent,
     required this.isReciter,
+    required this.isPdfDownloaded,
+    required this.hasPdfUrl,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    final placeAr = meta.revelationPlace == 'meccan'
-        ? 'مكية'
-        : 'مدنية';
 
     return Container(
-      width: 220,
-      padding: const EdgeInsets.all(20),
+      width: 180,
+      height: 240,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            c.goldLine,
-            c.gold.withOpacity(0.28),
-            c.goldLine,
-          ],
-        ),
+        color: c.goldText.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: c.goldText.withOpacity(0.4),
           width: 1.5,
@@ -775,103 +820,98 @@ class _SurahHero extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+      child: Stack(
         children: [
-          // Big Surah number
-          Container(
-            width: 76,
-            height: 76,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: c.goldText.withOpacity(0.15),
-              border: Border.all(
-                color: c.goldText.withOpacity(0.5),
-                width: 2,
-              ),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '${meta.number}',
-              style: AppText.latin(
-                color: c.goldText,
-                size: 28,
-                weight: FontWeight.w700,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: SizedBox.expand(
+              child: Image.asset(
+                'assets/mushaf.png',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Center(
+                  child: Icon(
+                    Icons.import_contacts_rounded,
+                    size: 56,
+                    color: c.goldText,
+                  ),
+                ),
               ),
             ),
           ),
 
-          const SizedBox(height: 14),
-
-          Text(
-            meta.nameAr,
-            textDirection: TextDirection.rtl,
-            style: AppText.arabic(
-              color: c.goldText,
-              size: 26,
-              weight: FontWeight.w700,
-              height: 1.4,
+          // Surah name overlay at bottom
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 34,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.35),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  meta.nameAr,
+                  textDirection: TextDirection.rtl,
+                  style: AppText.arabic(
+                    color: Colors.white,
+                    size: 16,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ),
           ),
 
-          const SizedBox(height: 12),
-
-          Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceEvenly,
-            children: [
-              _HeroChip(
-                icon: Icons.format_list_numbered_rounded,
-                label: '${meta.ayahCount} آية',
-                colors: c,
+          // Open / Download PDF badge
+          if (hasPdfUrl)
+            Positioned(
+              bottom: 8,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.55),
+                    borderRadius:
+                        BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isPdfDownloaded
+                            ? Icons.menu_book_rounded
+                            : Icons.download_rounded,
+                        size: 11,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isPdfDownloaded
+                            ? 'Open'
+                            : 'Download',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              _HeroChip(
-                icon: Icons.location_on_outlined,
-                label: placeAr,
-                colors: c,
-              ),
-              _HeroChip(
-                icon: isReciter
-                    ? Icons.mic_rounded
-                    : Icons.school_rounded,
-                label: isReciter ? 'تلاوة' : 'تفسير',
-                colors: c,
-              ),
-            ],
-          ),
+            ),
         ],
       ),
-    );
-  }
-}
-
-class _HeroChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final AppColors colors;
-
-  const _HeroChip({
-    required this.icon,
-    required this.label,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Column(
-      children: [
-        Icon(icon, size: 16, color: c.goldText),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          textDirection: TextDirection.rtl,
-          style: AppText.arabic(
-            color: c.goldText,
-            size: 11,
-            weight: FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 }
