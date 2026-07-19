@@ -2,11 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
-import '../core/arabic_utils.dart';
 import '../core/audio_service.dart';
-import '../core/download_service.dart';
+import '../core/models.dart';
+import '../core/quran_data.dart';
 import '../core/theme.dart';
 import '../screens/audio_player_screen.dart';
+import '../screens/surah_audio_player_screen.dart';
 
 /// Persistent mini audio player.
 class MiniAudioPlayer extends StatelessWidget {
@@ -36,14 +37,112 @@ class _MiniPlayerBody extends StatelessWidget {
   final AppColors colors;
   const _MiniPlayerBody({required this.colors});
 
+  /// True if the currently playing audio is Quran-related.
+  bool _isQuranAudio(String? bookId) {
+    if (bookId == null) return false;
+    if (bookId == 'mushaf') return true;
+    if (bookId.startsWith('surah_')) return true;
+    return false;
+  }
+
   void _openFullPlayer(BuildContext context) {
     final state = AppState.of(context);
     final bookId = state.audioService.currentBookId;
-    final teacherId = state.audioService.currentTeacherId;
+    final narratorId = state.audioService.currentTeacherId;
     final partNumber = state.audioService.currentPartNumber;
     if (bookId == null ||
-        teacherId == null ||
+        narratorId == null ||
         partNumber == null) return;
+
+    // ── Quran/Surah audio ──
+    if (bookId.startsWith('surah_')) {
+      _openSurahPlayer(context, bookId, narratorId, partNumber);
+      return;
+    }
+
+    // ── Regular book audio ──
+    _openBookPlayer(context, bookId, narratorId, partNumber);
+  }
+
+  void _openSurahPlayer(
+    BuildContext context,
+    String bookId,
+    String narratorId,
+    int partNumber,
+  ) {
+    final state = AppState.of(context);
+
+    // Extract surah number from bookId (e.g., "surah_1" → 1)
+    final surahNumStr = bookId.replaceFirst('surah_', '');
+    final surahNum = int.tryParse(surahNumStr);
+    if (surahNum == null) return;
+
+    // Find the SurahMeta from the hardcoded skeleton
+    SurahMeta? meta;
+    try {
+      meta = QuranSkeleton.all
+          .firstWhere((s) => s.number == surahNum);
+    } catch (_) {
+      return;
+    }
+
+    final surah = state.catalogService.quran.surahFor(surahNum);
+
+    // Try reciter first
+    try {
+      final reciterAudio = surah.reciters
+          .firstWhere((r) => r.reciterId == narratorId);
+      final reciter =
+          state.catalogService.reciterById(narratorId);
+      if (reciter != null) {
+        final partIndex =
+            reciterAudio.parts.indexOf(partNumber);
+        if (partIndex < 0) return;
+        Navigator.of(context, rootNavigator: true).push(
+          MaterialPageRoute(
+            builder: (_) => SurahAudioPlayerScreen.reciter(
+              meta: meta!,
+              reciter: reciter,
+              reciterAudio: reciterAudio,
+              initialPartIndex: partIndex,
+            ),
+          ),
+        );
+        return;
+      }
+    } catch (_) {}
+
+    // Then try teacher
+    try {
+      final teacherAudio = surah.teachers
+          .firstWhere((t) => t.teacherId == narratorId);
+      final teacher =
+          state.catalogService.teacherById(narratorId);
+      if (teacher != null) {
+        final partIndex =
+            teacherAudio.parts.indexOf(partNumber);
+        if (partIndex < 0) return;
+        Navigator.of(context, rootNavigator: true).push(
+          MaterialPageRoute(
+            builder: (_) => SurahAudioPlayerScreen.teacher(
+              meta: meta!,
+              teacher: teacher,
+              teacherAudio: teacherAudio,
+              initialPartIndex: partIndex,
+            ),
+          ),
+        );
+      }
+    } catch (_) {}
+  }
+
+  void _openBookPlayer(
+    BuildContext context,
+    String bookId,
+    String teacherId,
+    int partNumber,
+  ) {
+    final state = AppState.of(context);
 
     try {
       final book = state.catalogService.books
@@ -85,7 +184,8 @@ class _MiniPlayerBody extends StatelessWidget {
         : 0.0;
 
     final bookId = audio.currentBookId;
-    final coverPath = bookId != null
+    final isQuran = _isQuranAudio(bookId);
+    final coverPath = (!isQuran && bookId != null)
         ? state.coverService.coverPath(bookId)
         : null;
 
@@ -132,30 +232,47 @@ class _MiniPlayerBody extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius:
                           BorderRadius.circular(8),
-                      color: c.brand.withOpacity(0.1),
+                      color: isQuran
+                          ? c.goldText.withOpacity(0.1)
+                          : c.brand.withOpacity(0.1),
                       border: Border.all(
-                        color: c.brand.withOpacity(0.25),
+                        color: isQuran
+                            ? c.goldText.withOpacity(0.25)
+                            : c.brand.withOpacity(0.25),
                       ),
                     ),
                     child: ClipRRect(
                       borderRadius:
                           BorderRadius.circular(8),
-                      child: coverPath != null
-                          ? Image.file(
-                              File(coverPath),
+                      child: isQuran
+                          ? Image.asset(
+                              'assets/mushaf.png',
                               fit: BoxFit.cover,
                               errorBuilder:
                                   (_, __, ___) => Icon(
-                                Icons.headphones_rounded,
-                                color: c.brand,
+                                Icons
+                                    .import_contacts_rounded,
+                                color: c.goldText,
                                 size: 20,
                               ),
                             )
-                          : Icon(
-                              Icons.headphones_rounded,
-                              color: c.brand,
-                              size: 20,
-                            ),
+                          : coverPath != null
+                              ? Image.file(
+                                  File(coverPath),
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (_, __, ___) => Icon(
+                                    Icons
+                                        .headphones_rounded,
+                                    color: c.brand,
+                                    size: 20,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.headphones_rounded,
+                                  color: c.brand,
+                                  size: 20,
+                                ),
                     ),
                   ),
 
@@ -213,7 +330,7 @@ class _MiniPlayerBody extends StatelessWidget {
                       height: 38,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: c.brand,
+                        color: isQuran ? c.goldText : c.brand,
                       ),
                       child: isLoading
                           ? const Padding(
