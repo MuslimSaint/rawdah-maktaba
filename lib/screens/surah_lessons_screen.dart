@@ -7,22 +7,15 @@ import '../core/models.dart';
 import '../core/theme.dart';
 import 'surah_audio_player_screen.dart';
 
-/// Type of narrator: reciter (Qari) or teacher (Tafseer).
 enum SurahNarratorType { reciter, teacher }
 
-/// Lessons screen for a Surah narrator (reciter or teacher).
-/// Shows THIS narrator's specific parts for this Surah.
-/// Each narrator is completely independent —
-/// different part counts, different missing episodes.
 class SurahLessonsScreen extends StatefulWidget {
   final SurahMeta meta;
   final SurahNarratorType narratorType;
 
-  /// Present when narratorType == reciter
   final Reciter? reciter;
   final ReciterAudio? reciterAudio;
 
-  /// Present when narratorType == teacher
   final Teacher? teacher;
   final TeacherAudio? teacherAudio;
 
@@ -94,7 +87,6 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
 
-    // Accent color: gold for reciters, brand green for teachers
     final accent = _isReciter ? c.goldText : c.brand;
     final accentBg = _isReciter
         ? c.goldLine
@@ -173,7 +165,6 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Narrator Hero Card ──
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 20),
@@ -334,7 +325,6 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Lesson List ──
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(
@@ -356,9 +346,8 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                     accent: accent,
                     meta: widget.meta,
                     isReciter: _isReciter,
-                    narratorId: _isReciter
-                        ? widget.reciter!.id
-                        : widget.teacher!.id,
+                    reciterAudio: widget.reciterAudio,
+                    teacherAudio: widget.teacherAudio,
                     downloadService: state.downloadService,
                     catalogService: state.catalogService,
                     onTap: () {
@@ -401,8 +390,6 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
     );
   }
 }
-
-// ─── Top Bar ─────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
   final SurahMeta meta;
@@ -473,8 +460,6 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ─── Lesson Row ──────────────────────────────────────────
-
 class _SurahLessonRow extends StatelessWidget {
   final int partNumber;
   final int displayIndex;
@@ -484,7 +469,8 @@ class _SurahLessonRow extends StatelessWidget {
   final Color accent;
   final SurahMeta meta;
   final bool isReciter;
-  final String narratorId;
+  final ReciterAudio? reciterAudio;
+  final TeacherAudio? teacherAudio;
   final DownloadService downloadService;
   final CatalogService catalogService;
   final VoidCallback onTap;
@@ -499,28 +485,33 @@ class _SurahLessonRow extends StatelessWidget {
     required this.accent,
     required this.meta,
     required this.isReciter,
-    required this.narratorId,
+    required this.reciterAudio,
+    required this.teacherAudio,
     required this.downloadService,
     required this.catalogService,
     required this.onTap,
     required this.onCompletedToggle,
   });
 
+  String get _narratorId => isReciter
+      ? reciterAudio!.reciterId
+      : teacherAudio!.teacherId;
+
   String get _fileId => isReciter
       ? DownloadService.surahReciterAudioId(
-          meta.number, narratorId, partNumber)
+          meta.number, _narratorId, partNumber)
       : DownloadService.surahTeacherAudioId(
-          meta.number, narratorId, partNumber);
+          meta.number, _narratorId, partNumber);
 
   String get _audioUrl => isReciter
-      ? catalogService.surahReciterUrl(
+      ? catalogService.surahReciterUrlFor(
           surahNumber: meta.number,
-          reciterId: narratorId,
+          reciterAudio: reciterAudio!,
           partNumber: partNumber,
         )
-      : catalogService.surahTeacherUrl(
+      : catalogService.surahTeacherUrlFor(
           surahNumber: meta.number,
-          teacherId: narratorId,
+          teacherAudio: teacherAudio!,
           partNumber: partNumber,
         );
 
@@ -555,7 +546,6 @@ class _SurahLessonRow extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    // Completion indicator
                     GestureDetector(
                       onTap: onCompletedToggle,
                       child: AnimatedContainer(
@@ -590,7 +580,6 @@ class _SurahLessonRow extends StatelessWidget {
 
                     const SizedBox(width: 14),
 
-                    // Info
                     Expanded(
                       child: Column(
                         crossAxisAlignment:
@@ -621,7 +610,6 @@ class _SurahLessonRow extends StatelessWidget {
 
                     const SizedBox(width: 12),
 
-                    // Download / Play / Cancel
                     GestureDetector(
                       onTap: () {
                         if (isDownloading) {
