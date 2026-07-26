@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/arabic_utils.dart';
 import '../core/audio_service.dart';
+import '../core/cover_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
@@ -10,8 +12,9 @@ import 'surah_detail_screen.dart' show fakeBookForSurah;
 import 'surah_lessons_screen.dart';
 
 /// Audio player for a Surah recitation (Qari) or
-/// tafseer (Teacher). Shows the Mus'haf cover image
-/// (tappable → opens/downloads Surah PDF).
+/// tafseer (Teacher). Cover = the extracted first page of
+/// the Surah PDF (like books), or a gold placeholder icon
+/// if the PDF hasn't been downloaded yet.
 class SurahAudioPlayerScreen extends StatefulWidget {
   final SurahMeta meta;
   final SurahNarratorType narratorType;
@@ -55,6 +58,7 @@ class _SurahAudioPlayerScreenState
   late int _currentPartIndex;
   late AudioService _audioService;
   late DownloadService _downloadService;
+  late CoverService _coverService;
 
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
@@ -79,10 +83,21 @@ class _SurahAudioPlayerScreenState
   String get _surahPdfFileId =>
       'pdf_surah_${widget.meta.number}';
 
+  String get _surahCoverKey => 'surah_${widget.meta.number}';
+
   @override
   void initState() {
     super.initState();
     _currentPartIndex = widget.initialPartIndex;
+
+    // ── FIX (Gray Screen Bug) ──
+    // Bind services synchronously so the first build frame
+    // has valid _audioService / _downloadService /
+    // _coverService references.
+    final state = AppState.of(context);
+    _audioService = state.audioService;
+    _downloadService = state.downloadService;
+    _coverService = state.coverService;
 
     _slideController = AnimationController(
       vsync: this,
@@ -98,10 +113,7 @@ class _SurahAudioPlayerScreenState
     _slideController.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final state = AppState.of(context);
-      _audioService = state.audioService;
-      _downloadService = state.downloadService;
-
+      if (!mounted) return;
       if (_audioService.currentFileId != _currentFileId) {
         if (_audioService.currentFileId == null &&
             _isCurrentDownloaded) {
@@ -159,13 +171,15 @@ class _SurahAudioPlayerScreenState
     if (path == null) return null;
 
     final lessonTitle = ArabicUtils.lessonTitle(partNumber);
+    final coverPath =
+        _coverService.coverPath(_surahCoverKey);
 
     return AudioResolution(
       filePath: path,
       fileId: fileId,
       title: '${widget.meta.nameAr} — $lessonTitle',
       subtitle: _narratorNameAr,
-      artPath: null,
+      artPath: coverPath,
     );
   }
 
@@ -218,8 +232,6 @@ class _SurahAudioPlayerScreenState
   }
 
   Future<void> _onCoverTap() async {
-    // Same behavior as book audio player: tap cover =
-    // open PDF if downloaded, otherwise download it.
     if (_isPdfDownloaded) {
       final path =
           await _downloadService.localPath(_surahPdfFileId);
@@ -275,6 +287,7 @@ class _SurahAudioPlayerScreenState
             listenable: Listenable.merge([
               state.audioService,
               state.downloadService,
+              state.coverService,
             ]),
             builder: (context, _) {
               final isPlaying = _audioService.isPlaying;
@@ -289,7 +302,6 @@ class _SurahAudioPlayerScreenState
 
               return Column(
                 children: [
-                  // ── Top Bar ──
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                         20, 16, 20, 0),
@@ -364,14 +376,14 @@ class _SurahAudioPlayerScreenState
 
                   const SizedBox(height: 24),
 
-                  // ── Mus'haf cover (tappable → opens Surah PDF) ──
                   GestureDetector(
                     onTap: _onCoverTap,
-                    child: _MushafCover(
+                    child: _SurahCover(
                       meta: widget.meta,
+                      coverService: _coverService,
+                      surahCoverKey: _surahCoverKey,
                       colors: c,
                       accent: accent,
-                      isReciter: _isReciter,
                       isPdfDownloaded: _isPdfDownloaded,
                       hasPdfUrl: _hasPdfUrl,
                     ),
@@ -379,7 +391,6 @@ class _SurahAudioPlayerScreenState
 
                   const SizedBox(height: 20),
 
-                  // ── Info ──
                   Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 32),
@@ -498,7 +509,6 @@ class _SurahAudioPlayerScreenState
                     const SizedBox(height: 12),
                   ],
 
-                  // ── Seek Bar ──
                   Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24),
@@ -587,7 +597,6 @@ class _SurahAudioPlayerScreenState
 
                   const SizedBox(height: 12),
 
-                  // ── Controls ──
                   Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24),
@@ -611,7 +620,6 @@ class _SurahAudioPlayerScreenState
                               : null,
                         ),
 
-                        // Play / Pause button
                         GestureDetector(
                           onTap: _isCurrentDownloaded
                               ? () {
@@ -777,23 +785,26 @@ class _SurahAudioPlayerScreenState
   }
 }
 
-// ─── Mus'haf Cover ───────────────────────────────────────
-// Uses assets/mushaf.png with tap overlay just like the
-// book audio player uses the book cover.
+// ─── Surah Cover ─────────────────────────────────────────
+// Uses the extracted first page of the Surah PDF via
+// CoverService. Falls back to a gold placeholder icon
+// if the PDF hasn't been downloaded yet.
 
-class _MushafCover extends StatelessWidget {
+class _SurahCover extends StatelessWidget {
   final SurahMeta meta;
+  final CoverService coverService;
+  final String surahCoverKey;
   final AppColors colors;
   final Color accent;
-  final bool isReciter;
   final bool isPdfDownloaded;
   final bool hasPdfUrl;
 
-  const _MushafCover({
+  const _SurahCover({
     required this.meta,
+    required this.coverService,
+    required this.surahCoverKey,
     required this.colors,
     required this.accent,
-    required this.isReciter,
     required this.isPdfDownloaded,
     required this.hasPdfUrl,
   });
@@ -801,6 +812,7 @@ class _MushafCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
+    final coverPath = coverService.coverPath(surahCoverKey);
 
     return Container(
       width: 180,
@@ -825,45 +837,14 @@ class _MushafCover extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
             child: SizedBox.expand(
-              child: Image.asset(
-                'assets/mushaf.png',
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Center(
-                  child: Icon(
-                    Icons.import_contacts_rounded,
-                    size: 56,
-                    color: c.goldText,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // Surah name overlay at bottom
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 34,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.35),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  meta.nameAr,
-                  textDirection: TextDirection.rtl,
-                  style: AppText.arabic(
-                    color: Colors.white,
-                    size: 16,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-              ),
+              child: coverPath != null
+                  ? Image.file(
+                      File(coverPath),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _placeholder(c),
+                    )
+                  : _placeholder(c),
             ),
           ),
 
@@ -910,6 +891,32 @@ class _MushafCover extends StatelessWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(AppColors c) {
+    return Container(
+      color: c.goldText.withOpacity(0.08),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.menu_book_rounded,
+            size: 56,
+            color: c.goldText,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            meta.nameAr,
+            textDirection: TextDirection.rtl,
+            style: AppText.arabic(
+              color: c.goldText,
+              size: 16,
+              weight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
