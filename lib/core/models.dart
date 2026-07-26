@@ -110,23 +110,46 @@ class TeacherAudio {
   final String teacherId;
   final List<int> parts;
 
+  /// Optional per-part direct URL overrides.
+  /// Key = part number (as int). Value = full https URL.
+  /// If a part is present here, the app uses this URL
+  /// instead of the auto-built URL from audioBaseUrl.
+  final Map<int, String> urls;
+
   const TeacherAudio({
     required this.teacherId,
     required this.parts,
+    this.urls = const {},
   });
 
   factory TeacherAudio.fromJson(Map<String, dynamic> json) {
+    // Parse the optional urls map: {"1": "https://...", "2": "https://..."}
+    final urlsRaw =
+        json['urls'] as Map<String, dynamic>? ?? const {};
+    final urls = <int, String>{};
+    urlsRaw.forEach((key, value) {
+      final n = int.tryParse(key);
+      if (n != null && value is String && value.isNotEmpty) {
+        urls[n] = value;
+      }
+    });
+
     return TeacherAudio(
       teacherId: json['teacherId'] as String,
       parts: (json['parts'] as List)
           .map((p) => p as int)
           .toList(),
+      urls: urls,
     );
   }
 
   int get totalParts => parts.length;
   bool hasPart(int partNumber) => parts.contains(partNumber);
   int indexOf(int partNumber) => parts.indexOf(partNumber);
+
+  /// Returns the catalog-provided direct URL for this part,
+  /// or null if none is set (caller should then use auto-URL).
+  String? urlForPart(int partNumber) => urls[partNumber];
 }
 
 // ─── ReciterAudio ────────────────────────────────────────
@@ -135,23 +158,41 @@ class ReciterAudio {
   final String reciterId;
   final List<int> parts;
 
+  /// Optional per-part direct URL overrides.
+  /// Same semantics as TeacherAudio.urls.
+  final Map<int, String> urls;
+
   const ReciterAudio({
     required this.reciterId,
     required this.parts,
+    this.urls = const {},
   });
 
   factory ReciterAudio.fromJson(Map<String, dynamic> json) {
+    final urlsRaw =
+        json['urls'] as Map<String, dynamic>? ?? const {};
+    final urls = <int, String>{};
+    urlsRaw.forEach((key, value) {
+      final n = int.tryParse(key);
+      if (n != null && value is String && value.isNotEmpty) {
+        urls[n] = value;
+      }
+    });
+
     return ReciterAudio(
       reciterId: json['reciterId'] as String,
       parts: (json['parts'] as List)
           .map((p) => p as int)
           .toList(),
+      urls: urls,
     );
   }
 
   int get totalParts => parts.length;
   bool hasPart(int partNumber) => parts.contains(partNumber);
   int indexOf(int partNumber) => parts.indexOf(partNumber);
+
+  String? urlForPart(int partNumber) => urls[partNumber];
 }
 
 // ─── Book ────────────────────────────────────────────────
@@ -342,8 +383,6 @@ class Surah {
 }
 
 // ─── MushafExtra ─────────────────────────────────────────
-// An extra entry in the Mus'haf content table.
-// For things like Du'a Khatm Al-Quran that aren't Surahs.
 
 class MushafExtra {
   final String titleAr;
@@ -363,10 +402,6 @@ class MushafExtra {
 }
 
 // ─── MushafEdition ───────────────────────────────────────
-// A single Mus'haf edition (Hafs, Warsh, Tajweed, etc.).
-// Multiple editions can live inside the same "mushaf"
-// sub-branch. Each has its own PDF, page mapping,
-// last-read position, and bookmarks.
 
 class MushafEdition {
   final String id;
@@ -447,15 +482,7 @@ class QuranSubBranch {
   final String titleAr;
   final String titleEn;
   final String titleAm;
-
-  /// For type=mushaf only: list of Mus'haf editions.
-  /// Each edition is a separate downloadable PDF with
-  /// its own name, page mapping, and reading progress.
   final List<MushafEdition> editions;
-
-  /// For type=mushaf: optional books that also appear
-  /// inside this sub-branch (e.g. Ulum al-Quran).
-  /// For type=branch: books inside this sub-branch.
   final List<Book> books;
 
   const QuranSubBranch({
@@ -489,8 +516,6 @@ class QuranSubBranch {
     final titleEn = json['titleEn'] as String? ?? '';
     final titleAmRaw = json['titleAm'] as String? ?? '';
 
-    // Parse editions. If missing, fall back to legacy
-    // top-level pdfUrl / surahPages / extras (single edition).
     List<MushafEdition> editions = const [];
     if (type == QuranSubBranchType.mushaf) {
       final editionsRaw = json['editions'] as List?;
@@ -501,9 +526,6 @@ class QuranSubBranch {
             .where((e) => e.hasPdf || e.hasContentTable)
             .toList();
       } else {
-        // Legacy single-edition fallback. Uses the
-        // sub-branch's own id ("mushaf") so the file ID
-        // stays `pdf_mushaf` and old downloads keep working.
         final legacyPdfUrl =
             json['pdfUrl'] as String? ?? '';
 
@@ -572,7 +594,6 @@ class QuranSubBranch {
     }
   }
 
-  /// True if this mushaf sub-branch has at least one edition.
   bool get hasEditions => editions.isNotEmpty;
 }
 
