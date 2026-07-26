@@ -54,15 +54,26 @@ class RawdahApp extends StatelessWidget {
       child: ListenableBuilder(
         listenable: appState,
         builder: (context, _) {
+          final baseTheme = buildTheme(appState.isDark);
+          // Attach a smooth global page transition so route
+          // pushes feel cohesive (no more per-screen flashes).
+          final themeWithTransitions = baseTheme.copyWith(
+            pageTransitionsTheme:
+                const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android:
+                    _SmoothPageTransitionsBuilder(),
+                TargetPlatform.iOS:
+                    _SmoothPageTransitionsBuilder(),
+              },
+            ),
+          );
+
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             title: 'مكتبة الروضة',
-            theme: buildTheme(appState.isDark),
+            theme: themeWithTransitions,
             home: const AppRouter(),
-
-            // ── Persistent mini audio player overlay ──
-            // Wraps every route in a Stack so the mini player
-            // shows on top of ALL screens, not just tabs.
             builder: (context, child) {
               return _AppShell(child: child);
             },
@@ -73,9 +84,43 @@ class RawdahApp extends StatelessWidget {
   }
 }
 
+/// Smooth subtle page transition: 180ms fade + tiny slide-up.
+/// Feels premium without being flashy. Used for every route.
+class _SmoothPageTransitionsBuilder
+    extends PageTransitionsBuilder {
+  const _SmoothPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final fade = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+    );
+    final slide = Tween<Offset>(
+      begin: const Offset(0, 0.02),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+    ));
+
+    return FadeTransition(
+      opacity: fade,
+      child: SlideTransition(
+        position: slide,
+        child: child,
+      ),
+    );
+  }
+}
+
 /// Wraps every route with the persistent mini audio player.
-/// The mini player only appears when audio is active AND
-/// the user is past the pre-login screens.
 class _AppShell extends StatelessWidget {
   final Widget? child;
   const _AppShell({required this.child});
@@ -83,9 +128,6 @@ class _AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppState.of(context);
-
-    // Do not show mini player during pre-login flow.
-    // Only show it once the user is fully signed in.
     final showMini = state.isSignedIn && !state.isFirstLaunch;
 
     return Stack(
@@ -103,10 +145,6 @@ class _AppShell extends StatelessWidget {
   }
 }
 
-/// Handles the initial routing:
-/// splash → welcome (first launch only)
-/// splash → auth (not signed in)
-/// splash → main (signed in)
 class AppRouter extends StatefulWidget {
   const AppRouter({super.key});
 
