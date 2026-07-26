@@ -759,12 +759,16 @@ class _BookCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
+    final state = AppState.of(context);
 
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => BookDetailScreen(book: book),
+            builder: (_) => BookDetailScreen(
+              book: book,
+              catalogService: state.catalogService,
+            ),
           ),
         );
       },
