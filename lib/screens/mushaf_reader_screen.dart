@@ -8,12 +8,14 @@ import '../core/quran_data.dart';
 import '../core/theme.dart';
 
 /// Dedicated Mus'haf reader — horizontal swipe + Surah index + bookmarks.
+/// Now edition-aware: each edition has its own PDF, page mapping,
+/// bookmarks, and last-read page.
 class MushafReaderScreen extends StatefulWidget {
-  final QuranSubBranch sub;
+  final MushafEdition edition;
 
   const MushafReaderScreen({
     super.key,
-    required this.sub,
+    required this.edition,
   });
 
   @override
@@ -23,8 +25,8 @@ class MushafReaderScreen extends StatefulWidget {
 
 class _MushafReaderScreenState
     extends State<MushafReaderScreen> {
-  static const _fileId = 'pdf_mushaf';
-  static const _pdfKey = 'mushaf';
+  late final String _fileId;
+  late final String _pdfKey;
 
   int _currentPage = 0;
   int _totalPages = 0;
@@ -41,6 +43,19 @@ class _MushafReaderScreenState
   @override
   void initState() {
     super.initState();
+
+    // File ID: `pdf_mushaf` for the default edition ("mushaf"),
+    // `pdf_mushaf_<editionId>` for any other edition.
+    _fileId = widget.edition.id == 'mushaf'
+        ? 'pdf_mushaf'
+        : 'pdf_mushaf_${widget.edition.id}';
+
+    // PDF key for bookmarks: `mushaf` for default,
+    // `mushaf_<editionId>` for others.
+    _pdfKey = widget.edition.id == 'mushaf'
+        ? 'mushaf'
+        : 'mushaf_${widget.edition.id}';
+
     _bookmarkService.init().then((_) {
       _bookmarkService.setActivePdf(_pdfKey);
     });
@@ -52,7 +67,7 @@ class _MushafReaderScreenState
   Future<void> _init() async {
     final state = AppState.of(context);
 
-    _defaultPage = state.mushafLastPage;
+    _defaultPage = state.mushafLastPageFor(widget.edition.id);
     _currentPage = _defaultPage;
 
     final downloadService = state.downloadService;
@@ -65,7 +80,7 @@ class _MushafReaderScreenState
       return;
     }
 
-    if (widget.sub.pdfUrl.isEmpty) {
+    if (widget.edition.pdfUrl.isEmpty) {
       if (mounted) {
         setState(() {
           _errorMessage =
@@ -78,8 +93,8 @@ class _MushafReaderScreenState
 
     await downloadService.download(
       fileId: _fileId,
-      url: widget.sub.pdfUrl,
-      displayName: 'القرآن الكريم',
+      url: widget.edition.pdfUrl,
+      displayName: widget.edition.titleAr,
       bookId: 'mushaf',
       onError: (msg) {
         if (mounted) {
@@ -113,7 +128,8 @@ class _MushafReaderScreenState
       _totalPages = total;
       _showLoadingOverlay = false;
     });
-    await AppState.of(context).setMushafLastPage(page);
+    await AppState.of(context)
+        .setMushafLastPageFor(widget.edition.id, page);
   }
 
   void _jumpToPage(int page) {
@@ -143,7 +159,7 @@ class _MushafReaderScreenState
           expand: false,
           builder: (ctx, scrollController) {
             return _SurahIndexContent(
-              sub: widget.sub,
+              edition: widget.edition,
               colors: c,
               language: lang,
               scrollController: scrollController,
@@ -443,7 +459,7 @@ class _MushafReaderScreenState
 
                   Expanded(
                     child: Text(
-                      'القرآن الكريم',
+                      widget.edition.titleAr,
                       textDirection: TextDirection.rtl,
                       textAlign: TextAlign.right,
                       maxLines: 1,
@@ -461,7 +477,7 @@ class _MushafReaderScreenState
                   // Surah index button
                   if (_isReady &&
                       !_showLoadingOverlay &&
-                      widget.sub.hasContentTable)
+                      widget.edition.hasContentTable)
                     GestureDetector(
                       onTap: _showSurahIndex,
                       child: Container(
@@ -695,6 +711,8 @@ class _MushafReaderScreenState
                     _LoadingOverlay(
                       colors: c,
                       downloadService: downloadService,
+                      fileId: _fileId,
+                      title: widget.edition.titleAr,
                       errorMessage: _errorMessage,
                       defaultPage: _defaultPage,
                     ),
@@ -729,8 +747,9 @@ class _MushafReaderScreenState
                       ),
                     ),
                     child: Text(
-                      'Mus\'haf · Page ${_currentPage + 1} of $_totalPages',
-                      style: AppText.latin(
+                      '${widget.edition.titleAr} · Page ${_currentPage + 1} of $_totalPages',
+                      textDirection: TextDirection.rtl,
+                      style: AppText.arabic(
                         color: c.goldText,
                         size: 12,
                         weight: FontWeight.w700,
@@ -749,14 +768,14 @@ class _MushafReaderScreenState
 // ─── Surah Index Content ─────────────────────────────────
 
 class _SurahIndexContent extends StatelessWidget {
-  final QuranSubBranch sub;
+  final MushafEdition edition;
   final AppColors colors;
   final String language;
   final ScrollController scrollController;
   final void Function(int page) onSurahTap;
 
   const _SurahIndexContent({
-    required this.sub,
+    required this.edition,
     required this.colors,
     required this.language,
     required this.scrollController,
@@ -771,7 +790,7 @@ class _SurahIndexContent extends StatelessWidget {
 
     for (int i = 1; i <= 114; i++) {
       final meta = QuranSkeleton.byNumber(i);
-      final page = sub.pageForSurah(i);
+      final page = edition.pageForSurah(i);
       if (meta != null && page != null) {
         items.add(_IndexItem(
           number: i,
@@ -784,7 +803,7 @@ class _SurahIndexContent extends StatelessWidget {
       }
     }
 
-    for (final extra in sub.extras) {
+    for (final extra in edition.extras) {
       if (extra.page > 0 && extra.titleAr.isNotEmpty) {
         items.add(_IndexItem(
           number: null,
@@ -1112,12 +1131,16 @@ class _BookmarkRow extends StatelessWidget {
 class _LoadingOverlay extends StatelessWidget {
   final AppColors colors;
   final DownloadService downloadService;
+  final String fileId;
+  final String title;
   final String? errorMessage;
   final int defaultPage;
 
   const _LoadingOverlay({
     required this.colors,
     required this.downloadService,
+    required this.fileId,
+    required this.title,
     required this.errorMessage,
     required this.defaultPage,
   });
@@ -1130,9 +1153,9 @@ class _LoadingOverlay extends StatelessWidget {
       listenable: downloadService,
       builder: (context, _) {
         final isDownloading =
-            downloadService.isDownloading('pdf_mushaf');
+            downloadService.isDownloading(fileId);
         final progress =
-            downloadService.progress('pdf_mushaf');
+            downloadService.progress(fileId);
         final percent = (progress * 100).toInt();
 
         return Container(
@@ -1175,8 +1198,10 @@ class _LoadingOverlay extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Downloading Mus\'haf...',
-                      style: AppText.latin(
+                      'Downloading $title...',
+                      textAlign: TextAlign.center,
+                      textDirection: TextDirection.rtl,
+                      style: AppText.arabic(
                         color: c.textPrimary,
                         size: 15,
                         weight: FontWeight.w700,
