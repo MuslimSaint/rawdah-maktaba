@@ -54,7 +54,6 @@ class _MiniPlayerBody extends StatelessWidget {
       _openSurahPlayer(context, bookId, narratorId, partNumber);
       return;
     }
-
     _openBookPlayer(context, bookId, narratorId, partNumber);
   }
 
@@ -75,7 +74,6 @@ class _MiniPlayerBody extends StatelessWidget {
 
     final surah = state.catalogService.quran.surahFor(surahNum);
 
-    // Try reciter first
     try {
       final reciterAudio = surah.reciters
           .firstWhere((r) => r.reciterId == narratorId);
@@ -99,7 +97,6 @@ class _MiniPlayerBody extends StatelessWidget {
       }
     } catch (_) {}
 
-    // Then try teacher
     try {
       final teacherAudio = surah.teachers
           .firstWhere((t) => t.teacherId == narratorId);
@@ -131,8 +128,6 @@ class _MiniPlayerBody extends StatelessWidget {
   ) {
     final state = AppState.of(context);
 
-    // Search books in all catalog sources (main list +
-    // books living inside Quran sub-branches).
     Book? book;
     try {
       book = state.catalogService.books
@@ -186,10 +181,6 @@ class _MiniPlayerBody extends StatelessWidget {
     final isSurah = _isSurahAudio(bookId);
     final isQuran = isMushaf || isSurah;
 
-    // Cover resolution:
-    // - Mus'haf audio → mushaf.png (there is no per-Mus'haf cover)
-    // - Surah audio  → extracted PDF cover for that Surah, fallback to icon
-    // - Book audio   → extracted book cover, fallback to icon
     String? surahCoverPath;
     if (isSurah && bookId != null) {
       surahCoverPath = state.coverService.coverPath(bookId);
@@ -218,165 +209,200 @@ class _MiniPlayerBody extends StatelessWidget {
             ),
           ),
 
-          // ── Tap-anywhere body ──
-          // We use a Stack: the bottom layer is a
-          // full-width GestureDetector that opens the
-          // full player. The 4 button GestureDetectors
-          // sit on top and win their own taps (Flutter
-          // gives child gesture recognizers priority).
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _openFullPlayer(context),
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: c.goldLine,
-                    width: 1,
-                  ),
+          // ── Tap-anywhere body via Stack layering ──
+          // Bottom layer = full-size invisible tap target
+          // that opens the full player.
+          // Top layer = the visual Row. Only the 4 button
+          // GestureDetectors intercept their own taps.
+          // Any pixel outside a button falls through to the
+          // bottom layer.
+          Container(
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: c.goldLine,
+                  width: 1,
                 ),
               ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 8,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      borderRadius:
-                          BorderRadius.circular(8),
-                      color: isQuran
-                          ? c.goldText.withOpacity(0.1)
-                          : c.brand.withOpacity(0.1),
-                      border: Border.all(
-                        color: isQuran
-                            ? c.goldText.withOpacity(0.25)
-                            : c.brand.withOpacity(0.25),
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(8),
-                      child: _buildCover(
-                        c: c,
-                        isMushaf: isMushaf,
-                        isSurah: isSurah,
-                        surahCoverPath: surahCoverPath,
-                        bookCoverPath: bookCoverPath,
-                      ),
-                    ),
+            ),
+            child: Stack(
+              children: [
+                // Bottom layer: full-size tap catcher.
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _openFullPlayer(context),
                   ),
+                ),
 
-                  const SizedBox(width: 10),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          audio.currentTitle ?? '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textDirection: TextDirection.rtl,
-                          style: AppText.arabic(
-                            color: c.textPrimary,
-                            size: 12,
-                            weight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          audio.currentSubtitle ?? '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textDirection: TextDirection.rtl,
-                          style: AppText.arabic(
-                            color: c.goldText,
-                            size: 10,
-                          ),
-                        ),
-                      ],
-                    ),
+                // Top layer: the visible row.
+                // IgnorePointer=false is default; buttons
+                // will absorb their own taps.
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
                   ),
-
-                  const SizedBox(width: 6),
-
-                  _MiniButton(
-                    icon: Icons.skip_previous_rounded,
-                    enabled: hasPrev,
-                    colors: c,
-                    onTap: hasPrev
-                        ? () => audio.skipToPrevious()
-                        : null,
-                  ),
-
-                  const SizedBox(width: 2),
-
-                  GestureDetector(
-                    onTap: () => audio.togglePlay(),
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isQuran ? c.goldText : c.brand,
-                      ),
-                      child: isLoading
-                          ? const Padding(
-                              padding: EdgeInsets.all(10),
-                              child:
-                                  CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(
-                              isPlaying
-                                  ? Icons.pause_rounded
-                                  : Icons
-                                      .play_arrow_rounded,
-                              color: Colors.white,
-                              size: 22,
+                  child: Row(
+                    children: [
+                      // Cover thumbnail — NO gesture detector;
+                      // taps fall through to the bottom layer.
+                      SizedBox(
+                        width: 42,
+                        height: 42,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius:
+                                BorderRadius.circular(8),
+                            color: isQuran
+                                ? c.goldText.withOpacity(0.1)
+                                : c.brand.withOpacity(0.1),
+                            border: Border.all(
+                              color: isQuran
+                                  ? c.goldText
+                                      .withOpacity(0.25)
+                                  : c.brand
+                                      .withOpacity(0.25),
                             ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 2),
-
-                  _MiniButton(
-                    icon: Icons.skip_next_rounded,
-                    enabled: hasNext,
-                    colors: c,
-                    onTap: hasNext
-                        ? () => audio.skipToNext()
-                        : null,
-                  ),
-
-                  const SizedBox(width: 4),
-
-                  GestureDetector(
-                    onTap: () => audio.stop(),
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: c.surface2,
+                          ),
+                          child: ClipRRect(
+                            borderRadius:
+                                BorderRadius.circular(8),
+                            child: _buildCover(
+                              c: c,
+                              isMushaf: isMushaf,
+                              isSurah: isSurah,
+                              surahCoverPath:
+                                  surahCoverPath,
+                              bookCoverPath:
+                                  bookCoverPath,
+                            ),
+                          ),
+                        ),
                       ),
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: c.textMuted,
-                        size: 15,
+
+                      const SizedBox(width: 10),
+
+                      // Title + subtitle — no gesture detector;
+                      // taps fall through.
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              audio.currentTitle ?? '',
+                              maxLines: 1,
+                              overflow:
+                                  TextOverflow.ellipsis,
+                              textDirection:
+                                  TextDirection.rtl,
+                              style: AppText.arabic(
+                                color: c.textPrimary,
+                                size: 12,
+                                weight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              audio.currentSubtitle ?? '',
+                              maxLines: 1,
+                              overflow:
+                                  TextOverflow.ellipsis,
+                              textDirection:
+                                  TextDirection.rtl,
+                              style: AppText.arabic(
+                                color: c.goldText,
+                                size: 10,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+
+                      const SizedBox(width: 6),
+
+                      _MiniButton(
+                        icon:
+                            Icons.skip_previous_rounded,
+                        enabled: hasPrev,
+                        colors: c,
+                        onTap: hasPrev
+                            ? () => audio.skipToPrevious()
+                            : null,
+                      ),
+
+                      const SizedBox(width: 2),
+
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => audio.togglePlay(),
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isQuran
+                                ? c.goldText
+                                : c.brand,
+                          ),
+                          child: isLoading
+                              ? const Padding(
+                                  padding:
+                                      EdgeInsets.all(10),
+                                  child:
+                                      CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Icon(
+                                  isPlaying
+                                      ? Icons
+                                          .pause_rounded
+                                      : Icons
+                                          .play_arrow_rounded,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 2),
+
+                      _MiniButton(
+                        icon: Icons.skip_next_rounded,
+                        enabled: hasNext,
+                        colors: c,
+                        onTap: hasNext
+                            ? () => audio.skipToNext()
+                            : null,
+                      ),
+
+                      const SizedBox(width: 4),
+
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => audio.stop(),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: c.surface2,
+                          ),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: c.textMuted,
+                            size: 15,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -391,7 +417,6 @@ class _MiniPlayerBody extends StatelessWidget {
     required String? surahCoverPath,
     required String? bookCoverPath,
   }) {
-    // Mus'haf: use the shared mushaf.png icon
     if (isMushaf) {
       return Image.asset(
         'assets/mushaf.png',
@@ -404,8 +429,6 @@ class _MiniPlayerBody extends StatelessWidget {
       );
     }
 
-    // Surah: use extracted PDF cover if available,
-    // otherwise a gold placeholder icon (NOT mushaf.png)
     if (isSurah) {
       if (surahCoverPath != null) {
         return Image.file(
@@ -425,7 +448,6 @@ class _MiniPlayerBody extends StatelessWidget {
       );
     }
 
-    // Regular book: extracted cover or headphones icon
     if (bookCoverPath != null) {
       return Image.file(
         File(bookCoverPath),
