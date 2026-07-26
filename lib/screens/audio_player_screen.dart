@@ -46,6 +46,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     super.initState();
     _currentPartIndex = widget.initialPartIndex;
 
+    // ── FIX (Gray Screen Bug) ──
+    // Bind services synchronously here so the first build
+    // frame has valid _audioService / _downloadService /
+    // _coverService references. Only the auto-start
+    // decision stays deferred to a post-frame callback.
+    final state = AppState.of(context);
+    _audioService = state.audioService;
+    _downloadService = state.downloadService;
+    _coverService = state.coverService;
+
     _slideController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 350),
@@ -60,11 +70,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     _slideController.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final state = AppState.of(context);
-      _audioService = state.audioService;
-      _downloadService = state.downloadService;
-      _coverService = state.coverService;
-
+      if (!mounted) return;
       if (_audioService.currentFileId != _currentFileId) {
         if (_audioService.currentFileId == null &&
             _isCurrentDownloaded) {
@@ -100,9 +106,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
   bool get _isPdfDownloaded =>
       _downloadService.isDownloaded(_pdfFileId);
 
-  /// Resolves a part number to a playable AudioResolution.
-  /// Used both here and by AudioService for notification
-  /// / headphone prev/next actions.
   Future<AudioResolution?> _resolvePart(int partNumber) async {
     final fileId = DownloadService.audioId(
       widget.book.id,
@@ -236,7 +239,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
               return Column(
                 children: [
-                  // ── Top Bar ──
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                         20, 16, 20, 0),
@@ -311,7 +313,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   const SizedBox(height: 24),
 
-                  // ── Big Book Cover (tappable) ──
                   GestureDetector(
                     onTap: _onCoverTap,
                     child: _BigCover(
@@ -326,7 +327,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   const SizedBox(height: 20),
 
-                  // ── Info ──
                   Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 32),
@@ -445,7 +445,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                     const SizedBox(height: 12),
                   ],
 
-                  // ── Seek Bar ──
                   Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24),
@@ -533,7 +532,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
 
                   const SizedBox(height: 12),
 
-                  // ── Controls ──
                   Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24),
@@ -557,7 +555,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
                               : null,
                         ),
 
-                        // Play / Pause button
                         GestureDetector(
                           onTap: _isCurrentDownloaded
                               ? () {
