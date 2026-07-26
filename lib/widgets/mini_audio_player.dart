@@ -37,13 +37,9 @@ class _MiniPlayerBody extends StatelessWidget {
   final AppColors colors;
   const _MiniPlayerBody({required this.colors});
 
-  /// True if the currently playing audio is Quran-related.
-  bool _isQuranAudio(String? bookId) {
-    if (bookId == null) return false;
-    if (bookId == 'mushaf') return true;
-    if (bookId.startsWith('surah_')) return true;
-    return false;
-  }
+  bool _isMushafAudio(String? bookId) => bookId == 'mushaf';
+  bool _isSurahAudio(String? bookId) =>
+      bookId != null && bookId.startsWith('surah_');
 
   void _openFullPlayer(BuildContext context) {
     final state = AppState.of(context);
@@ -54,13 +50,11 @@ class _MiniPlayerBody extends StatelessWidget {
         narratorId == null ||
         partNumber == null) return;
 
-    // ── Quran/Surah audio ──
-    if (bookId.startsWith('surah_')) {
+    if (_isSurahAudio(bookId)) {
       _openSurahPlayer(context, bookId, narratorId, partNumber);
       return;
     }
 
-    // ── Regular book audio ──
     _openBookPlayer(context, bookId, narratorId, partNumber);
   }
 
@@ -72,12 +66,10 @@ class _MiniPlayerBody extends StatelessWidget {
   ) {
     final state = AppState.of(context);
 
-    // Extract surah number from bookId (e.g., "surah_1" → 1)
     final surahNumStr = bookId.replaceFirst('surah_', '');
     final surahNum = int.tryParse(surahNumStr);
     if (surahNum == null) return;
 
-    // Find the SurahMeta from the hardcoded skeleton
     final meta = QuranSkeleton.byNumber(surahNum);
     if (meta == null) return;
 
@@ -139,29 +131,40 @@ class _MiniPlayerBody extends StatelessWidget {
   ) {
     final state = AppState.of(context);
 
+    // Search books in all catalog sources (main list +
+    // books living inside Quran sub-branches).
+    Book? book;
     try {
-      final book = state.catalogService.books
+      book = state.catalogService.books
           .firstWhere((b) => b.id == bookId);
-      final teacher =
-          state.catalogService.teacherById(teacherId);
-      if (teacher == null) return;
-      final teacherAudio = book.audioForTeacher(teacherId);
-      if (teacherAudio == null) return;
-      final partIndex =
-          teacherAudio.parts.indexOf(partNumber);
-      if (partIndex < 0) return;
+    } catch (_) {
+      for (final sub in state.catalogService.quranSubBranches) {
+        try {
+          book = sub.books.firstWhere((b) => b.id == bookId);
+          break;
+        } catch (_) {}
+      }
+    }
+    if (book == null) return;
 
-      Navigator.of(context, rootNavigator: true).push(
-        MaterialPageRoute(
-          builder: (_) => AudioPlayerScreen(
-            book: book,
-            teacher: teacher,
-            teacherAudio: teacherAudio,
-            initialPartIndex: partIndex,
-          ),
+    final teacher =
+        state.catalogService.teacherById(teacherId);
+    if (teacher == null) return;
+    final teacherAudio = book.audioForTeacher(teacherId);
+    if (teacherAudio == null) return;
+    final partIndex = teacherAudio.parts.indexOf(partNumber);
+    if (partIndex < 0) return;
+
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        builder: (_) => AudioPlayerScreen(
+          book: book!,
+          teacher: teacher,
+          teacherAudio: teacherAudio,
+          initialPartIndex: partIndex,
         ),
-      );
-    } catch (_) {}
+      ),
+    );
   }
 
   @override
@@ -179,8 +182,19 @@ class _MiniPlayerBody extends StatelessWidget {
         : 0.0;
 
     final bookId = audio.currentBookId;
-    final isQuran = _isQuranAudio(bookId);
-    final coverPath = (!isQuran && bookId != null)
+    final isMushaf = _isMushafAudio(bookId);
+    final isSurah = _isSurahAudio(bookId);
+    final isQuran = isMushaf || isSurah;
+
+    // Cover resolution:
+    // - Mus'haf audio → mushaf.png (there is no per-Mus'haf cover)
+    // - Surah audio  → extracted PDF cover for that Surah, fallback to icon
+    // - Book audio   → extracted book cover, fallback to icon
+    String? surahCoverPath;
+    if (isSurah && bookId != null) {
+      surahCoverPath = state.coverService.coverPath(bookId);
+    }
+    final bookCoverPath = (!isQuran && bookId != null)
         ? state.coverService.coverPath(bookId)
         : null;
 
@@ -204,7 +218,14 @@ class _MiniPlayerBody extends StatelessWidget {
             ),
           ),
 
-          InkWell(
+          // ── Tap-anywhere body ──
+          // We use a Stack: the bottom layer is a
+          // full-width GestureDetector that opens the
+          // full player. The 4 button GestureDetectors
+          // sit on top and win their own taps (Flutter
+          // gives child gesture recognizers priority).
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () => _openFullPlayer(context),
             child: Container(
               decoration: BoxDecoration(
@@ -239,35 +260,13 @@ class _MiniPlayerBody extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius:
                           BorderRadius.circular(8),
-                      child: isQuran
-                          ? Image.asset(
-                              'assets/mushaf.png',
-                              fit: BoxFit.cover,
-                              errorBuilder:
-                                  (_, __, ___) => Icon(
-                                Icons
-                                    .import_contacts_rounded,
-                                color: c.goldText,
-                                size: 20,
-                              ),
-                            )
-                          : coverPath != null
-                              ? Image.file(
-                                  File(coverPath),
-                                  fit: BoxFit.cover,
-                                  errorBuilder:
-                                      (_, __, ___) => Icon(
-                                    Icons
-                                        .headphones_rounded,
-                                    color: c.brand,
-                                    size: 20,
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.headphones_rounded,
-                                  color: c.brand,
-                                  size: 20,
-                                ),
+                      child: _buildCover(
+                        c: c,
+                        isMushaf: isMushaf,
+                        isSurah: isSurah,
+                        surahCoverPath: surahCoverPath,
+                        bookCoverPath: bookCoverPath,
+                      ),
                     ),
                   ),
 
@@ -384,6 +383,66 @@ class _MiniPlayerBody extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildCover({
+    required AppColors c,
+    required bool isMushaf,
+    required bool isSurah,
+    required String? surahCoverPath,
+    required String? bookCoverPath,
+  }) {
+    // Mus'haf: use the shared mushaf.png icon
+    if (isMushaf) {
+      return Image.asset(
+        'assets/mushaf.png',
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Icon(
+          Icons.import_contacts_rounded,
+          color: c.goldText,
+          size: 20,
+        ),
+      );
+    }
+
+    // Surah: use extracted PDF cover if available,
+    // otherwise a gold placeholder icon (NOT mushaf.png)
+    if (isSurah) {
+      if (surahCoverPath != null) {
+        return Image.file(
+          File(surahCoverPath),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Icon(
+            Icons.menu_book_rounded,
+            color: c.goldText,
+            size: 20,
+          ),
+        );
+      }
+      return Icon(
+        Icons.menu_book_rounded,
+        color: c.goldText,
+        size: 20,
+      );
+    }
+
+    // Regular book: extracted cover or headphones icon
+    if (bookCoverPath != null) {
+      return Image.file(
+        File(bookCoverPath),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Icon(
+          Icons.headphones_rounded,
+          color: c.brand,
+          size: 20,
+        ),
+      );
+    }
+    return Icon(
+      Icons.headphones_rounded,
+      color: c.brand,
+      size: 20,
+    );
+  }
 }
 
 class _MiniButton extends StatelessWidget {
@@ -403,6 +462,7 @@ class _MiniButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
         width: 34,
@@ -419,5 +479,4 @@ class _MiniButton extends StatelessWidget {
       ),
     );
   }
-
 }
