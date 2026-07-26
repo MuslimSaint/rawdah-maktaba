@@ -9,6 +9,7 @@ import 'branch_screen.dart';
 import 'book_detail_screen.dart';
 import 'mushaf_reader_screen.dart';
 import 'quran_screen.dart';
+import 'surah_detail_screen.dart';
 
 /// Home tab.
 class HomeTab extends StatelessWidget {
@@ -356,13 +357,12 @@ class _DailyHadith extends StatelessWidget {
 }
 
 // ─── Continue Reading (compact) ──────────────────────────
-// Now handles: regular books, Mus'haf, and Surahs.
+// Handles: regular books, Mus'haf editions, and Surahs.
 
 class _ContinueReading extends StatelessWidget {
   final AppColors colors;
   const _ContinueReading({required this.colors});
 
-  /// Determines if the last-read bookId is a Quran file.
   static bool _isMushafId(String? bookId) =>
       bookId == 'mushaf';
 
@@ -423,15 +423,18 @@ class _ContinueReading extends StatelessWidget {
 
     // ── Mus'haf ──
     if (_isMushafId(bookId)) {
-      // Find the mushaf sub-branch from catalog
+      // Find the mushaf sub-branch, then open its first
+      // (default) edition. The first edition is always
+      // the one with id "mushaf" for backward compat.
       final mushafSub = state.catalogService.quranSubBranches
           .where((sb) => sb.type == QuranSubBranchType.mushaf)
           .firstOrNull;
-      if (mushafSub != null) {
+      if (mushafSub != null && mushafSub.editions.isNotEmpty) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) =>
-                MushafReaderScreen(sub: mushafSub),
+            builder: (_) => MushafReaderScreen(
+              edition: mushafSub.editions.first,
+            ),
           ),
         );
       }
@@ -444,13 +447,9 @@ class _ContinueReading extends StatelessWidget {
       if (num != null) {
         final meta = QuranSkeleton.byNumber(num);
         if (meta != null) {
-          // Import is at the top — SurahDetailScreen
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) {
-                // Lazy import to avoid circular
-                return _buildSurahDetail(meta);
-              },
+              builder: (_) => SurahDetailScreen(meta: meta),
             ),
           );
         }
@@ -473,49 +472,6 @@ class _ContinueReading extends StatelessWidget {
     } catch (_) {
       // Book not found in catalog — silently ignore
     }
-  }
-
-  /// Build the SurahDetailScreen widget.
-  /// We import it at file level but construct here
-  /// to keep the _handleTap method clean.
-  static Widget _buildSurahDetail(SurahMeta meta) {
-    // We need to import surah_detail_screen.dart at
-    // the top of this file for this to work.
-    // Since we can't do lazy imports in Dart, we just
-    // construct it directly.
-    return _SurahDetailProxy(meta: meta);
-  }
-}
-
-/// Proxy widget that constructs SurahDetailScreen.
-/// This avoids a direct import at file scope while
-/// keeping the code clean. Actually — Dart doesn't have
-/// lazy imports, so we just import at the top.
-/// This widget exists only for readability.
-class _SurahDetailProxy extends StatelessWidget {
-  final SurahMeta meta;
-  const _SurahDetailProxy({required this.meta});
-
-  @override
-  Widget build(BuildContext context) {
-    // Import surah_detail_screen at the top of this file.
-    // We construct it here.
-    return _buildScreen();
-  }
-
-  Widget _buildScreen() {
-    // Can't import inside a method in Dart.
-    // The import must be at the top of the file.
-    // Since we already import quran_screen.dart,
-    // and SurahDetailScreen is in its own file,
-    // we need to add the import at the top.
-    //
-    // For now, navigate to the Quran screen and let
-    // the user find their Surah. This is a safe fallback.
-    //
-    // TODO: Add import 'surah_detail_screen.dart' at top
-    // and construct SurahDetailScreen(meta: meta) directly.
-    return const QuranScreen();
   }
 }
 
