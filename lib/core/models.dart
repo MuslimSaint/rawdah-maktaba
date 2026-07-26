@@ -362,6 +362,81 @@ class MushafExtra {
   }
 }
 
+// ─── MushafEdition ───────────────────────────────────────
+// A single Mus'haf edition (Hafs, Warsh, Tajweed, etc.).
+// Multiple editions can live inside the same "mushaf"
+// sub-branch. Each has its own PDF, page mapping,
+// last-read position, and bookmarks.
+
+class MushafEdition {
+  final String id;
+  final String titleAr;
+  final String titleEn;
+  final String titleAm;
+  final String pdfUrl;
+  final Map<int, int> surahPages;
+  final List<MushafExtra> extras;
+
+  const MushafEdition({
+    required this.id,
+    required this.titleAr,
+    required this.titleEn,
+    required this.titleAm,
+    required this.pdfUrl,
+    required this.surahPages,
+    required this.extras,
+  });
+
+  factory MushafEdition.fromJson(Map<String, dynamic> json) {
+    final surahPagesRaw =
+        json['surahPages'] as Map<String, dynamic>? ?? {};
+    final surahPages = <int, int>{};
+    surahPagesRaw.forEach((key, value) {
+      final n = int.tryParse(key);
+      if (n != null && value is int) {
+        surahPages[n] = value;
+      }
+    });
+
+    final extrasRaw = json['extras'] as List? ?? const [];
+    final extras = extrasRaw
+        .whereType<Map<String, dynamic>>()
+        .map((m) => MushafExtra.fromJson(m))
+        .toList();
+
+    final titleAr = json['titleAr'] as String? ?? '';
+    final titleEn = json['titleEn'] as String? ?? '';
+    final titleAm = json['titleAm'] as String? ?? '';
+
+    return MushafEdition(
+      id: json['id'] as String,
+      titleAr: titleAr,
+      titleEn: titleEn.isNotEmpty ? titleEn : titleAr,
+      titleAm: titleAm.isNotEmpty ? titleAm : titleEn,
+      pdfUrl: json['pdfUrl'] as String? ?? '',
+      surahPages: surahPages,
+      extras: extras,
+    );
+  }
+
+  String titleFor(String lang) {
+    switch (lang) {
+      case 'ar':
+        return titleAr;
+      case 'am':
+        return titleAm.isNotEmpty ? titleAm : titleEn;
+      default:
+        return titleEn.isNotEmpty ? titleEn : titleAr;
+    }
+  }
+
+  int? pageForSurah(int surahNumber) =>
+      surahPages[surahNumber];
+
+  bool get hasContentTable => surahPages.isNotEmpty;
+  bool get hasPdf => pdfUrl.isNotEmpty;
+}
+
 // ─── QuranSubBranch ──────────────────────────────────────
 
 enum QuranSubBranchType { mushaf, surahs, branch, unknown }
@@ -373,20 +448,14 @@ class QuranSubBranch {
   final String titleEn;
   final String titleAm;
 
-  /// For type=mushaf only: URL of the full Mus'haf PDF.
-  final String pdfUrl;
+  /// For type=mushaf only: list of Mus'haf editions.
+  /// Each edition is a separate downloadable PDF with
+  /// its own name, page mapping, and reading progress.
+  final List<MushafEdition> editions;
 
-  /// For type=mushaf only: page number for each Surah
-  /// in the Mus'haf PDF. Keyed by Surah number (1..114).
-  /// Catalog-controlled so you can swap Mus'haf editions.
-  final Map<int, int> surahPages;
-
-  /// For type=mushaf only: extra entries in the content
-  /// table (like Du'a Khatm Al-Quran). Each has a title
-  /// and a page number.
-  final List<MushafExtra> extras;
-
-  /// For type=branch only: books inside this sub-branch.
+  /// For type=mushaf: optional books that also appear
+  /// inside this sub-branch (e.g. Ulum al-Quran).
+  /// For type=branch: books inside this sub-branch.
   final List<Book> books;
 
   const QuranSubBranch({
@@ -395,9 +464,7 @@ class QuranSubBranch {
     required this.titleAr,
     required this.titleEn,
     required this.titleAm,
-    required this.pdfUrl,
-    required this.surahPages,
-    required this.extras,
+    required this.editions,
     required this.books,
   });
 
@@ -422,23 +489,66 @@ class QuranSubBranch {
     final titleEn = json['titleEn'] as String? ?? '';
     final titleAmRaw = json['titleAm'] as String? ?? '';
 
-    // Parse surahPages: {"1": 1, "2": 2, ...}
-    final surahPagesRaw =
-        json['surahPages'] as Map<String, dynamic>? ?? {};
-    final surahPages = <int, int>{};
-    surahPagesRaw.forEach((key, value) {
-      final n = int.tryParse(key);
-      if (n != null && value is int) {
-        surahPages[n] = value;
-      }
-    });
+    // Parse editions. If missing, fall back to legacy
+    // top-level pdfUrl / surahPages / extras (single edition).
+    List<MushafEdition> editions = const [];
+    if (type == QuranSubBranchType.mushaf) {
+      final editionsRaw = json['editions'] as List?;
+      if (editionsRaw != null && editionsRaw.isNotEmpty) {
+        editions = editionsRaw
+            .whereType<Map<String, dynamic>>()
+            .map((m) => MushafEdition.fromJson(m))
+            .where((e) => e.hasPdf || e.hasContentTable)
+            .toList();
+      } else {
+        // Legacy single-edition fallback. Uses the
+        // sub-branch's own id ("mushaf") so the file ID
+        // stays `pdf_mushaf` and old downloads keep working.
+        final legacyPdfUrl =
+            json['pdfUrl'] as String? ?? '';
 
-    // Parse extras: [{"titleAr": "...", "page": 605}, ...]
-    final extrasRaw = json['extras'] as List? ?? const [];
-    final extras = extrasRaw
-        .whereType<Map<String, dynamic>>()
-        .map((m) => MushafExtra.fromJson(m))
-        .toList();
+        final legacySurahPagesRaw =
+            json['surahPages'] as Map<String, dynamic>? ??
+                {};
+        final legacySurahPages = <int, int>{};
+        legacySurahPagesRaw.forEach((key, value) {
+          final n = int.tryParse(key);
+          if (n != null && value is int) {
+            legacySurahPages[n] = value;
+          }
+        });
+
+        final legacyExtrasRaw =
+            json['extras'] as List? ?? const [];
+        final legacyExtras = legacyExtrasRaw
+            .whereType<Map<String, dynamic>>()
+            .map((m) => MushafExtra.fromJson(m))
+            .toList();
+
+        if (legacyPdfUrl.isNotEmpty ||
+            legacySurahPages.isNotEmpty) {
+          editions = [
+            MushafEdition(
+              id: json['id'] as String,
+              titleAr: titleAr,
+              titleEn:
+                  titleEn.isNotEmpty ? titleEn : titleAr,
+              titleAm:
+                  titleAmRaw.isNotEmpty ? titleAmRaw : titleEn,
+              pdfUrl: legacyPdfUrl,
+              surahPages: legacySurahPages,
+              extras: legacyExtras,
+            ),
+          ];
+        }
+      }
+    }
+
+    final books = json['books'] != null
+        ? (json['books'] as List)
+            .map((b) => Book.fromJson(b as Map<String, dynamic>))
+            .toList()
+        : const <Book>[];
 
     return QuranSubBranch(
       id: json['id'] as String,
@@ -446,14 +556,8 @@ class QuranSubBranch {
       titleAr: titleAr,
       titleEn: titleEn.isNotEmpty ? titleEn : titleAr,
       titleAm: titleAmRaw.isNotEmpty ? titleAmRaw : titleEn,
-      pdfUrl: json['pdfUrl'] as String? ?? '',
-      surahPages: surahPages,
-      extras: extras,
-      books: json['books'] != null
-          ? (json['books'] as List)
-              .map((b) => Book.fromJson(b as Map<String, dynamic>))
-              .toList()
-          : const [],
+      editions: editions,
+      books: books,
     );
   }
 
@@ -468,14 +572,8 @@ class QuranSubBranch {
     }
   }
 
-  /// Returns the page number for a specific Surah in
-  /// this Mus'haf, or null if not specified.
-  int? pageForSurah(int surahNumber) =>
-      surahPages[surahNumber];
-
-  /// Returns true if this Mus'haf has a content table
-  /// (at least one Surah page number defined).
-  bool get hasContentTable => surahPages.isNotEmpty;
+  /// True if this mushaf sub-branch has at least one edition.
+  bool get hasEditions => editions.isNotEmpty;
 }
 
 // ─── QuranData (catalog part) ────────────────────────────
