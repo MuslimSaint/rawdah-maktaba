@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/arabic_utils.dart';
+import '../core/catalog_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import 'audio_player_screen.dart';
 
-/// Lessons screen.
-/// Shows THIS teacher's specific parts for this book.
-/// Each teacher is completely independent —
-/// different part counts, different missing episodes.
-/// No maximum on part numbers.
 class LessonsScreen extends StatefulWidget {
   final Book book;
   final Teacher teacher;
@@ -55,7 +51,6 @@ class _LessonsScreenState extends State<LessonsScreen> {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
 
-    // No audio from this teacher
     if (_teacherAudio == null ||
         _teacherAudio!.parts.isEmpty) {
       return Scaffold(
@@ -123,7 +118,6 @@ class _LessonsScreenState extends State<LessonsScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Teacher Hero Card ──
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 20),
@@ -275,9 +269,6 @@ class _LessonsScreenState extends State<LessonsScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Lesson List ──
-            // Uses ACTUAL part numbers — no sequential assumption
-            // No maximum — works for any number of parts
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(
@@ -299,7 +290,9 @@ class _LessonsScreenState extends State<LessonsScreen> {
                     colors: c,
                     book: widget.book,
                     teacher: widget.teacher,
+                    teacherAudio: _teacherAudio!,
                     downloadService: state.downloadService,
+                    catalogService: state.catalogService,
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -328,8 +321,6 @@ class _LessonsScreenState extends State<LessonsScreen> {
     );
   }
 }
-
-// ─── Top Bar ─────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
   final Book book;
@@ -398,8 +389,6 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ─── Lesson Row ──────────────────────────────────────────
-
 class _LessonRow extends StatefulWidget {
   final int partNumber;
   final int displayIndex;
@@ -408,7 +397,9 @@ class _LessonRow extends StatefulWidget {
   final AppColors colors;
   final Book book;
   final Teacher teacher;
+  final TeacherAudio teacherAudio;
   final DownloadService downloadService;
+  final CatalogService catalogService;
   final VoidCallback onTap;
   final VoidCallback onCompletedToggle;
 
@@ -420,7 +411,9 @@ class _LessonRow extends StatefulWidget {
     required this.colors,
     required this.book,
     required this.teacher,
+    required this.teacherAudio,
     required this.downloadService,
+    required this.catalogService,
     required this.onTap,
     required this.onCompletedToggle,
   });
@@ -436,15 +429,16 @@ class _LessonRowState extends State<_LessonRow> {
         widget.partNumber,
       );
 
-  String get _audioUrl =>
-      'https://github.com/MuslimSaint/rawdah-catalog/releases/download/v1.0-books/'
-      '${widget.book.id}_${widget.teacher.id}_${widget.partNumber}.mp3';
+  // Uses catalog override if provided, otherwise auto-URL.
+  String get _audioUrl => widget.catalogService.audioUrlFor(
+        bookId: widget.book.id,
+        teacherAudio: widget.teacherAudio,
+        partNumber: widget.partNumber,
+      );
 
   @override
   Widget build(BuildContext context) {
     final c = widget.colors;
-
-    // Use ArabicUtils — no maximum, handles any part number
     final lessonTitle =
         ArabicUtils.lessonTitle(widget.partNumber);
 
@@ -475,7 +469,6 @@ class _LessonRowState extends State<_LessonRow> {
               children: [
                 Row(
                   children: [
-                    // Completion indicator
                     GestureDetector(
                       onTap: widget.onCompletedToggle,
                       child: AnimatedContainer(
@@ -514,7 +507,6 @@ class _LessonRowState extends State<_LessonRow> {
 
                     const SizedBox(width: 14),
 
-                    // Info
                     Expanded(
                       child: Column(
                         crossAxisAlignment:
@@ -545,7 +537,6 @@ class _LessonRowState extends State<_LessonRow> {
 
                     const SizedBox(width: 12),
 
-                    // Download / Play / Cancel
                     GestureDetector(
                       onTap: () {
                         if (isDownloading) {
