@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 /// Loads and caches the book catalog.
-/// Tries primary URL first, falls back to backup if primary fails.
 class CatalogService extends ChangeNotifier {
   static const _cacheKey = 'catalog_json';
   static const _primaryUrl =
@@ -76,25 +75,20 @@ class CatalogService extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    // Try primary URL first
     final primaryResult = await _tryFetchFrom(_primaryUrl);
-
     if (primaryResult != null) {
       _applyCatalog(primaryResult);
       return;
     }
 
-    // Primary failed — try backup
     debugPrint('Primary catalog URL failed. Trying backup...');
     final backupResult = await _tryFetchFrom(_backupUrl);
-
     if (backupResult != null) {
       debugPrint('Backup catalog loaded successfully.');
       _applyCatalog(backupResult);
       return;
     }
 
-    // Both failed
     debugPrint('Both catalog URLs failed — keeping cache.');
     if (_catalog == null) {
       _error = 'No internet connection and no cached data.';
@@ -103,8 +97,6 @@ class CatalogService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Tries to fetch and parse catalog from a URL.
-  /// Returns the raw response body on success, null on failure.
   Future<String?> _tryFetchFrom(String baseUrl) async {
     try {
       final timestamp =
@@ -120,11 +112,10 @@ class CatalogService extends ChangeNotifier {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        // Verify it parses correctly before accepting
         try {
           final json = jsonDecode(response.body)
               as Map<String, dynamic>;
-          Catalog.fromJson(json); // test parse
+          Catalog.fromJson(json);
           return response.body;
         } catch (parseError) {
           debugPrint(
@@ -150,7 +141,6 @@ class CatalogService extends ChangeNotifier {
       _catalog = Catalog.fromJson(json);
       _error = null;
 
-      // Save to cache
       SharedPreferences.getInstance().then((prefs) {
         prefs.setString(_cacheKey, responseBody);
       });
@@ -196,32 +186,63 @@ class CatalogService extends ChangeNotifier {
     }
   }
 
-  String audioUrl({
+  // ─── URL resolvers ───────────────────────────────────
+  // Every resolver returns the catalog-provided direct URL
+  // when set, otherwise builds one from the base URL.
+
+  /// Book teacher audio URL. Pass the TeacherAudio object
+  /// so we can consult its .urls override map.
+  String audioUrlFor({
     required String bookId,
-    required String teacherId,
+    required TeacherAudio teacherAudio,
     required int partNumber,
   }) {
-    return '$audioBaseUrl/${bookId}_${teacherId}_$partNumber.mp3';
+    final override = teacherAudio.urlForPart(partNumber);
+    if (override != null && override.isNotEmpty) {
+      return override;
+    }
+    return '$audioBaseUrl/${bookId}_${teacherAudio.teacherId}_$partNumber.mp3';
   }
 
+  /// Surah reciter audio URL. Pass the ReciterAudio object
+  /// so we can consult its .urls override map.
+  String surahReciterUrlFor({
+    required int surahNumber,
+    required ReciterAudio reciterAudio,
+    required int partNumber,
+  }) {
+    final override = reciterAudio.urlForPart(partNumber);
+    if (override != null && override.isNotEmpty) {
+      return override;
+    }
+    return '$quranBaseUrl/surah_${surahNumber}_reciter_${reciterAudio.reciterId}_$partNumber.mp3';
+  }
+
+  /// Surah teacher audio URL. Pass the TeacherAudio object
+  /// so we can consult its .urls override map.
+  String surahTeacherUrlFor({
+    required int surahNumber,
+    required TeacherAudio teacherAudio,
+    required int partNumber,
+  }) {
+    final override = teacherAudio.urlForPart(partNumber);
+    if (override != null && override.isNotEmpty) {
+      return override;
+    }
+    return '$quranBaseUrl/surah_${surahNumber}_teacher_${teacherAudio.teacherId}_$partNumber.mp3';
+  }
+
+  /// Surah PDF URL. If the Surah entry has a pdfUrl in the
+  /// catalog, use it; otherwise fall back to auto-built.
+  String surahPdfUrlFor(Surah surah) {
+    if (surah.pdfUrl.isNotEmpty) return surah.pdfUrl;
+    return '$quranBaseUrl/${surah.number}.pdf';
+  }
+
+  /// Legacy helper — kept only so old references still compile
+  /// if we missed one. Prefer surahPdfUrlFor(surah).
   String surahPdfUrl(int surahNumber) {
-    return '$quranBaseUrl/surah_$surahNumber.pdf';
-  }
-
-  String surahReciterUrl({
-    required int surahNumber,
-    required String reciterId,
-    required int partNumber,
-  }) {
-    return '$quranBaseUrl/surah_${surahNumber}_reciter_${reciterId}_$partNumber.mp3';
-  }
-
-  String surahTeacherUrl({
-    required int surahNumber,
-    required String teacherId,
-    required int partNumber,
-  }) {
-    return '$quranBaseUrl/surah_${surahNumber}_teacher_${teacherId}_$partNumber.mp3';
+    return '$quranBaseUrl/$surahNumber.pdf';
   }
 
   String? get mushafPdfUrl {
