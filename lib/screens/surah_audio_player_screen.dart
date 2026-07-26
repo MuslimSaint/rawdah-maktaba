@@ -11,10 +11,6 @@ import 'pdf_reader_screen.dart';
 import 'surah_detail_screen.dart' show fakeBookForSurah;
 import 'surah_lessons_screen.dart';
 
-/// Audio player for a Surah recitation (Qari) or
-/// tafseer (Teacher). Cover = the extracted first page of
-/// the Surah PDF (like books), or a gold placeholder icon
-/// if the PDF hasn't been downloaded yet.
 class SurahAudioPlayerScreen extends StatefulWidget {
   final SurahMeta meta;
   final SurahNarratorType narratorType;
@@ -53,15 +49,11 @@ class SurahAudioPlayerScreen extends StatefulWidget {
 }
 
 class _SurahAudioPlayerScreenState
-    extends State<SurahAudioPlayerScreen>
-    with TickerProviderStateMixin {
+    extends State<SurahAudioPlayerScreen> {
   late int _currentPartIndex;
   late AudioService _audioService;
   late DownloadService _downloadService;
   late CoverService _coverService;
-
-  late AnimationController _slideController;
-  late Animation<Offset> _slideAnimation;
 
   String? _errorMessage;
 
@@ -90,27 +82,10 @@ class _SurahAudioPlayerScreenState
     super.initState();
     _currentPartIndex = widget.initialPartIndex;
 
-    // ── FIX (Gray Screen Bug) ──
-    // Bind services synchronously so the first build frame
-    // has valid _audioService / _downloadService /
-    // _coverService references.
     final state = AppState.of(context);
     _audioService = state.audioService;
     _downloadService = state.downloadService;
     _coverService = state.coverService;
-
-    _slideController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 350),
-    );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeOutCubic,
-    ));
-    _slideController.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -121,12 +96,6 @@ class _SurahAudioPlayerScreenState
         }
       }
     });
-  }
-
-  @override
-  void dispose() {
-    _slideController.dispose();
-    super.dispose();
   }
 
   int get _currentPartNumber => _parts[_currentPartIndex];
@@ -250,10 +219,8 @@ class _SurahAudioPlayerScreenState
       final state = AppState.of(context);
       final surah = state.catalogService.quran
           .surahFor(widget.meta.number);
-      final url = surah.pdfUrl.isNotEmpty
-          ? surah.pdfUrl
-          : state.catalogService
-              .surahPdfUrl(widget.meta.number);
+      final url =
+          state.catalogService.surahPdfUrlFor(surah);
       _downloadService.download(
         fileId: _surahPdfFileId,
         url: url,
@@ -278,496 +245,187 @@ class _SurahAudioPlayerScreenState
     final accent = _isReciter ? c.goldText : c.brand;
     final accentHover = _isReciter ? c.goldText : c.brandHover;
 
-    return SlideTransition(
-      position: _slideAnimation,
-      child: Scaffold(
-        backgroundColor: c.bg,
-        body: SafeArea(
-          child: ListenableBuilder(
-            listenable: Listenable.merge([
-              state.audioService,
-              state.downloadService,
-              state.coverService,
-            ]),
-            builder: (context, _) {
-              final isPlaying = _audioService.isPlaying;
-              final position = _audioService.position;
-              final duration = _audioService.duration;
-              final speed = _audioService.speed;
-              final isActive =
-                  _audioService.currentFileId ==
-                      _currentFileId;
-              final isLoading =
-                  isActive && _audioService.isLoading;
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: Listenable.merge([
+            state.audioService,
+            state.downloadService,
+            state.coverService,
+          ]),
+          builder: (context, _) {
+            final isPlaying = _audioService.isPlaying;
+            final position = _audioService.position;
+            final duration = _audioService.duration;
+            final speed = _audioService.speed;
+            final isActive =
+                _audioService.currentFileId ==
+                    _currentFileId;
+            final isLoading =
+                isActive && _audioService.isLoading;
 
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                        20, 16, 20, 0),
-                    child: Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () =>
-                              Navigator.of(context).pop(),
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: c.surface2,
-                              borderRadius:
-                                  BorderRadius.circular(11),
-                              border: Border.all(
-                                  color: c.divider),
-                            ),
-                            child: Icon(
-                              Icons
-                                  .keyboard_arrow_down_rounded,
-                              size: 24,
-                              color: c.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              Text(
-                                'NOW PLAYING',
-                                style: AppText.label(
-                                    color: c.textFaint),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                lessonTitle,
-                                textDirection:
-                                    TextDirection.rtl,
-                                style: AppText.arabic(
-                                  color: c.textPrimary,
-                                  size: 15,
-                                  weight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          width: 44,
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      20, 16, 20, 0),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () =>
+                            Navigator.of(context).pop(),
+                        child: Container(
+                          width: 38,
                           height: 38,
                           decoration: BoxDecoration(
                             color: c.surface2,
                             borderRadius:
                                 BorderRadius.circular(11),
-                            border:
-                                Border.all(color: c.divider),
+                            border: Border.all(
+                                color: c.divider),
                           ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '${_currentPartIndex + 1}/$_totalParts',
-                            style: AppText.latin(
-                              color: c.textMuted,
-                              size: 10,
-                              weight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  GestureDetector(
-                    onTap: _onCoverTap,
-                    child: _SurahCover(
-                      meta: widget.meta,
-                      coverService: _coverService,
-                      surahCoverKey: _surahCoverKey,
-                      colors: c,
-                      accent: accent,
-                      isPdfDownloaded: _isPdfDownloaded,
-                      hasPdfUrl: _hasPdfUrl,
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 32),
-                    child: Column(
-                      children: [
-                        Text(
-                          widget.meta.nameAr,
-                          textDirection: TextDirection.rtl,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppText.arabic(
+                          child: Icon(
+                            Icons
+                                .keyboard_arrow_down_rounded,
+                            size: 24,
                             color: c.textPrimary,
-                            size: 20,
-                            weight: FontWeight.w700,
-                            height: 1.5,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _narratorNameAr,
-                          textDirection: TextDirection.rtl,
-                          style: AppText.arabic(
-                            color: accent,
-                            size: 13,
-                          ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              'NOW PLAYING',
+                              style: AppText.label(
+                                  color: c.textFaint),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              lessonTitle,
+                              textDirection:
+                                  TextDirection.rtl,
+                              style: AppText.arabic(
+                                color: c.textPrimary,
+                                size: 15,
+                                weight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _isReciter ? 'تلاوة' : 'تفسير',
-                          textDirection: TextDirection.rtl,
-                          style: AppText.arabic(
-                            color: c.textMuted,
-                            size: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  if (!_isCurrentDownloaded) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
+                      ),
+                      Container(
+                        width: 44,
+                        height: 38,
                         decoration: BoxDecoration(
                           color: c.surface2,
                           borderRadius:
-                              BorderRadius.circular(14),
+                              BorderRadius.circular(11),
                           border:
                               Border.all(color: c.divider),
                         ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.download_rounded,
-                              color: accent,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Download this part from the previous screen to play it.',
-                                style: AppText.latin(
-                                  color: c.textMuted,
-                                  size: 12,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
+                        alignment: Alignment.center,
+                        child: Text(
+                          '${_currentPartIndex + 1}/$_totalParts',
+                          style: AppText.latin(
+                            color: c.textMuted,
+                            size: 10,
+                            weight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                    ],
+                  ),
+                ),
 
-                  if (_errorMessage != null) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: c.dangerBg,
-                          borderRadius:
-                              BorderRadius.circular(12),
-                          border: Border.all(
-                              color:
-                                  c.danger.withOpacity(0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.error_outline_rounded,
-                              color: c.danger,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: AppText.latin(
-                                  color: c.danger,
-                                  size: 12,
-                                ),
-                              ),
-                            ),
-                          ],
+                const SizedBox(height: 24),
+
+                GestureDetector(
+                  onTap: _onCoverTap,
+                  child: _SurahCover(
+                    meta: widget.meta,
+                    coverService: _coverService,
+                    surahCoverKey: _surahCoverKey,
+                    colors: c,
+                    accent: accent,
+                    isPdfDownloaded: _isPdfDownloaded,
+                    hasPdfUrl: _hasPdfUrl,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 32),
+                  child: Column(
+                    children: [
+                      Text(
+                        widget.meta.nameAr,
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.arabic(
+                          color: c.textPrimary,
+                          size: 20,
+                          weight: FontWeight.w700,
+                          height: 1.5,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                      const SizedBox(height: 6),
+                      Text(
+                        _narratorNameAr,
+                        textDirection: TextDirection.rtl,
+                        style: AppText.arabic(
+                          color: accent,
+                          size: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _isReciter ? 'تلاوة' : 'تفسير',
+                        textDirection: TextDirection.rtl,
+                        style: AppText.arabic(
+                          color: c.textMuted,
+                          size: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
+                const SizedBox(height: 16),
+
+                if (!_isCurrentDownloaded) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 24),
-                    child: Column(
-                      children: [
-                        SliderTheme(
-                          data: SliderTheme.of(context)
-                              .copyWith(
-                            activeTrackColor: accent,
-                            inactiveTrackColor: c.surface2,
-                            thumbColor: accent,
-                            thumbShape:
-                                const RoundSliderThumbShape(
-                              enabledThumbRadius: 6,
-                            ),
-                            trackHeight: 4,
-                            overlayShape:
-                                SliderComponentShape.noOverlay,
-                          ),
-                          child: Slider(
-                            value: isActive
-                                ? position.inSeconds
-                                    .toDouble()
-                                    .clamp(
-                                      0,
-                                      duration.inSeconds > 0
-                                          ? duration.inSeconds
-                                              .toDouble()
-                                          : 1,
-                                    )
-                                : 0,
-                            min: 0,
-                            max: duration.inSeconds > 0
-                                ? duration.inSeconds
-                                    .toDouble()
-                                : 1,
-                            onChanged: isActive
-                                ? (v) {
-                                    _audioService.seekTo(
-                                      Duration(
-                                          seconds: v.toInt()),
-                                    );
-                                  }
-                                : null,
-                          ),
-                        ),
-                        Padding(
-                          padding:
-                              const EdgeInsets.symmetric(
-                                  horizontal: 8),
-                          child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment
-                                    .spaceBetween,
-                            children: [
-                              Text(
-                                isActive
-                                    ? AudioService
-                                        .formatDuration(
-                                            position)
-                                    : '00:00',
-                                style: AppText.latin(
-                                  color: c.textFaint,
-                                  size: 11,
-                                ),
-                              ),
-                              Text(
-                                isActive &&
-                                        duration.inSeconds >
-                                            0
-                                    ? AudioService
-                                        .formatDuration(
-                                            duration)
-                                    : '--:--',
-                                style: AppText.latin(
-                                  color: c.textFaint,
-                                  size: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24),
-                    child: Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _ControlButton(
-                          icon: Icons.skip_previous_rounded,
-                          size: 26,
-                          enabled: hasPrev,
-                          colors: c,
-                          onTap: _previousLesson,
-                        ),
-                        _SeekButton(
-                          isForward: false,
-                          colors: c,
-                          onTap: isActive
-                              ? () =>
-                                  _audioService.seekBack(10)
-                              : null,
-                        ),
-
-                        GestureDetector(
-                          onTap: _isCurrentDownloaded
-                              ? () {
-                                  if (isActive) {
-                                    _audioService
-                                        .togglePlay();
-                                  } else {
-                                    _startPlayback();
-                                  }
-                                }
-                              : null,
-                          child: AnimatedContainer(
-                            duration: const Duration(
-                                milliseconds: 150),
-                            width: 68,
-                            height: 68,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: _isCurrentDownloaded
-                                    ? [accent, accentHover]
-                                    : [
-                                        c.textFaint,
-                                        c.textFaint
-                                      ],
-                              ),
-                              boxShadow: _isCurrentDownloaded
-                                  ? [
-                                      BoxShadow(
-                                        color: accent
-                                            .withOpacity(
-                                                0.4),
-                                        blurRadius: 20,
-                                        offset: const Offset(
-                                            0, 6),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: isLoading
-                                ? const Padding(
-                                    padding:
-                                        EdgeInsets.all(20),
-                                    child:
-                                        CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : Icon(
-                                    isActive && isPlaying
-                                        ? Icons.pause_rounded
-                                        : Icons
-                                            .play_arrow_rounded,
-                                    size: 34,
-                                    color: Colors.white,
-                                  ),
-                          ),
-                        ),
-
-                        _SeekButton(
-                          isForward: true,
-                          colors: c,
-                          onTap: isActive
-                              ? () => _audioService
-                                  .seekForward(10)
-                              : null,
-                        ),
-                        _ControlButton(
-                          icon: Icons.skip_next_rounded,
-                          size: 26,
-                          enabled: hasNext,
-                          colors: c,
-                          onTap: _nextLesson,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  GestureDetector(
-                    onTap: isActive
-                        ? () => _audioService.cycleSpeed()
-                        : null,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: c.surface2,
                         borderRadius:
-                            BorderRadius.circular(12),
+                            BorderRadius.circular(14),
                         border:
                             Border.all(color: c.divider),
-                      ),
-                      child: Text(
-                        'Speed: ${speed}x',
-                        style: AppText.latin(
-                          color: isActive
-                              ? accent
-                              : c.textFaint,
-                          size: 13,
-                          weight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const Spacer(),
-
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                        24, 0, 24, 16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: c.goldLine,
-                        borderRadius:
-                            BorderRadius.circular(12),
-                        border: Border.all(
-                          color:
-                              c.goldText.withOpacity(0.3),
-                        ),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            Icons.info_outline_rounded,
-                            size: 16,
-                            color: c.goldText,
+                            Icons.download_rounded,
+                            color: accent,
+                            size: 20,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              isActive && isPlaying
-                                  ? 'Audio continues in the background — control from the notification'
-                                  : 'Tap the cover to open or download the Surah PDF',
+                              'Download this part from the previous screen to play it.',
                               style: AppText.latin(
-                                color: c.goldText,
-                                size: 11,
-                                weight: FontWeight.w600,
+                                color: c.textMuted,
+                                size: 12,
+                                height: 1.5,
                               ),
                             ),
                           ),
@@ -775,20 +433,321 @@ class _SurahAudioPlayerScreenState
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
                 ],
-              );
-            },
-          ),
+
+                if (_errorMessage != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: c.dangerBg,
+                        borderRadius:
+                            BorderRadius.circular(12),
+                        border: Border.all(
+                            color:
+                                c.danger.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            color: c.danger,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: AppText.latin(
+                                color: c.danger,
+                                size: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24),
+                  child: Column(
+                    children: [
+                      SliderTheme(
+                        data: SliderTheme.of(context)
+                            .copyWith(
+                          activeTrackColor: accent,
+                          inactiveTrackColor: c.surface2,
+                          thumbColor: accent,
+                          thumbShape:
+                              const RoundSliderThumbShape(
+                            enabledThumbRadius: 6,
+                          ),
+                          trackHeight: 4,
+                          overlayShape:
+                              SliderComponentShape.noOverlay,
+                        ),
+                        child: Slider(
+                          value: isActive
+                              ? position.inSeconds
+                                  .toDouble()
+                                  .clamp(
+                                    0,
+                                    duration.inSeconds > 0
+                                        ? duration.inSeconds
+                                            .toDouble()
+                                        : 1,
+                                  )
+                              : 0,
+                          min: 0,
+                          max: duration.inSeconds > 0
+                              ? duration.inSeconds
+                                  .toDouble()
+                              : 1,
+                          onChanged: isActive
+                              ? (v) {
+                                  _audioService.seekTo(
+                                    Duration(
+                                        seconds: v.toInt()),
+                                  );
+                                }
+                              : null,
+                        ),
+                      ),
+                      Padding(
+                        padding:
+                            const EdgeInsets.symmetric(
+                                horizontal: 8),
+                        child: Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment
+                                  .spaceBetween,
+                          children: [
+                            Text(
+                              isActive
+                                  ? AudioService
+                                      .formatDuration(
+                                          position)
+                                  : '00:00',
+                              style: AppText.latin(
+                                color: c.textFaint,
+                                size: 11,
+                              ),
+                            ),
+                            Text(
+                              isActive &&
+                                      duration.inSeconds >
+                                          0
+                                  ? AudioService
+                                      .formatDuration(
+                                          duration)
+                                  : '--:--',
+                              style: AppText.latin(
+                                color: c.textFaint,
+                                size: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24),
+                  child: Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _ControlButton(
+                        icon: Icons.skip_previous_rounded,
+                        size: 26,
+                        enabled: hasPrev,
+                        colors: c,
+                        onTap: _previousLesson,
+                      ),
+                      _SeekButton(
+                        isForward: false,
+                        colors: c,
+                        onTap: isActive
+                            ? () =>
+                                _audioService.seekBack(10)
+                            : null,
+                      ),
+
+                      GestureDetector(
+                        onTap: _isCurrentDownloaded
+                            ? () {
+                                if (isActive) {
+                                  _audioService
+                                      .togglePlay();
+                                } else {
+                                  _startPlayback();
+                                }
+                              }
+                            : null,
+                        child: AnimatedContainer(
+                          duration: const Duration(
+                              milliseconds: 150),
+                          width: 68,
+                          height: 68,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: _isCurrentDownloaded
+                                  ? [accent, accentHover]
+                                  : [
+                                      c.textFaint,
+                                      c.textFaint
+                                    ],
+                            ),
+                            boxShadow: _isCurrentDownloaded
+                                ? [
+                                    BoxShadow(
+                                      color: accent
+                                          .withOpacity(
+                                              0.4),
+                                      blurRadius: 20,
+                                      offset: const Offset(
+                                          0, 6),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: isLoading
+                              ? const Padding(
+                                  padding:
+                                      EdgeInsets.all(20),
+                                  child:
+                                      CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Icon(
+                                  isActive && isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons
+                                          .play_arrow_rounded,
+                                  size: 34,
+                                  color: Colors.white,
+                                ),
+                        ),
+                      ),
+
+                      _SeekButton(
+                        isForward: true,
+                        colors: c,
+                        onTap: isActive
+                            ? () => _audioService
+                                .seekForward(10)
+                            : null,
+                      ),
+                      _ControlButton(
+                        icon: Icons.skip_next_rounded,
+                        size: 26,
+                        enabled: hasNext,
+                        colors: c,
+                        onTap: _nextLesson,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                GestureDetector(
+                  onTap: isActive
+                      ? () => _audioService.cycleSpeed()
+                      : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: c.surface2,
+                      borderRadius:
+                          BorderRadius.circular(12),
+                      border:
+                          Border.all(color: c.divider),
+                    ),
+                    child: Text(
+                      'Speed: ${speed}x',
+                      style: AppText.latin(
+                        color: isActive
+                            ? accent
+                            : c.textFaint,
+                        size: 13,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const Spacer(),
+
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      24, 0, 24, 16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: c.goldLine,
+                      borderRadius:
+                          BorderRadius.circular(12),
+                      border: Border.all(
+                        color:
+                            c.goldText.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 16,
+                          color: c.goldText,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            isActive && isPlaying
+                                ? 'Audio continues in the background — control from the notification'
+                                : 'Tap the cover to open or download the Surah PDF',
+                            style: AppText.latin(
+                              color: c.goldText,
+                              size: 11,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
-
-// ─── Surah Cover ─────────────────────────────────────────
-// Uses the extracted first page of the Surah PDF via
-// CoverService. Falls back to a gold placeholder icon
-// if the PDF hasn't been downloaded yet.
 
 class _SurahCover extends StatelessWidget {
   final SurahMeta meta;
@@ -847,8 +806,6 @@ class _SurahCover extends StatelessWidget {
                   : _placeholder(c),
             ),
           ),
-
-          // Open / Download PDF badge
           if (hasPdfUrl)
             Positioned(
               bottom: 8,
