@@ -21,9 +21,14 @@ class AppState extends ChangeNotifier {
   static const _keyDismissedAnnouncements =
       'dismissed_announcements';
 
-  /// Local-only last page for the Full Mus'haf.
-  /// Independent of the Firebase-synced reading progress.
-  static const _keyMushafLastPage = 'mushaf_last_page';
+  /// Legacy single-Mus'haf key. Auto-migrated on first
+  /// access to the new per-edition key for edition id
+  /// "mushaf" (the default single-edition id).
+  static const _keyLegacyMushafLastPage = 'mushaf_last_page';
+
+  /// Per-edition prefix. Full key is
+  /// `mushaf_last_page_<editionId>`.
+  static const _keyMushafLastPagePrefix = 'mushaf_last_page_';
 
   late SharedPreferences _prefs;
 
@@ -37,9 +42,11 @@ class AppState extends ChangeNotifier {
   int _lastBookPage = 0;
   int _lastBookTotalPages = 0;
 
-  /// Last page the user was on in the Full Mus'haf.
-  /// Stored locally only. Zero means "not started yet."
-  int _mushafLastPage = 0;
+  /// In-memory cache of per-edition last-read pages.
+  /// Populated lazily from SharedPreferences.
+  final Map<String, int> _mushafLastPages = {};
+
+  bool _legacyMushafMigrated = false;
 
   final Set<String> _dismissedAnnouncements = <String>{};
 
@@ -60,8 +67,6 @@ class AppState extends ChangeNotifier {
   String? get lastBookTitle => _lastBookTitle;
   int get lastBookPage => _lastBookPage;
   int get lastBookTotalPages => _lastBookTotalPages;
-
-  int get mushafLastPage => _mushafLastPage;
 
   bool get hasLastBook =>
       _lastBookId != null && _lastBookId!.isNotEmpty;
@@ -98,8 +103,8 @@ class AppState extends ChangeNotifier {
     _lastBookTotalPages =
         _prefs.getInt(_keyLastBookTotalPages) ?? 0;
 
-    _mushafLastPage =
-        _prefs.getInt(_keyMushafLastPage) ?? 0;
+    // Migrate the legacy single-Mus'haf key once.
+    _migrateLegacyMushafLastPage();
 
     final dismissed = _prefs
             .getStringList(_keyDismissedAnnouncements) ??
@@ -119,6 +124,23 @@ class AppState extends ChangeNotifier {
     catalogService.load();
 
     if (_isSignedIn) _syncFromCloud();
+  }
+
+  void _migrateLegacyMushafLastPage() {
+    if (_legacyMushafMigrated) return;
+    _legacyMushafMigrated = true;
+
+    final legacy = _prefs.getInt(_keyLegacyMushafLastPage);
+    if (legacy == null || legacy <= 0) return;
+
+    // Only migrate if the new key isn't already set.
+    const defaultEditionId = 'mushaf';
+    final newKey =
+        '$_keyMushafLastPagePrefix$defaultEditionId';
+    if (_prefs.getInt(newKey) == null) {
+      _prefs.setInt(newKey, legacy);
+    }
+    _prefs.remove(_keyLegacyMushafLastPage);
   }
 
   // ─── Auto-extract covers after catalog loads ───────
@@ -155,7 +177,7 @@ class AppState extends ChangeNotifier {
     }
 
     // Also extract covers for books inside Quran sub-branches
-    // (like Tafseer books).
+    // (like Tafseer books, and Ulum al-Quran books).
     for (final sub in catalogService.quranSubBranches) {
       for (final book in sub.books) {
         final fileId = 'pdf_${book.id}';
@@ -302,15 +324,31 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── Mus'haf Position (local only, no Firebase) ────
+  // ─── Mus'haf Position (per-edition, local only) ────
 
-  /// Saves the current Full Mus'haf reading page locally.
-  /// This is INTENTIONALLY not synced to Firebase because
-  /// the Mus'haf is a special local-first reading experience.
-  Future<void> setMushafLastPage(int page) async {
+  /// Returns the last-read page for the given Mus'haf
+  /// edition. Zero means "not started yet."
+  int mushafLastPageFor(String editionId) {
+    if (_mushafLastPages.containsKey(editionId)) {
+      return _mushafLastPages[editionId]!;
+    }
+    final saved =
+        _prefs.getInt('$_keyMushafLastPagePrefix$editionId') ??
+            0;
+    _mushafLastPages[editionId] = saved;
+    return saved;
+  }
+
+  /// Saves the last-read page for the given Mus'haf
+  /// edition. Local only, never synced to Firebase.
+  Future<void> setMushafLastPageFor(
+      String editionId, int page) async {
     if (page < 0) return;
-    _mushafLastPage = page;
-    await _prefs.setInt(_keyMushafLastPage, page);
+    _mushafLastPages[editionId] = page;
+    await _prefs.setInt(
+      '$_keyMushafLastPagePrefix$editionId',
+      page,
+    );
     notifyListeners();
   }
 
