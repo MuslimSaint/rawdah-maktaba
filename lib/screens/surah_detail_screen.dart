@@ -9,8 +9,6 @@ import 'pdf_reader_screen.dart';
 import 'surah_lessons_screen.dart';
 import 'surah_audio_player_screen.dart';
 
-/// Surah detail screen — the equivalent of BookDetailScreen
-/// but tailored for a Quran Surah.
 class SurahDetailScreen extends StatelessWidget {
   final SurahMeta meta;
 
@@ -35,7 +33,6 @@ class SurahDetailScreen extends StatelessWidget {
 
             return Column(
               children: [
-                // ── Top Bar ──
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                       20, 16, 20, 0),
@@ -143,8 +140,6 @@ class SurahDetailScreen extends StatelessWidget {
   }
 }
 
-// ─── Hero Card ───────────────────────────────────────────
-
 class _HeroCard extends StatelessWidget {
   final SurahMeta meta;
   final AppColors colors;
@@ -187,7 +182,6 @@ class _HeroCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Mus'haf image (replaces gold number circle)
           Container(
             width: 76,
             height: 76,
@@ -321,8 +315,6 @@ class _MetaChip extends StatelessWidget {
   }
 }
 
-// ─── PDF Section ─────────────────────────────────────────
-
 class _PdfSection extends StatefulWidget {
   final SurahMeta meta;
   final Surah surah;
@@ -368,10 +360,8 @@ class _PdfSectionState extends State<_PdfSection> {
 
   Future<void> _startDownload() async {
     setState(() => _errorMessage = null);
-    final url = widget.surah.pdfUrl.isNotEmpty
-        ? widget.surah.pdfUrl
-        : widget.catalogService
-            .surahPdfUrl(widget.meta.number);
+    final url =
+        widget.catalogService.surahPdfUrlFor(widget.surah);
 
     await widget.downloadService.download(
       fileId: _fileId,
@@ -635,10 +625,6 @@ class _PdfSectionState extends State<_PdfSection> {
   }
 }
 
-/// Wraps a SurahMeta in a lightweight fake Book so the
-/// existing PdfReaderScreen can accept it without changes.
-/// Made public (no underscore) so surah_audio_player_screen
-/// can also open the same PDF from the mushaf cover tap.
 Book fakeBookForSurah(SurahMeta m) {
   return Book(
     id: 'surah_${m.number}',
@@ -656,9 +642,6 @@ Book fakeBookForSurah(SurahMeta m) {
     addedAt: DateTime.now(),
   );
 }
-
-// ─── Reciters Section ────────────────────────────────────
-// Direct download & play — no lessons screen.
 
 class _RecitersSection extends StatelessWidget {
   final Surah surah;
@@ -734,9 +717,6 @@ class _RecitersSection extends StatelessWidget {
   }
 }
 
-/// Reciter card with built-in download/play button.
-/// Since each reciter has exactly 1 part, we skip the
-/// lessons screen entirely.
 class _ReciterCard extends StatefulWidget {
   final Reciter reciter;
   final ReciterAudio audio;
@@ -761,7 +741,6 @@ class _ReciterCard extends StatefulWidget {
 }
 
 class _ReciterCardState extends State<_ReciterCard> {
-  /// The reciter's first part number (they typically have only 1).
   int get _partNumber => widget.audio.parts.isNotEmpty
       ? widget.audio.parts.first
       : 1;
@@ -772,9 +751,10 @@ class _ReciterCardState extends State<_ReciterCard> {
         _partNumber,
       );
 
-  String get _url => widget.catalogService.surahReciterUrl(
+  String get _url =>
+      widget.catalogService.surahReciterUrlFor(
         surahNumber: widget.meta.number,
-        reciterId: widget.reciter.id,
+        reciterAudio: widget.audio,
         partNumber: _partNumber,
       );
 
@@ -818,7 +798,6 @@ class _ReciterCardState extends State<_ReciterCard> {
             widget.downloadService.progress(_fileId);
 
         return GestureDetector(
-          // Whole card is tappable only if downloaded → opens player
           onTap: isDownloaded ? _openPlayer : null,
           child: Container(
             padding: const EdgeInsets.all(14),
@@ -878,7 +857,6 @@ class _ReciterCardState extends State<_ReciterCard> {
                     ),
                     const SizedBox(width: 10),
 
-                    // Download / Play / Cancel button
                     GestureDetector(
                       onTap: () {
                         if (isDownloading) {
@@ -956,9 +934,6 @@ class _ReciterCardState extends State<_ReciterCard> {
     );
   }
 }
-
-// ─── Teachers Section (Tafseer) ──────────────────────────
-// Teachers keep the lessons screen flow (multiple parts).
 
 class _TeachersSection extends StatelessWidget {
   final Surah surah;
@@ -1143,8 +1118,6 @@ class _TeacherCard extends StatelessWidget {
     );
   }
 }
-
-// ─── Nothing Yet ─────────────────────────────────────────
 
 class _NothingYet extends StatelessWidget {
   final AppColors colors;
