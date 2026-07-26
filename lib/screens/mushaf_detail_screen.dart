@@ -1,11 +1,16 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import '../widgets/book_cover.dart';
+import 'book_detail_screen.dart';
 import 'mushaf_reader_screen.dart';
 
-/// Detail screen for the Full Mus'haf (القرآن الكريم).
+/// Detail screen for the Full Mus'haf sub-branch.
+/// Shows the Quran facts hero + a list of downloadable
+/// Mus'haf editions + any bonus books.
 class MushafDetailScreen extends StatelessWidget {
   final QuranSubBranch sub;
 
@@ -18,6 +23,10 @@ class MushafDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
+    final lang = state.language;
+
+    final editions = sub.editions;
+    final books = sub.books;
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -48,7 +57,7 @@ class MushafDetailScreen extends StatelessWidget {
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
-                      'القرآن الكريم',
+                      sub.titleAr,
                       textDirection: TextDirection.rtl,
                       textAlign: TextAlign.right,
                       style: AppText.arabic(
@@ -69,14 +78,96 @@ class MushafDetailScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _QuranHeroCard(
-                        colors: c, language: state.language),
-                    const SizedBox(height: 20),
-                    _DownloadSection(
-                      sub: sub,
                       colors: c,
-                      downloadService: state.downloadService,
+                      language: lang,
                     ),
                     const SizedBox(height: 20),
+
+                    // ── Editions section ──
+                    if (editions.isNotEmpty) ...[
+                      _SectionHeader(
+                        titleEn: editions.length > 1
+                            ? 'Mus\'haf Editions'
+                            : 'Full Mus\'haf PDF',
+                        titleAr: editions.length > 1
+                            ? 'إصدارات المصحف'
+                            : 'المصحف الشريف',
+                        colors: c,
+                        language: lang,
+                      ),
+                      const SizedBox(height: 10),
+                      ...editions.map((ed) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: 12),
+                            child: _EditionCard(
+                              edition: ed,
+                              colors: c,
+                              language: lang,
+                              downloadService:
+                                  state.downloadService,
+                            ),
+                          )),
+                    ] else ...[
+                      _NoEditions(colors: c),
+                    ],
+
+                    // ── Bonus books section ──
+                    if (books.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _SectionHeader(
+                        titleEn: 'Books',
+                        titleAr: 'كتب',
+                        colors: c,
+                        language: lang,
+                      ),
+                      const SizedBox(height: 10),
+                      ...books.map((b) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: 12),
+                            child: _BookCard(
+                              book: b,
+                              colors: c,
+                            ),
+                          )),
+                    ],
+
+                    // ── File size warning ──
+                    if (editions.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: c.goldLine,
+                          borderRadius:
+                              BorderRadius.circular(12),
+                          border: Border.all(
+                            color:
+                                c.goldText.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              color: c.goldText,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'A full Mus\'haf PDF can be between 100–300 MB depending on the edition. Make sure you have enough storage and a stable internet connection.',
+                                style: AppText.latin(
+                                  color: c.goldText,
+                                  size: 11,
+                                  weight: FontWeight.w600,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -124,7 +215,6 @@ class _QuranHeroCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // ── Mus'haf image (not app icon) ──
           Container(
             width: 80,
             height: 80,
@@ -287,40 +377,114 @@ class _FactChip extends StatelessWidget {
   }
 }
 
-// ─── Download Section ────────────────────────────────────
+// ─── Section Header ──────────────────────────────────────
 
-class _DownloadSection extends StatefulWidget {
-  final QuranSubBranch sub;
+class _SectionHeader extends StatelessWidget {
+  final String titleEn;
+  final String titleAr;
   final AppColors colors;
+  final String language;
+
+  const _SectionHeader({
+    required this.titleEn,
+    required this.titleAr,
+    required this.colors,
+    required this.language,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final isAr = language == 'ar';
+
+    return Text(
+      isAr ? titleAr : titleEn,
+      textDirection:
+          isAr ? TextDirection.rtl : TextDirection.ltr,
+      style: isAr
+          ? AppText.arabic(
+              color: c.textPrimary,
+              size: 15,
+              weight: FontWeight.w700,
+            )
+          : AppText.latin(
+              color: c.textPrimary,
+              size: 15,
+              weight: FontWeight.w700,
+            ),
+    );
+  }
+}
+
+// ─── No Editions Placeholder ─────────────────────────────
+
+class _NoEditions extends StatelessWidget {
+  final AppColors colors;
+  const _NoEditions({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: c.surface2,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: c.divider),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.hourglass_empty_rounded,
+              color: c.textFaint, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'No Mus\'haf editions available yet. Check back soon.',
+              style: AppText.latin(
+                color: c.textMuted,
+                size: 13,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Edition Card ────────────────────────────────────────
+
+class _EditionCard extends StatefulWidget {
+  final MushafEdition edition;
+  final AppColors colors;
+  final String language;
   final DownloadService downloadService;
 
-  const _DownloadSection({
-    required this.sub,
+  const _EditionCard({
+    required this.edition,
     required this.colors,
+    required this.language,
     required this.downloadService,
   });
 
   @override
-  State<_DownloadSection> createState() =>
-      _DownloadSectionState();
+  State<_EditionCard> createState() => _EditionCardState();
 }
 
-class _DownloadSectionState extends State<_DownloadSection> {
-  static const _fileId = 'pdf_mushaf';
+class _EditionCardState extends State<_EditionCard> {
   String? _errorMessage;
 
-  Future<void> _openMushaf(BuildContext context) async {
-    final path =
-        await widget.downloadService.localPath(_fileId);
-    if (!context.mounted) return;
-    if (path == null) {
-      setState(() => _errorMessage =
-          'Could not open file. Please download again.');
-      return;
-    }
+  String get _fileId => widget.edition.id == 'mushaf'
+      ? 'pdf_mushaf'
+      : 'pdf_mushaf_${widget.edition.id}';
+
+  Future<void> _openReader(BuildContext context) async {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MushafReaderScreen(sub: widget.sub),
+        builder: (_) => MushafReaderScreen(
+          edition: widget.edition,
+        ),
       ),
     );
   }
@@ -328,16 +492,16 @@ class _DownloadSectionState extends State<_DownloadSection> {
   Future<void> _startDownload() async {
     setState(() => _errorMessage = null);
 
-    if (widget.sub.pdfUrl.isEmpty) {
+    if (widget.edition.pdfUrl.isEmpty) {
       setState(() => _errorMessage =
-          'Mus\'haf PDF is not available yet.');
+          'This Mus\'haf edition is not available yet.');
       return;
     }
 
     await widget.downloadService.download(
       fileId: _fileId,
-      url: widget.sub.pdfUrl,
-      displayName: 'القرآن الكريم',
+      url: widget.edition.pdfUrl,
+      displayName: widget.edition.titleAr,
       bookId: 'mushaf',
       onError: (e) {
         if (mounted) setState(() => _errorMessage = e);
@@ -351,6 +515,7 @@ class _DownloadSectionState extends State<_DownloadSection> {
   @override
   Widget build(BuildContext context) {
     final c = widget.colors;
+    final isAr = widget.language == 'ar';
 
     return ListenableBuilder(
       listenable: widget.downloadService,
@@ -361,285 +526,332 @@ class _DownloadSectionState extends State<_DownloadSection> {
             widget.downloadService.isDownloading(_fileId);
         final progress =
             widget.downloadService.progress(_fileId);
-        final hasUrl = widget.sub.pdfUrl.isNotEmpty;
+        final hasUrl = widget.edition.pdfUrl.isNotEmpty;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Full Mus\'haf PDF',
-              style: AppText.latin(
-                color: c.textPrimary,
-                size: 15,
-                weight: FontWeight.w700,
+        return GestureDetector(
+          onTap: () {
+            if (isDownloaded && !isDownloading) {
+              _openReader(context);
+            } else if (!isDownloading && hasUrl) {
+              _startDownload();
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: c.card,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDownloaded
+                    ? c.brand.withOpacity(0.4)
+                    : c.goldLine,
+                width: 1.5,
               ),
             ),
-            const SizedBox(height: 10),
-
-            GestureDetector(
-              onTap: () {
-                if (isDownloaded && !isDownloading) {
-                  _openMushaf(context);
-                } else if (!isDownloading && hasUrl) {
-                  _startDownload();
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: c.card,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: isDownloaded
-                        ? c.brand.withOpacity(0.4)
-                        : c.goldLine,
-                    width: 1.5,
-                  ),
-                ),
-                child: Column(
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isDownloaded
-                                ? c.brand
-                                : !hasUrl
-                                    ? c.surface2
-                                    : c.brand
-                                        .withOpacity(0.12),
-                            border: Border.all(
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDownloaded
+                            ? c.brand
+                            : !hasUrl
+                                ? c.surface2
+                                : c.brand.withOpacity(0.12),
+                        border: Border.all(
+                          color: isDownloaded
+                              ? c.brand
+                              : !hasUrl
+                                  ? c.divider
+                                  : c.brand.withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: isDownloading
+                          ? Padding(
+                              padding:
+                                  const EdgeInsets.all(14),
+                              child:
+                                  CircularProgressIndicator(
+                                value: progress > 0
+                                    ? progress
+                                    : null,
+                                strokeWidth: 2,
+                                color: c.brand,
+                              ),
+                            )
+                          : Icon(
+                              isDownloaded
+                                  ? Icons.menu_book_rounded
+                                  : !hasUrl
+                                      ? Icons
+                                          .hourglass_empty_rounded
+                                      : Icons.download_rounded,
+                              size: 22,
+                              color: isDownloaded
+                                  ? Colors.white
+                                  : !hasUrl
+                                      ? c.textFaint
+                                      : c.brand,
+                            ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: isAr
+                            ? CrossAxisAlignment.end
+                            : CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.edition.titleAr,
+                            textDirection:
+                                TextDirection.rtl,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.arabic(
+                              color: c.textPrimary,
+                              size: 15,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            isDownloaded
+                                ? 'Tap to Open'
+                                : isDownloading
+                                    ? 'Downloading...'
+                                    : !hasUrl
+                                        ? 'Coming Soon'
+                                        : 'Tap to Download',
+                            style: AppText.latin(
                               color: isDownloaded
                                   ? c.brand
-                                  : !hasUrl
-                                      ? c.divider
-                                      : c.brand
-                                          .withOpacity(0.3),
-                              width: 1.5,
+                                  : c.textMuted,
+                              size: 11,
+                              weight: FontWeight.w600,
                             ),
                           ),
-                          child: isDownloading
-                              ? Padding(
-                                  padding:
-                                      const EdgeInsets.all(
-                                          14),
-                                  child:
-                                      CircularProgressIndicator(
-                                    value: progress > 0
-                                        ? progress
-                                        : null,
-                                    strokeWidth: 2,
-                                    color: c.brand,
-                                  ),
-                                )
-                              : Icon(
-                                  isDownloaded
-                                      ? Icons
-                                          .menu_book_rounded
-                                      : !hasUrl
-                                          ? Icons
-                                              .hourglass_empty_rounded
-                                          : Icons
-                                              .download_rounded,
-                                  size: 22,
-                                  color: isDownloaded
-                                      ? Colors.white
-                                      : !hasUrl
-                                          ? c.textFaint
-                                          : c.brand,
-                                ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: c.brand.withOpacity(0.1),
+                        borderRadius:
+                            BorderRadius.circular(8),
+                        border: Border.all(
+                          color: c.brand.withOpacity(0.25),
                         ),
-                        const SizedBox(width: 14),
+                      ),
+                      child: Text(
+                        'Free',
+                        style: AppText.latin(
+                          color: c.brand,
+                          size: 12,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (isDownloading) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress > 0 ? progress : null,
+                      backgroundColor: c.surface2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(
+                              c.brand),
+                      minHeight: 4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        progress > 0
+                            ? '${(progress * 100).toInt()}%'
+                            : 'Connecting...',
+                        style: AppText.latin(
+                          color: c.brand,
+                          size: 11,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => widget.downloadService
+                            .cancelDownload(_fileId),
+                        child: Text(
+                          'Cancel',
+                          style: AppText.latin(
+                            color: c.danger,
+                            size: 11,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: c.dangerBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: c.danger.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline_rounded,
+                            color: c.danger, size: 14),
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                isDownloaded
-                                    ? 'Tap to Open Mus\'haf'
-                                    : isDownloading
-                                        ? 'Downloading...'
-                                        : !hasUrl
-                                            ? 'Coming Soon'
-                                            : 'Tap to Download',
-                                style: AppText.latin(
-                                  color: isDownloaded
-                                      ? c.brand
-                                      : c.textPrimary,
-                                  size: 14,
-                                  weight: FontWeight.w700,
-                                ),
-                              ),
-                              if (isDownloaded) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Downloaded · Tap to read',
-                                  style: AppText.latin(
-                                    color: c.brand,
-                                    size: 11,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding:
-                              const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                c.brand.withOpacity(0.1),
-                            borderRadius:
-                                BorderRadius.circular(8),
-                            border: Border.all(
-                              color:
-                                  c.brand.withOpacity(0.25),
-                            ),
-                          ),
                           child: Text(
-                            'Free',
+                            _errorMessage!,
                             style: AppText.latin(
-                              color: c.brand,
+                              color: c.danger,
                               size: 12,
-                              weight: FontWeight.w700,
                             ),
                           ),
                         ),
                       ],
                     ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
-                    if (isDownloading) ...[
-                      const SizedBox(height: 12),
-                      ClipRRect(
+// ─── Book Card (regular books inside the Quran sub-branch) ──
+
+class _BookCard extends StatelessWidget {
+  final Book book;
+  final AppColors colors;
+
+  const _BookCard({
+    required this.book,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BookDetailScreen(book: book),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: c.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: c.divider),
+        ),
+        child: Row(
+          children: [
+            BookCoverWidget(
+              book: book,
+              width: 58,
+              height: 78,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    book.titleAr,
+                    textDirection: TextDirection.rtl,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.arabic(
+                      color: c.textPrimary,
+                      size: 14,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    book.authorShort,
+                    textDirection: TextDirection.rtl,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.arabic(
+                      color: c.textMuted,
+                      size: 11,
+                    ),
+                  ),
+                  if (book.teacherAudio.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: c.goldLine,
                         borderRadius:
-                            BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: progress > 0
-                              ? progress
-                              : null,
-                          backgroundColor: c.surface2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(
-                                  c.brand),
-                          minHeight: 4,
+                            BorderRadius.circular(6),
+                        border: Border.all(
+                          color:
+                              c.goldText.withOpacity(0.3),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            progress > 0
-                                ? '${(progress * 100).toInt()}%'
-                                : 'Connecting...',
-                            style: AppText.latin(
-                              color: c.brand,
-                              size: 11,
-                              weight: FontWeight.w600,
-                            ),
+                          Icon(
+                            Icons.headphones_rounded,
+                            size: 10,
+                            color: c.goldText,
                           ),
-                          GestureDetector(
-                            onTap: () => widget
-                                .downloadService
-                                .cancelDownload(_fileId),
-                            child: Text(
-                              'Cancel',
-                              style: AppText.latin(
-                                color: c.danger,
-                                size: 11,
-                                weight: FontWeight.w600,
-                              ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${book.teacherAudio.length} teachers',
+                            style: AppText.latin(
+                              color: c.goldText,
+                              size: 9,
+                              weight: FontWeight.w700,
                             ),
                           ),
                         ],
                       ),
-                    ],
-
-                    if (_errorMessage != null) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: c.dangerBg,
-                          borderRadius:
-                              BorderRadius.circular(8),
-                          border: Border.all(
-                            color:
-                                c.danger.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                                Icons
-                                    .error_outline_rounded,
-                                color: c.danger,
-                                size: 14),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: AppText.latin(
-                                  color: c.danger,
-                                  size: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ],
-                ),
+                ],
               ),
             ),
-
-            // File size warning
-            if (!isDownloaded && hasUrl) ...[
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: c.goldLine,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: c.goldText.withOpacity(0.3),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline_rounded,
-                      color: c.goldText,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'The full Mus\'haf PDF can be between 100–300 MB depending on the edition. Make sure you have enough storage and a stable internet connection.',
-                        style: AppText.latin(
-                          color: c.goldText,
-                          size: 11,
-                          weight: FontWeight.w600,
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }
