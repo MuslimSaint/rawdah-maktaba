@@ -8,7 +8,6 @@ import '../widgets/book_cover.dart';
 import 'book_detail_screen.dart';
 
 /// Downloads tab — active downloads + completed downloads.
-/// Now supports Quran file names (Mus'haf + Surahs).
 class DownloadsTab extends StatefulWidget {
   const DownloadsTab({super.key});
 
@@ -94,8 +93,8 @@ class _DownloadsTabState extends State<DownloadsTab> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
               'Cancel',
-              style:
-                  AppText.latin(color: c.textMuted, size: 14),
+              style: AppText.latin(
+                  color: c.textMuted, size: 14),
             ),
           ),
           TextButton(
@@ -119,93 +118,232 @@ class _DownloadsTabState extends State<DownloadsTab> {
     }
   }
 
-  // ─── Name resolution for ALL file types ────────────
+  // ─── Name resolution ────────────────────────────────
 
-  /// Resolves a human-readable Arabic name for any fileId,
-  /// including Quran files that don't exist in the books list.
-  String _displayNameForFileId(String fileId) {
-    // Full Mus'haf
+  /// Returns a clean Arabic display name for any fileId.
+  ///
+  /// Handles all 6 file ID formats:
+  ///   pdf_mushaf            → القرآن الكريم
+  ///   pdf_mushaf_<id>       → edition titleAr
+  ///   pdf_surah_N           → سورة <name>
+  ///   pdf_<bookId>          → book.titleAr (via catalog)
+  ///   saudio_r_N_reciterId_part → سورة <name> — <reciter>
+  ///   saudio_t_N_teacherId_part → سورة <name> — <teacher> (تفسير)
+  ///   audio_bookId_teacherId_part → book.titleAr — الجزء N
+  String _displayName(
+    String fileId,
+    AppState state,
+  ) {
+    // ── Full Mus'haf (default edition) ──
     if (fileId == 'pdf_mushaf') {
-      return 'القرآن الكريم';
+      return 'المصحف الشريف';
     }
-    // Surah PDF: pdf_surah_N
-    if (fileId.startsWith('pdf_surah_')) {
-      final numStr = fileId.replaceFirst('pdf_surah_', '');
-      final num = int.tryParse(numStr);
-      if (num != null && num >= 1 && num <= 114) {
-        final surah = QuranSkeleton.byNumber(num);
-        if (surah != null) {
-          return 'سورة ${surah.nameAr}';
+
+    // ── Other Mus'haf editions: pdf_mushaf_<editionId> ──
+    if (fileId.startsWith('pdf_mushaf_')) {
+      final editionId =
+          fileId.replaceFirst('pdf_mushaf_', '');
+      // Try to find the edition in the catalog.
+      for (final sub
+          in state.catalogService.quranSubBranches) {
+        for (final ed in sub.editions) {
+          if (ed.id == editionId) {
+            return ed.titleAr;
+          }
         }
+      }
+      return 'المصحف الشريف';
+    }
+
+    // ── Surah PDF: pdf_surah_N ──
+    if (fileId.startsWith('pdf_surah_')) {
+      final numStr =
+          fileId.replaceFirst('pdf_surah_', '');
+      final n = int.tryParse(numStr);
+      if (n != null && n >= 1 && n <= 114) {
+        final meta = QuranSkeleton.byNumber(n);
+        if (meta != null) return 'سورة ${meta.nameAr}';
       }
       return 'سورة $numStr';
     }
-    // Surah audio: audio_surah_N_...
-    if (fileId.startsWith('audio_surah_')) {
-      final parts = fileId.split('_');
+
+    // ── Surah reciter audio: saudio_r_N_reciterId_part ──
+    if (fileId.startsWith('saudio_r_')) {
+      // Format: saudio_r_<surahNum>_<reciterId>_<part>
+      final rest = fileId.replaceFirst('saudio_r_', '');
+      final parts = rest.split('_');
       if (parts.length >= 3) {
-        final num = int.tryParse(parts[2]);
-        if (num != null && num >= 1 && num <= 114) {
-          final surah = QuranSkeleton.byNumber(num);
-          if (surah != null) {
-            return 'سورة ${surah.nameAr}';
+        final n = int.tryParse(parts[0]);
+        final reciterId = parts[1];
+        if (n != null && n >= 1 && n <= 114) {
+          final meta = QuranSkeleton.byNumber(n);
+          final reciter =
+              state.catalogService.reciterById(reciterId);
+          if (meta != null && reciter != null) {
+            return 'سورة ${meta.nameAr} — ${reciter.nameAr}';
+          }
+          if (meta != null) {
+            return 'سورة ${meta.nameAr}';
           }
         }
       }
     }
-    // Fallback: show the raw fileId
+
+    // ── Surah teacher audio: saudio_t_N_teacherId_part ──
+    if (fileId.startsWith('saudio_t_')) {
+      // Format: saudio_t_<surahNum>_<teacherId>_<part>
+      final rest = fileId.replaceFirst('saudio_t_', '');
+      final parts = rest.split('_');
+      if (parts.length >= 3) {
+        final n = int.tryParse(parts[0]);
+        final teacherId = parts[1];
+        if (n != null && n >= 1 && n <= 114) {
+          final meta = QuranSkeleton.byNumber(n);
+          final teacher =
+              state.catalogService.teacherById(teacherId);
+          if (meta != null && teacher != null) {
+            return 'سورة ${meta.nameAr} — ${teacher.nameAr} (تفسير)';
+          }
+          if (meta != null) {
+            return 'سورة ${meta.nameAr}';
+          }
+        }
+      }
+    }
+
+    // ── Book audio: audio_bookId_teacherId_part ──
+    if (fileId.startsWith('audio_')) {
+      // Format: audio_<bookId>_<teacherId>_<part>
+      // bookId may itself contain underscores (e.g. aqidah-muslimin
+      // never has underscores but some future id might).
+      // Strategy: last token = part number (int),
+      // second-to-last = teacherId (known from catalog),
+      // everything in between = bookId.
+      final rest = fileId.replaceFirst('audio_', '');
+      final tokens = rest.split('_');
+      if (tokens.length >= 3) {
+        final part = int.tryParse(tokens.last);
+        if (part != null) {
+          // Walk backward: find a teacherId that matches.
+          // teacherIds never have underscores in current data.
+          final possibleTeacherId =
+              tokens[tokens.length - 2];
+          final teacher = state.catalogService
+              .teacherById(possibleTeacherId);
+          // bookId = everything before the teacherId token.
+          final bookId = tokens
+              .sublist(0, tokens.length - 2)
+              .join('_');
+          Book? book;
+          try {
+            book = state.catalogService.books
+                .firstWhere((b) => b.id == bookId);
+          } catch (_) {}
+          if (book != null) {
+            final ordinal = _arabicOrdinal(part);
+            return '${book.titleAr} — $ordinal';
+          }
+        }
+      }
+    }
+
+    // ── Regular book PDF: pdf_<bookId> ──
+    if (fileId.startsWith('pdf_')) {
+      final bookId = fileId.replaceFirst('pdf_', '');
+      Book? book;
+      try {
+        book = state.catalogService.books
+            .firstWhere((b) => b.id == bookId);
+      } catch (_) {}
+      if (book != null) return book.titleAr;
+    }
+
+    // Fallback: raw fileId.
     return fileId;
   }
 
-  /// Returns the English transliteration for Quran file IDs.
-  String? _transliterationForFileId(String fileId) {
+  /// Badge label for a fileId.
+  String _badgeLabel(String fileId) {
+    if (fileId == 'pdf_mushaf' ||
+        fileId.startsWith('pdf_mushaf_') ||
+        fileId.startsWith('pdf_surah_') ||
+        fileId.startsWith('saudio_r_') ||
+        fileId.startsWith('saudio_t_')) {
+      return 'Quran';
+    }
+    if (fileId.startsWith('pdf_')) return 'PDF';
+    if (fileId.startsWith('audio_')) return 'Audio';
+    return 'File';
+  }
+
+  /// Badge color — gold for Quran, brand for everything else.
+  bool _isQuranFile(String fileId) {
+    return fileId == 'pdf_mushaf' ||
+        fileId.startsWith('pdf_mushaf_') ||
+        fileId.startsWith('pdf_surah_') ||
+        fileId.startsWith('saudio_r_') ||
+        fileId.startsWith('saudio_t_');
+  }
+
+  /// English subtitle for Quran files (transliteration or
+  /// edition name). Null for non-Quran files.
+  String? _subtitle(String fileId, AppState state) {
     if (fileId == 'pdf_mushaf') {
-      return 'The Noble Quran';
+      return 'The Noble Mus\'haf';
+    }
+    if (fileId.startsWith('pdf_mushaf_')) {
+      final editionId =
+          fileId.replaceFirst('pdf_mushaf_', '');
+      for (final sub
+          in state.catalogService.quranSubBranches) {
+        for (final ed in sub.editions) {
+          if (ed.id == editionId) return ed.titleEn;
+        }
+      }
+      return null;
     }
     if (fileId.startsWith('pdf_surah_')) {
-      final numStr = fileId.replaceFirst('pdf_surah_', '');
-      final num = int.tryParse(numStr);
-      if (num != null && num >= 1 && num <= 114) {
-        final surah = QuranSkeleton.byNumber(num);
-        if (surah != null) {
-          return surah.nameTransliteration;
-        }
+      final numStr =
+          fileId.replaceFirst('pdf_surah_', '');
+      final n = int.tryParse(numStr);
+      if (n != null) {
+        final meta = QuranSkeleton.byNumber(n);
+        return meta?.nameTransliteration;
       }
     }
     return null;
   }
 
-  /// Returns true if this fileId is a Quran-related file
-  /// (not a regular book).
-  bool _isQuranFileId(String fileId) {
-    return fileId == 'pdf_mushaf' ||
-        fileId.startsWith('pdf_surah_') ||
-        fileId.startsWith('audio_surah_');
-  }
-
-  Book? _bookForId(String bookId, List<Book> books) {
-    try {
-      return books.firstWhere((b) => b.id == bookId);
-    } catch (_) {
-      return null;
-    }
-  }
-
   Book? _bookForFileId(String fileId, List<Book> books) {
-    String bookId;
-    if (fileId.startsWith('pdf_')) {
-      bookId = fileId.replaceFirst('pdf_', '');
-    } else if (fileId.startsWith('audio_')) {
-      final parts = fileId.split('_');
-      bookId = parts.length > 1 ? parts[1] : '';
-    } else {
-      return null;
-    }
+    if (!fileId.startsWith('pdf_')) return null;
+    if (fileId == 'pdf_mushaf' ||
+        fileId.startsWith('pdf_mushaf_') ||
+        fileId.startsWith('pdf_surah_')) return null;
+    final bookId = fileId.replaceFirst('pdf_', '');
     try {
       return books.firstWhere((b) => b.id == bookId);
     } catch (_) {
       return null;
     }
+  }
+
+  /// Arabic ordinal for audio part numbers.
+  static String _arabicOrdinal(int n) {
+    const ordinals = [
+      '',
+      'الجزء الأول',
+      'الجزء الثاني',
+      'الجزء الثالث',
+      'الجزء الرابع',
+      'الجزء الخامس',
+      'الجزء السادس',
+      'الجزء السابع',
+      'الجزء الثامن',
+      'الجزء التاسع',
+      'الجزء العاشر',
+    ];
+    if (n >= 1 && n <= 10) return ordinals[n];
+    return 'الجزء $n';
   }
 
   @override
@@ -220,7 +358,8 @@ class _DownloadsTabState extends State<DownloadsTab> {
           children: [
             // ── Top Bar ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding:
+                  const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
                 children: [
                   Text(
@@ -236,7 +375,8 @@ class _DownloadsTabState extends State<DownloadsTab> {
                     GestureDetector(
                       onTap: _deleteAll,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
+                        padding:
+                            const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 6,
                         ),
@@ -245,7 +385,8 @@ class _DownloadsTabState extends State<DownloadsTab> {
                           borderRadius:
                               BorderRadius.circular(10),
                           border: Border.all(
-                            color: c.danger.withOpacity(0.3),
+                            color:
+                                c.danger.withOpacity(0.3),
                           ),
                         ),
                         child: Row(
@@ -297,8 +438,9 @@ class _DownloadsTabState extends State<DownloadsTab> {
                         }
 
                         return ListView(
-                          padding: const EdgeInsets.fromLTRB(
-                              20, 0, 20, 24),
+                          padding:
+                              const EdgeInsets.fromLTRB(
+                                  20, 0, 20, 24),
                           children: [
                             // ── Active Downloads ──
                             if (hasActive) ...[
@@ -311,58 +453,69 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                 ),
                               ),
                               const SizedBox(height: 10),
-                              ...activeDownloads.map((active) {
-                                final fileId =
-                                    active['fileId'] as String;
-                                final displayName =
-                                    active['displayName']
-                                        as String;
-                                final bookId =
-                                    active['bookId'] as String;
-                                final prog =
-                                    active['progress']
-                                        as double;
-                                final speed =
-                                    active['speedKbps']
-                                        as double;
+                              ...activeDownloads
+                                  .map((active) {
+                                final fileId = active[
+                                    'fileId'] as String;
+                                final bookId = active[
+                                    'bookId'] as String;
+                                final prog = active[
+                                    'progress'] as double;
+                                final speed = active[
+                                        'speedKbps']
+                                    as double;
                                 final paused =
-                                    active['paused'] as bool? ??
-                                        false;
+                                    active['paused']
+                                        as bool? ??
+                                    false;
+                                final awaiting =
+                                    active['awaitingNetwork']
+                                        as bool? ??
+                                    false;
 
-                                final book = _bookForId(
-                                  bookId,
-                                  state.catalogService.books,
-                                );
+                                // Use our resolver,
+                                // not the raw displayName.
+                                final name = _displayName(
+                                    fileId, state);
 
-                                // Use book name, or Quran name,
-                                // or the display name from download
-                                final name = book?.titleAr ??
-                                    (_isQuranFileId(fileId)
-                                        ? _displayNameForFileId(
-                                            fileId)
-                                        : displayName);
+                                Book? book;
+                                if (bookId.isNotEmpty) {
+                                  try {
+                                    book = state
+                                        .catalogService
+                                        .books
+                                        .firstWhere((b) =>
+                                            b.id == bookId);
+                                  } catch (_) {}
+                                }
 
                                 return Padding(
                                   padding:
                                       const EdgeInsets.only(
                                           bottom: 10),
-                                  child: _ActiveDownloadCard(
+                                  child:
+                                      _ActiveDownloadCard(
                                     fileId: fileId,
                                     book: book,
                                     displayName: name,
                                     progress: prog,
                                     speedKbps: speed,
                                     isPaused: paused,
+                                    isAwaitingNetwork:
+                                        awaiting,
                                     colors: c,
                                     onCancel: () => state
                                         .downloadService
-                                        .cancelDownload(fileId),
+                                        .cancelDownload(
+                                            fileId),
                                     onPause: () => state
                                         .downloadService
-                                        .pauseDownload(fileId),
+                                        .pauseDownload(
+                                            fileId),
                                     onResume: () => state
                                         .downloadService
-                                        .resumeDownload(fileId),
+                                        .resumeDownload(
+                                            fileId),
                                   ),
                                 );
                               }),
@@ -387,36 +540,41 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                 ),
                               ),
                               const SizedBox(height: 10),
-                              ..._downloadedFiles.map((file) {
+                              ..._downloadedFiles
+                                  .map((file) {
                                 final fileId =
                                     file['id'] as String;
                                 final sizeMb =
                                     file['sizeMb'] as double;
-                                final book = _bookForFileId(
+                                final book =
+                                    _bookForFileId(
                                   fileId,
-                                  state.catalogService.books,
+                                  state.catalogService
+                                      .books,
                                 );
-
-                                // Resolve display name:
-                                // book name > Quran name > raw fileId
-                                final displayName =
-                                    book?.titleAr ??
-                                        _displayNameForFileId(
-                                            fileId);
-                                final transliteration =
-                                    _transliterationForFileId(
-                                        fileId);
+                                final name =
+                                    _displayName(
+                                        fileId, state);
+                                final sub =
+                                    _subtitle(
+                                        fileId, state);
+                                final isQuran =
+                                    _isQuranFile(fileId);
+                                final badge =
+                                    _badgeLabel(fileId);
 
                                 return Padding(
                                   padding:
                                       const EdgeInsets.only(
                                           bottom: 10),
-                                  child: _DownloadedFileCard(
+                                  child:
+                                      _DownloadedFileCard(
                                     fileId: fileId,
                                     book: book,
-                                    displayName: displayName,
-                                    transliteration:
-                                        transliteration,
+                                    displayName: name,
+                                    subtitle: sub,
+                                    badgeLabel: badge,
+                                    isQuranFile: isQuran,
                                     sizeMb: sizeMb,
                                     colors: c,
                                     onDelete: () =>
@@ -454,7 +612,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
   }
 }
 
-// ─── Active Download Card ────────────────────────────────
+// ─── Active Download Card ─────────────────────────────
 
 class _ActiveDownloadCard extends StatelessWidget {
   final String fileId;
@@ -463,6 +621,7 @@ class _ActiveDownloadCard extends StatelessWidget {
   final double progress;
   final double speedKbps;
   final bool isPaused;
+  final bool isAwaitingNetwork;
   final AppColors colors;
   final VoidCallback onCancel;
   final VoidCallback onPause;
@@ -475,6 +634,7 @@ class _ActiveDownloadCard extends StatelessWidget {
     required this.progress,
     required this.speedKbps,
     required this.isPaused,
+    required this.isAwaitingNetwork,
     required this.colors,
     required this.onCancel,
     required this.onPause,
@@ -487,7 +647,31 @@ class _ActiveDownloadCard extends StatelessWidget {
     final isPdf = fileId.startsWith('pdf_');
     final percent = (progress * 100).toInt();
     final isQuran = fileId == 'pdf_mushaf' ||
-        fileId.startsWith('pdf_surah_');
+        fileId.startsWith('pdf_mushaf_') ||
+        fileId.startsWith('pdf_surah_') ||
+        fileId.startsWith('saudio_r_') ||
+        fileId.startsWith('saudio_t_');
+
+    // Determine status color and label.
+    final Color statusColor = isAwaitingNetwork
+        ? c.textMuted
+        : isPaused
+            ? c.goldText
+            : c.brand;
+
+    final String statusLabel = isAwaitingNetwork
+        ? 'Waiting for network…'
+        : isPaused
+            ? 'Paused'
+            : progress > 0
+                ? '$percent% downloaded'
+                : 'Connecting…';
+
+    final String hintLabel = isAwaitingNetwork
+        ? 'Will resume automatically · × to cancel'
+        : isPaused
+            ? 'Tap ▶ to resume'
+            : 'Tap ∥ to pause · × to cancel';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -495,9 +679,11 @@ class _ActiveDownloadCard extends StatelessWidget {
         color: c.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isPaused
-              ? c.goldText.withOpacity(0.4)
-              : c.brand.withOpacity(0.3),
+          color: isAwaitingNetwork
+              ? c.textFaint.withOpacity(0.3)
+              : isPaused
+                  ? c.goldText.withOpacity(0.4)
+                  : c.brand.withOpacity(0.3),
         ),
       ),
       child: Column(
@@ -505,6 +691,7 @@ class _ActiveDownloadCard extends StatelessWidget {
         children: [
           Row(
             children: [
+              // Cover / icon
               if (book != null)
                 BookCoverWidget(
                   book: book!,
@@ -534,7 +721,8 @@ class _ActiveDownloadCard extends StatelessWidget {
                             ? Icons.picture_as_pdf_rounded
                             : Icons.headphones_rounded,
                     size: 22,
-                    color: isQuran ? c.goldText : c.brand,
+                    color:
+                        isQuran ? c.goldText : c.brand,
                   ),
                 ),
 
@@ -559,29 +747,34 @@ class _ActiveDownloadCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Row(
                       children: [
+                        // Status badge
                         Container(
-                          padding: const EdgeInsets.symmetric(
+                          padding:
+                              const EdgeInsets.symmetric(
                             horizontal: 6,
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: isPaused
-                                ? c.goldLine
+                            color: isAwaitingNetwork
+                                ? c.surface2
                                 : isQuran
                                     ? c.goldLine
-                                    : c.brand.withOpacity(0.1),
+                                    : c.brand
+                                        .withOpacity(0.1),
                             borderRadius:
                                 BorderRadius.circular(5),
                           ),
                           child: Text(
-                            isPaused
-                                ? 'Paused'
+                            isAwaitingNetwork
+                                ? 'Offline'
                                 : isQuran
                                     ? 'Quran'
-                                    : (isPdf ? 'PDF' : 'Audio'),
+                                    : isPdf
+                                        ? 'PDF'
+                                        : 'Audio',
                             style: AppText.latin(
-                              color: isPaused
-                                  ? c.goldText
+                              color: isAwaitingNetwork
+                                  ? c.textMuted
                                   : isQuran
                                       ? c.goldText
                                       : c.brand,
@@ -590,7 +783,10 @@ class _ActiveDownloadCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (speedKbps > 0 && !isPaused) ...[
+                        // Speed (only when actively downloading)
+                        if (speedKbps > 0 &&
+                            !isPaused &&
+                            !isAwaitingNetwork) ...[
                           const SizedBox(width: 8),
                           Icon(
                             Icons.speed_rounded,
@@ -607,34 +803,52 @@ class _ActiveDownloadCard extends StatelessWidget {
                             ),
                           ),
                         ],
+                        // Network waiting spinner
+                        if (isAwaitingNetwork) ...[
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 11,
+                            height: 11,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: c.textMuted,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
                 ),
               ),
 
-              GestureDetector(
-                onTap: isPaused ? onResume : onPause,
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: c.surface2,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: c.divider),
-                  ),
-                  child: Icon(
-                    isPaused
-                        ? Icons.play_arrow_rounded
-                        : Icons.pause_rounded,
-                    size: 18,
-                    color: c.textPrimary,
+              // Pause/resume button — hidden when awaiting network
+              if (!isAwaitingNetwork) ...[
+                GestureDetector(
+                  onTap: isPaused ? onResume : onPause,
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: c.surface2,
+                      borderRadius:
+                          BorderRadius.circular(10),
+                      border:
+                          Border.all(color: c.divider),
+                    ),
+                    child: Icon(
+                      isPaused
+                          ? Icons.play_arrow_rounded
+                          : Icons.pause_rounded,
+                      size: 18,
+                      color: c.textPrimary,
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 8),
+              ],
 
-              const SizedBox(width: 8),
-
+              // Cancel button — always visible
               GestureDetector(
                 onTap: onCancel,
                 child: Container(
@@ -659,13 +873,22 @@ class _ActiveDownloadCard extends StatelessWidget {
 
           const SizedBox(height: 10),
 
+          // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: progress > 0 ? progress : null,
+              value: isAwaitingNetwork
+                  ? null // indeterminate when waiting
+                  : progress > 0
+                      ? progress
+                      : null,
               backgroundColor: c.surface2,
               valueColor: AlwaysStoppedAnimation<Color>(
-                isPaused ? c.goldText : c.brand,
+                isAwaitingNetwork
+                    ? c.textFaint
+                    : isPaused
+                        ? c.goldText
+                        : c.brand,
               ),
               minHeight: 5,
             ),
@@ -674,22 +897,19 @@ class _ActiveDownloadCard extends StatelessWidget {
           const SizedBox(height: 6),
 
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                progress > 0
-                    ? '$percent% downloaded'
-                    : 'Connecting...',
+                statusLabel,
                 style: AppText.latin(
-                  color: isPaused ? c.goldText : c.brand,
+                  color: statusColor,
                   size: 11,
                   weight: FontWeight.w600,
                 ),
               ),
               Text(
-                isPaused
-                    ? 'Tap ▶ to resume'
-                    : 'Tap ∥ to pause · × to cancel',
+                hintLabel,
                 style: AppText.latin(
                   color: c.textFaint,
                   size: 10,
@@ -703,7 +923,7 @@ class _ActiveDownloadCard extends StatelessWidget {
   }
 }
 
-// ─── Empty State ─────────────────────────────────────────
+// ─── Empty State ──────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
   final AppColors colors;
@@ -761,7 +981,7 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// ─── Storage Card ─────────────────────────────────────────
+// ─── Storage Card ────────────────────────────────────
 
 class _StorageCard extends StatelessWidget {
   final double totalMb;
@@ -819,8 +1039,8 @@ class _StorageCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '$fileCount file${fileCount == 1 ? '' : 's'} downloaded',
-            style:
-                AppText.latin(color: c.textMuted, size: 11),
+            style: AppText.latin(
+                color: c.textMuted, size: 11),
           ),
           const SizedBox(height: 10),
           ClipRRect(
@@ -839,13 +1059,15 @@ class _StorageCard extends StatelessWidget {
   }
 }
 
-// ─── Downloaded File Card ────────────────────────────────
+// ─── Downloaded File Card ────────────────────────────
 
 class _DownloadedFileCard extends StatelessWidget {
   final String fileId;
   final Book? book;
   final String displayName;
-  final String? transliteration;
+  final String? subtitle;
+  final String badgeLabel;
+  final bool isQuranFile;
   final double sizeMb;
   final AppColors colors;
   final VoidCallback onDelete;
@@ -855,7 +1077,9 @@ class _DownloadedFileCard extends StatelessWidget {
     required this.fileId,
     required this.book,
     required this.displayName,
-    required this.transliteration,
+    required this.subtitle,
+    required this.badgeLabel,
+    required this.isQuranFile,
     required this.sizeMb,
     required this.colors,
     required this.onDelete,
@@ -866,8 +1090,6 @@ class _DownloadedFileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     final isPdf = fileId.startsWith('pdf_');
-    final isQuran = fileId == 'pdf_mushaf' ||
-        fileId.startsWith('pdf_surah_');
     final sizeDisplay = sizeMb < 1
         ? '${(sizeMb * 1024).toStringAsFixed(0)} KB'
         : '${sizeMb.toStringAsFixed(1)} MB';
@@ -896,24 +1118,26 @@ class _DownloadedFileCard extends StatelessWidget {
                 width: 46,
                 height: 58,
                 decoration: BoxDecoration(
-                  color: isQuran
+                  color: isQuranFile
                       ? c.goldLine
                       : c.brand.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isQuran
+                    color: isQuranFile
                         ? c.goldText.withOpacity(0.35)
                         : c.brand.withOpacity(0.2),
                   ),
                 ),
                 child: Icon(
-                  isQuran
+                  isQuranFile
                       ? Icons.import_contacts_rounded
                       : isPdf
                           ? Icons.picture_as_pdf_rounded
                           : Icons.headphones_rounded,
                   size: 22,
-                  color: isQuran ? c.goldText : c.brand,
+                  color: isQuranFile
+                      ? c.goldText
+                      : c.brand,
                 ),
               ),
 
@@ -921,9 +1145,9 @@ class _DownloadedFileCard extends StatelessWidget {
 
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
-                  // Always show the display name (Arabic)
                   Text(
                     displayName,
                     textDirection: TextDirection.rtl,
@@ -932,15 +1156,13 @@ class _DownloadedFileCard extends StatelessWidget {
                       size: 13,
                       weight: FontWeight.w700,
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-
-                  // Show transliteration for Quran files
-                  if (transliteration != null) ...[
+                  if (subtitle != null) ...[
                     const SizedBox(height: 2),
                     Text(
-                      transliteration!,
+                      subtitle!,
                       style: AppText.latin(
                         color: c.textMuted,
                         size: 10,
@@ -949,31 +1171,26 @@ class _DownloadedFileCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
-
                   const SizedBox(height: 4),
-
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
+                        padding:
+                            const EdgeInsets.symmetric(
                           horizontal: 6,
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: isQuran
+                          color: isQuranFile
                               ? c.goldLine
                               : c.brand.withOpacity(0.08),
                           borderRadius:
                               BorderRadius.circular(5),
                         ),
                         child: Text(
-                          isQuran
-                              ? 'Quran'
-                              : isPdf
-                                  ? 'PDF'
-                                  : 'Audio',
+                          badgeLabel,
                           style: AppText.latin(
-                            color: isQuran
+                            color: isQuranFile
                                 ? c.goldText
                                 : c.brand,
                             size: 10,
@@ -985,7 +1202,8 @@ class _DownloadedFileCard extends StatelessWidget {
                       Text(
                         sizeDisplay,
                         style: AppText.latin(
-                            color: c.textFaint, size: 11),
+                            color: c.textFaint,
+                            size: 11),
                       ),
                       const SizedBox(width: 6),
                       Icon(Icons.check_circle_rounded,
