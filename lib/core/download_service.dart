@@ -7,36 +7,49 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Handles all file downloads — PDFs and audio files.
 ///
-/// Features:
+/// v6 features (all preserved):
 /// - Real cancel (kills the underlying HTTP stream)
 /// - HTTP Range resume on network drop / cancel-and-retry
 /// - HTTPS-only enforcement
-/// - MIME type check (rejects html/json — catches wrong URLs)
-/// - Cover extraction hook (unchanged)
-/// - Fully backward-compatible public API
+/// - MIME type check (rejects html/json)
+/// - Cover extraction hook
+///
+/// New in this version:
+/// - awaitingNetwork state: on network drop, download row
+///   stays visible and auto-retries every 3 seconds.
+/// - Byte-count verification: received bytes must match
+///   Content-Length before file is marked as downloaded.
+/// - cancelDownload works even in awaitingNetwork state.
 class DownloadService extends ChangeNotifier {
   final Map<String, double> _progress = {};
   final Map<String, bool> _downloading = {};
   final Set<String> _downloaded = {};
   final Map<String, bool> _paused = {};
+
+  // True when a download lost network and is waiting to retry.
+  final Map<String, bool> _awaitingNetwork = {};
+
+  // Stored retry info so auto-retry can re-call _executeDownload.
+  final Map<String, _RetryParams> _retryParams = {};
+
+  // Retry timers — one per fileId waiting for network.
+  final Map<String, Timer> _retryTimers = {};
+
   final Map<String, Map<String, dynamic>> _activeDownloads = {};
-
-  // Active stream subscriptions — cancel() kills them for real.
-  final Map<String, StreamSubscription<List<int>>>
-      _activeSubs = {};
-
-  // Currently open write sinks — closed on cancel.
+  final Map<String, StreamSubscription<List<int>>> _activeSubs = {};
   final Map<String, IOSink> _activeSinks = {};
-
-  // http.Client per download — closed on cancel.
   final Map<String, http.Client> _activeClients = {};
 
   static const _downloadedKey = 'downloaded_files';
   static const _partialPrefix = 'partial_bytes_';
 
-  // ─── Cover extraction callback ─────────────────────
+  // ─── Callbacks ─────────────────────────────────────
   Future<void> Function(String bookId, String pdfPath)?
       onPdfDownloadComplete;
+
+  /// Called when a PDF file is deleted so the caller can
+  /// clean up the extracted cover and cached metadata.
+  Future<void> Function(String bookId)? onPdfFileDeleted;
 
   // ─── Init ──────────────────────────────────────────
 
@@ -70,6 +83,9 @@ class DownloadService extends ChangeNotifier {
   bool isPaused(String fileId) =>
       _paused[fileId] == true;
 
+  bool isAwaitingNetwork(String fileId) =>
+      _awaitingNetwork[fileId] == true;
+
   double progress(String fileId) =>
       _progress[fileId] ?? 0;
 
@@ -79,7 +95,7 @@ class DownloadService extends ChangeNotifier {
   List<Map<String, dynamic>> get activeDownloads =>
       _activeDownloads.values.toList();
 
-  // ─── Download ──────────────────────────────────────
+  // ─── Download (public entry point) ─────────────────
 
   Future<void> download({
     required String fileId,
@@ -112,6 +128,7 @@ class DownloadService extends ChangeNotifier {
     }
 
     _paused[fileId] = false;
+    _awaitingNetwork[fileId] = false;
     _downloading[fileId] = true;
     _progress[fileId] = 0;
 
@@ -122,21 +139,48 @@ class DownloadService extends ChangeNotifier {
       'progress': 0.0,
       'speedKbps': 0.0,
       'paused': false,
+      'awaitingNetwork': false,
       'startedAt': DateTime.now(),
     };
 
+    // Store params for auto-retry.
+    _retryParams[fileId] = _RetryParams(
+      fileId: fileId,
+      uri: uri,
+      bookId: bookId,
+      onError: onError,
+      onComplete: onComplete,
+    );
+
     notifyListeners();
 
+    await _executeDownload(
+      fileId: fileId,
+      uri: uri,
+      bookId: bookId,
+      onError: onError,
+      onComplete: onComplete,
+    );
+  }
+
+  // ─── Execute (internal) ────────────────────────────
+
+  Future<void> _executeDownload({
+    required String fileId,
+    required Uri uri,
+    required String? bookId,
+    required Function(String error) onError,
+    required VoidCallback onComplete,
+  }) async {
     // ── Check for resumable partial file ──
     final file = await _fileFor(fileId);
     int startByte = 0;
     if (await file.exists()) {
       startByte = await file.length();
     }
-    // Verify saved offset matches actual file size.
     final savedOffset = await _readPartialOffset(fileId);
     if (savedOffset > 0 && savedOffset == startByte) {
-      // Good — resume from here.
+      // Saved offset matches file size — safe to resume.
     } else {
       // Mismatch — start fresh.
       startByte = 0;
@@ -155,33 +199,23 @@ class DownloadService extends ChangeNotifier {
       if (startByte > 0) {
         request.headers['Range'] = 'bytes=$startByte-';
       }
-      // Force redirect follow (http package does this by default,
-      // but being explicit for clarity).
       request.followRedirects = true;
       request.maxRedirects = 5;
 
       final response = await client.send(request);
 
       // ── Status code check ──
-      // 200 = full download. 206 = partial (Range accepted).
-      // Anything else = error.
       if (response.statusCode != 200 &&
           response.statusCode != 206) {
-        // If we asked for a Range and the server refused,
-        // fall back to a fresh full download.
         if (startByte > 0 && response.statusCode == 416) {
-          // 416 Range Not Satisfiable — file changed or server
-          // doesn't support ranges. Restart fresh.
+          // 416 Range Not Satisfiable — restart fresh.
           client.close();
           _activeClients.remove(fileId);
           if (await file.exists()) await file.delete();
           await _clearPartialOffset(fileId);
-          _failDownload(fileId);
-          // Retry once from scratch
-          return download(
+          return _executeDownload(
             fileId: fileId,
-            url: url,
-            displayName: displayName,
+            uri: uri,
             bookId: bookId,
             onError: onError,
             onComplete: onComplete,
@@ -194,9 +228,7 @@ class DownloadService extends ChangeNotifier {
         return;
       }
 
-      // ── MIME type sanity check ──
-      // Reject html/json — usually means the URL is a share
-      // page, not a direct file link.
+      // ── MIME type check ──
       final contentType =
           (response.headers['content-type'] ?? '').toLowerCase();
       if (contentType.contains('text/html') ||
@@ -205,17 +237,17 @@ class DownloadService extends ChangeNotifier {
         _activeClients.remove(fileId);
         _failDownload(fileId);
         onError(
-            'This URL does not point to a downloadable file. Use a direct link.');
+            'This URL does not point to a downloadable file. '
+            'Use a direct link.');
         return;
       }
 
-      // ── Open sink in append mode if resuming ──
+      // ── Open sink ──
       final sink = response.statusCode == 206
           ? file.openWrite(mode: FileMode.append)
           : file.openWrite();
       _activeSinks[fileId] = sink;
 
-      // Total size: for 206, add Range start byte back.
       final contentLength = response.contentLength ?? 0;
       final total = response.statusCode == 206
           ? startByte + contentLength
@@ -225,35 +257,37 @@ class DownloadService extends ChangeNotifier {
       var lastTime = DateTime.now();
       var lastReceived = received;
 
+      // Clear awaiting-network state — we have a live connection.
+      _awaitingNetwork[fileId] = false;
+      if (_activeDownloads.containsKey(fileId)) {
+        _activeDownloads[fileId]!['awaitingNetwork'] = false;
+      }
+      notifyListeners();
+
       final completer = Completer<void>();
 
       final sub = response.stream.listen(
         (chunk) async {
-          // Handle pause: buffer this chunk and wait.
+          // Handle pause.
           while (_paused[fileId] == true) {
             await Future.delayed(
                 const Duration(milliseconds: 200));
-            if (!(_downloading[fileId] == true)) {
-              // Was cancelled during pause.
-              return;
-            }
+            if (_downloading[fileId] != true) return;
           }
 
           try {
             sink.add(chunk);
           } catch (_) {
-            // Sink write failed — treat as cancel.
             return;
           }
           received += chunk.length;
 
-          // Save byte offset periodically so we can resume
-          // after crash / kill / network loss.
+          // Persist byte offset every 256 KB.
           if (received % (256 * 1024) < chunk.length) {
             _writePartialOffset(fileId, received);
           }
 
-          // Speed calculation
+          // Speed calculation.
           final now = DateTime.now();
           final elapsed =
               now.difference(lastTime).inMilliseconds;
@@ -288,12 +322,33 @@ class DownloadService extends ChangeNotifier {
           _activeSubs.remove(fileId);
           await _clearPartialOffset(fileId);
 
+          // ── Byte-count verification ──────────────────
+          // If the server told us the total size and we
+          // received fewer bytes, the file is incomplete.
+          // Keep it as a partial so the next download call
+          // resumes from here rather than starting over.
+          if (total > 0 && received < total) {
+            debugPrint(
+              'Download incomplete for $fileId: '
+              'received $received of $total bytes.',
+            );
+            await _writePartialOffset(fileId, received);
+            _failDownload(fileId);
+            onError(
+                'Download incomplete. '
+                'Tap download again to resume.');
+            if (!completer.isCompleted) completer.complete();
+            return;
+          }
+          // ─────────────────────────────────────────────
+
           _downloaded.add(fileId);
           await _saveDownloaded();
+          _retryParams.remove(fileId);
           _completeCleanup(fileId);
           notifyListeners();
 
-          // ── Trigger cover extraction if PDF ──
+          // ── Cover extraction ──
           if (fileId.startsWith('pdf_') &&
               onPdfDownloadComplete != null) {
             final pdfPath = (await _fileFor(fileId)).path;
@@ -304,11 +359,12 @@ class DownloadService extends ChangeNotifier {
           }
 
           onComplete();
-          completer.complete();
+          if (!completer.isCompleted) completer.complete();
         },
         onError: (err) async {
-          // Network drop or read error.
-          // KEEP the partial file so next download call resumes.
+          // ── Network drop — keep partial, auto-retry ──
+          // Do NOT call _failDownload. The row stays in
+          // the Downloads tab with awaitingNetwork = true.
           try {
             await sink.flush();
             await sink.close();
@@ -317,7 +373,8 @@ class DownloadService extends ChangeNotifier {
           client.close();
           _activeClients.remove(fileId);
           _activeSubs.remove(fileId);
-          // Save final offset for resume.
+
+          // Save current offset for resume.
           try {
             final f = await _fileFor(fileId);
             if (await f.exists()) {
@@ -325,9 +382,18 @@ class DownloadService extends ChangeNotifier {
                   fileId, await f.length());
             }
           } catch (_) {}
-          _failDownload(fileId);
-          onError(
-              'Network interrupted. Tap download again to resume.');
+
+          // Transition to awaiting-network.
+          _awaitingNetwork[fileId] = true;
+          if (_activeDownloads.containsKey(fileId)) {
+            _activeDownloads[fileId]!['awaitingNetwork'] =
+                true;
+            _activeDownloads[fileId]!['speedKbps'] = 0.0;
+          }
+          notifyListeners();
+
+          _scheduleRetry(fileId);
+
           if (!completer.isCompleted) completer.complete();
         },
         cancelOnError: true,
@@ -343,7 +409,7 @@ class DownloadService extends ChangeNotifier {
       } catch (_) {}
       _activeSinks.remove(fileId);
       _activeSubs.remove(fileId);
-      // Save resume offset if we have a partial file.
+
       try {
         final f = await _fileFor(fileId);
         if (await f.exists()) {
@@ -351,37 +417,85 @@ class DownloadService extends ChangeNotifier {
               fileId, await f.length());
         }
       } catch (_) {}
-      _failDownload(fileId);
-      onError(
-          'Download failed. Check your internet and try again.');
+
+      // If still marked as downloading, transition to
+      // awaiting-network and schedule a retry.
+      if (_downloading[fileId] == true) {
+        _awaitingNetwork[fileId] = true;
+        if (_activeDownloads.containsKey(fileId)) {
+          _activeDownloads[fileId]!['awaitingNetwork'] = true;
+          _activeDownloads[fileId]!['speedKbps'] = 0.0;
+        }
+        notifyListeners();
+        _scheduleRetry(fileId);
+      } else {
+        _failDownload(fileId);
+        onError(
+            'Download failed. '
+            'Check your internet and try again.');
+      }
     }
+  }
+
+  // ─── Auto-retry ────────────────────────────────────
+
+  void _scheduleRetry(String fileId) {
+    _retryTimers[fileId]?.cancel();
+    _retryTimers[fileId] = Timer(
+      const Duration(seconds: 3),
+      () => _attemptRetry(fileId),
+    );
+  }
+
+  Future<void> _attemptRetry(String fileId) async {
+    _retryTimers.remove(fileId);
+    if (_downloading[fileId] != true) return;
+    if (_awaitingNetwork[fileId] != true) return;
+
+    final params = _retryParams[fileId];
+    if (params == null) return;
+
+    debugPrint('Auto-retrying download for $fileId...');
+
+    _awaitingNetwork[fileId] = false;
+    if (_activeDownloads.containsKey(fileId)) {
+      _activeDownloads[fileId]!['awaitingNetwork'] = false;
+    }
+    notifyListeners();
+
+    await _executeDownload(
+      fileId: fileId,
+      uri: params.uri,
+      bookId: params.bookId,
+      onError: params.onError,
+      onComplete: params.onComplete,
+    );
   }
 
   // ─── Cancel ────────────────────────────────────────
 
-  /// Actually stops the download. Kills the HTTP stream,
-  /// closes the sink, deletes the partial file, and clears
-  /// the resume offset.
   Future<void> cancelDownload(String fileId) async {
-    if (_downloading[fileId] != true) return;
+    // Stop retry timer first.
+    _retryTimers[fileId]?.cancel();
+    _retryTimers.remove(fileId);
+    _retryParams.remove(fileId);
 
-    // Cancel the stream subscription first — this stops
-    // new data from arriving.
+    final isActive = _downloading[fileId] == true ||
+        _awaitingNetwork[fileId] == true;
+    if (!isActive) return;
+
     final sub = _activeSubs.remove(fileId);
     try {
       await sub?.cancel();
     } catch (_) {}
 
-    // Close the HTTP client to release the socket.
     _activeClients.remove(fileId)?.close();
 
-    // Close and flush the sink.
     try {
       final sink = _activeSinks.remove(fileId);
       await sink?.close();
     } catch (_) {}
 
-    // Delete the partial file — cancel means "start over".
     try {
       final file = await _fileFor(fileId);
       if (await file.exists()) await file.delete();
@@ -394,6 +508,7 @@ class DownloadService extends ChangeNotifier {
   void _cancelCleanup(String fileId) {
     _downloading[fileId] = false;
     _paused[fileId] = false;
+    _awaitingNetwork[fileId] = false;
     _progress.remove(fileId);
     _activeDownloads.remove(fileId);
     notifyListeners();
@@ -402,12 +517,18 @@ class DownloadService extends ChangeNotifier {
   void _completeCleanup(String fileId) {
     _downloading[fileId] = false;
     _paused[fileId] = false;
+    _awaitingNetwork[fileId] = false;
+    _retryTimers[fileId]?.cancel();
+    _retryTimers.remove(fileId);
     _activeDownloads.remove(fileId);
   }
 
   void _failDownload(String fileId) {
     _downloading[fileId] = false;
     _paused[fileId] = false;
+    _awaitingNetwork[fileId] = false;
+    _retryTimers[fileId]?.cancel();
+    _retryTimers.remove(fileId);
     _progress.remove(fileId);
     _activeDownloads.remove(fileId);
     notifyListeners();
@@ -436,7 +557,8 @@ class DownloadService extends ChangeNotifier {
   // ─── Delete ────────────────────────────────────────
 
   Future<void> deleteFile(String fileId) async {
-    if (_downloading[fileId] == true) {
+    if (_downloading[fileId] == true ||
+        _awaitingNetwork[fileId] == true) {
       await cancelDownload(fileId);
     }
 
@@ -450,13 +572,29 @@ class DownloadService extends ChangeNotifier {
     _progress.remove(fileId);
     _downloading.remove(fileId);
     _paused.remove(fileId);
+    _awaitingNetwork.remove(fileId);
     await _saveDownloaded();
+
+    // ── Cover cleanup callback (Task 4) ──────────────
+    // If this was a PDF, notify the caller so it can
+    // delete the extracted cover and cached metadata.
+    if (fileId.startsWith('pdf_') &&
+        onPdfFileDeleted != null) {
+      final bookId = fileId.replaceFirst('pdf_', '');
+      onPdfFileDeleted!(bookId).catchError((_) {});
+    }
+
     notifyListeners();
   }
 
   Future<void> deleteAll() async {
-    for (final id in _downloading.keys.toList()) {
-      if (_downloading[id] == true) {
+    final activeIds = {
+      ..._downloading.keys,
+      ..._awaitingNetwork.keys,
+    }.toList();
+    for (final id in activeIds) {
+      if (_downloading[id] == true ||
+          _awaitingNetwork[id] == true) {
         await cancelDownload(id);
       }
     }
@@ -467,10 +605,10 @@ class DownloadService extends ChangeNotifier {
       await dir.create();
     }
 
-    // Clear all partial offsets.
     final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys().where(
-        (k) => k.startsWith(_partialPrefix));
+    final keys = prefs
+        .getKeys()
+        .where((k) => k.startsWith(_partialPrefix));
     for (final k in keys) {
       await prefs.remove(k);
     }
@@ -479,6 +617,7 @@ class DownloadService extends ChangeNotifier {
     _progress.clear();
     _downloading.clear();
     _paused.clear();
+    _awaitingNetwork.clear();
     _activeDownloads.clear();
     await _saveDownloaded();
     notifyListeners();
@@ -546,7 +685,8 @@ class DownloadService extends ChangeNotifier {
 
   Future<Directory> _downloadsDir() async {
     final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory('${appDir.path}/rawdah_downloads');
+    final dir =
+        Directory('${appDir.path}/rawdah_downloads');
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
@@ -588,4 +728,22 @@ class DownloadService extends ChangeNotifier {
     }
     return '${kbps.toStringAsFixed(0)} KB/s';
   }
+}
+
+// ─── Internal retry params ─────────────────────────────
+
+class _RetryParams {
+  final String fileId;
+  final Uri uri;
+  final String? bookId;
+  final Function(String error) onError;
+  final VoidCallback onComplete;
+
+  const _RetryParams({
+    required this.fileId,
+    required this.uri,
+    required this.bookId,
+    required this.onError,
+    required this.onComplete,
+  });
 }
