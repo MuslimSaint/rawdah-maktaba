@@ -21,14 +21,10 @@ class AppState extends ChangeNotifier {
   static const _keyDismissedAnnouncements =
       'dismissed_announcements';
 
-  /// Legacy single-Mus'haf key. Auto-migrated on first
-  /// access to the new per-edition key for edition id
-  /// "mushaf" (the default single-edition id).
-  static const _keyLegacyMushafLastPage = 'mushaf_last_page';
-
-  /// Per-edition prefix. Full key is
-  /// `mushaf_last_page_<editionId>`.
-  static const _keyMushafLastPagePrefix = 'mushaf_last_page_';
+  static const _keyLegacyMushafLastPage =
+      'mushaf_last_page';
+  static const _keyMushafLastPagePrefix =
+      'mushaf_last_page_';
 
   late SharedPreferences _prefs;
 
@@ -42,17 +38,16 @@ class AppState extends ChangeNotifier {
   int _lastBookPage = 0;
   int _lastBookTotalPages = 0;
 
-  /// In-memory cache of per-edition last-read pages.
-  /// Populated lazily from SharedPreferences.
   final Map<String, int> _mushafLastPages = {};
-
   bool _legacyMushafMigrated = false;
 
-  final Set<String> _dismissedAnnouncements = <String>{};
+  final Set<String> _dismissedAnnouncements =
+      <String>{};
 
-  // ─── Shared Services ───────────────────────────────
+  // ─── Services ──────────────────────────────────────
   final CatalogService catalogService = CatalogService();
-  final DownloadService downloadService = DownloadService();
+  final DownloadService downloadService =
+      DownloadService();
   final AudioService audioService = AudioService();
   final FirestoreService firestoreService =
       FirestoreService();
@@ -87,38 +82,50 @@ class AppState extends ChangeNotifier {
       _isDark = savedTheme == 'dark';
     } else {
       final brightness = WidgetsBinding
-          .instance.platformDispatcher.platformBrightness;
+          .instance
+          .platformDispatcher
+          .platformBrightness;
       _isDark = brightness == Brightness.dark;
     }
 
-    _language = _prefs.getString(_keyLanguage) ?? 'en';
+    _language =
+        _prefs.getString(_keyLanguage) ?? 'en';
     _isFirstLaunch =
         _prefs.getBool(_keyFirstLaunch) ?? true;
     _isSignedIn =
         _prefs.getBool(_keyUserSignedIn) ?? false;
 
     _lastBookId = _prefs.getString(_keyLastBookId);
-    _lastBookTitle = _prefs.getString(_keyLastBookTitle);
-    _lastBookPage = _prefs.getInt(_keyLastBookPage) ?? 0;
+    _lastBookTitle =
+        _prefs.getString(_keyLastBookTitle);
+    _lastBookPage =
+        _prefs.getInt(_keyLastBookPage) ?? 0;
     _lastBookTotalPages =
         _prefs.getInt(_keyLastBookTotalPages) ?? 0;
 
-    // Migrate the legacy single-Mus'haf key once.
     _migrateLegacyMushafLastPage();
 
-    final dismissed = _prefs
-            .getStringList(_keyDismissedAnnouncements) ??
+    final dismissed = _prefs.getStringList(
+            _keyDismissedAnnouncements) ??
         [];
     _dismissedAnnouncements.addAll(dismissed);
 
     await downloadService.init();
     await coverService.init();
 
+    // ── Cover extraction on PDF download ──
     downloadService.onPdfDownloadComplete =
         (bookId, pdfPath) => coverService.extractCover(
               bookId: bookId,
               pdfPath: pdfPath,
             );
+
+    // ── Cover + metadata cleanup on PDF delete (Task 4) ──
+    // When any PDF is deleted via DownloadService,
+    // CoverService removes the extracted cover, cached
+    // page count, and cached file size for that book.
+    downloadService.onPdfFileDeleted =
+        (bookId) => coverService.clearFor(bookId);
 
     catalogService.addListener(_onCatalogLoaded);
     catalogService.load();
@@ -130,10 +137,10 @@ class AppState extends ChangeNotifier {
     if (_legacyMushafMigrated) return;
     _legacyMushafMigrated = true;
 
-    final legacy = _prefs.getInt(_keyLegacyMushafLastPage);
+    final legacy =
+        _prefs.getInt(_keyLegacyMushafLastPage);
     if (legacy == null || legacy <= 0) return;
 
-    // Only migrate if the new key isn't already set.
     const defaultEditionId = 'mushaf';
     final newKey =
         '$_keyMushafLastPagePrefix$defaultEditionId';
@@ -157,7 +164,6 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _extractCoversForDownloadedBooks() async {
-    // Extract covers for regular books
     final books = catalogService.books;
     for (final book in books) {
       final fileId = 'pdf_${book.id}';
@@ -176,9 +182,8 @@ class AppState extends ChangeNotifier {
       }
     }
 
-    // Also extract covers for books inside Quran sub-branches
-    // (like Tafseer books, and Ulum al-Quran books).
-    for (final sub in catalogService.quranSubBranches) {
+    for (final sub
+        in catalogService.quranSubBranches) {
       for (final book in sub.books) {
         final fileId = 'pdf_${book.id}';
         if (downloadService.isDownloaded(fileId) &&
@@ -206,12 +211,15 @@ class AppState extends ChangeNotifier {
           await firestoreService.syncOnLogin();
       if (cloudData == null) return;
 
-      if (_lastBookId == null || _lastBookId!.isEmpty) {
+      if (_lastBookId == null ||
+          _lastBookId!.isEmpty) {
         final bookId =
             cloudData['lastBookId'] as String? ?? '';
         final bookTitle =
-            cloudData['lastBookTitle'] as String? ?? '';
-        final page = cloudData['lastPage'] as int? ?? 0;
+            cloudData['lastBookTitle'] as String? ??
+                '';
+        final page =
+            cloudData['lastPage'] as int? ?? 0;
         final total =
             cloudData['totalPages'] as int? ?? 0;
 
@@ -220,7 +228,8 @@ class AppState extends ChangeNotifier {
           _lastBookTitle = bookTitle;
           _lastBookPage = page;
           _lastBookTotalPages = total;
-          await _prefs.setString(_keyLastBookId, bookId);
+          await _prefs.setString(
+              _keyLastBookId, bookId);
           await _prefs.setString(
               _keyLastBookTitle, bookTitle);
           await _prefs.setInt(_keyLastBookPage, page);
@@ -276,7 +285,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── Reading Progress (books, synced to Firebase) ──
+  // ─── Reading Progress ──────────────────────────────
 
   Future<void> setLastOpenedBook({
     required String bookId,
@@ -290,9 +299,11 @@ class AppState extends ChangeNotifier {
     _lastBookTotalPages = totalPages;
 
     await _prefs.setString(_keyLastBookId, bookId);
-    await _prefs.setString(_keyLastBookTitle, bookTitle);
+    await _prefs.setString(
+        _keyLastBookTitle, bookTitle);
     await _prefs.setInt(_keyLastBookPage, page);
-    await _prefs.setInt(_keyLastBookTotalPages, totalPages);
+    await _prefs.setInt(
+        _keyLastBookTotalPages, totalPages);
 
     firestoreService.saveReadingProgress(
       bookId: bookId,
@@ -324,23 +335,19 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── Mus'haf Position (per-edition, local only) ────
+  // ─── Mus'haf Position (per-edition) ───────────────
 
-  /// Returns the last-read page for the given Mus'haf
-  /// edition. Zero means "not started yet."
   int mushafLastPageFor(String editionId) {
     if (_mushafLastPages.containsKey(editionId)) {
       return _mushafLastPages[editionId]!;
     }
-    final saved =
-        _prefs.getInt('$_keyMushafLastPagePrefix$editionId') ??
-            0;
+    final saved = _prefs.getInt(
+            '$_keyMushafLastPagePrefix$editionId') ??
+        0;
     _mushafLastPages[editionId] = saved;
     return saved;
   }
 
-  /// Saves the last-read page for the given Mus'haf
-  /// edition. Local only, never synced to Firebase.
   Future<void> setMushafLastPageFor(
       String editionId, int page) async {
     if (page < 0) return;
@@ -360,11 +367,15 @@ class AppState extends ChangeNotifier {
   }
 
   bool isAnnouncementDismissed(String fingerprint) {
-    return _dismissedAnnouncements.contains(fingerprint);
+    return _dismissedAnnouncements
+        .contains(fingerprint);
   }
 
-  Future<void> dismissAnnouncement(String fingerprint) async {
-    if (_dismissedAnnouncements.contains(fingerprint)) return;
+  Future<void> dismissAnnouncement(
+      String fingerprint) async {
+    if (_dismissedAnnouncements.contains(fingerprint)) {
+      return;
+    }
     _dismissedAnnouncements.add(fingerprint);
     await _prefs.setStringList(
       _keyDismissedAnnouncements,
@@ -387,7 +398,8 @@ class AppState extends ChangeNotifier {
 }
 
 /// InheritedNotifier that makes AppState available.
-class AppStateProvider extends InheritedNotifier<AppState> {
+class AppStateProvider
+    extends InheritedNotifier<AppState> {
   const AppStateProvider({
     super.key,
     required AppState state,
@@ -395,8 +407,8 @@ class AppStateProvider extends InheritedNotifier<AppState> {
   }) : super(notifier: state);
 
   static AppState of(BuildContext context) {
-    final provider =
-        context.dependOnInheritedWidgetOfExactType<
+    final provider = context
+        .dependOnInheritedWidgetOfExactType<
             AppStateProvider>();
     assert(
         provider != null, 'No AppStateProvider found');
