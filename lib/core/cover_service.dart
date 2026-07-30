@@ -10,8 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///   2. Real page count
 ///   3. Real file size in MB
 ///
-/// All done in a single pass. Completely UI-independent —
-/// works regardless of which screen the user is on.
+/// All done in a single pass. Completely UI-independent.
 class CoverService extends ChangeNotifier {
   static const _pageCountsKey = 'pdf_page_counts';
   static const _fileSizesKey = 'pdf_file_sizes_mb';
@@ -28,14 +27,13 @@ class CoverService extends ChangeNotifier {
 
   String? coverPath(String bookId) => _coverPaths[bookId];
 
-  /// Real PDF page count, or null if not extracted yet.
   int? pageCount(String bookId) => _pageCounts[bookId];
 
   bool hasPageCount(String bookId) =>
       _pageCounts.containsKey(bookId);
 
-  /// Real file size in MB, or null if not extracted yet.
-  double? fileSizeMb(String bookId) => _fileSizesMb[bookId];
+  double? fileSizeMb(String bookId) =>
+      _fileSizesMb[bookId];
 
   bool hasFileSize(String bookId) =>
       _fileSizesMb.containsKey(bookId);
@@ -43,11 +41,11 @@ class CoverService extends ChangeNotifier {
   // ─── Init ──────────────────────────────────────────
 
   Future<void> init() async {
-    // Load cached page counts + file sizes from prefs
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      final pcRaw = prefs.getStringList(_pageCountsKey) ?? [];
+      final pcRaw =
+          prefs.getStringList(_pageCountsKey) ?? [];
       for (final entry in pcRaw) {
         final parts = entry.split('|');
         if (parts.length == 2) {
@@ -58,7 +56,8 @@ class CoverService extends ChangeNotifier {
         }
       }
 
-      final fsRaw = prefs.getStringList(_fileSizesKey) ?? [];
+      final fsRaw =
+          prefs.getStringList(_fileSizesKey) ?? [];
       for (final entry in fsRaw) {
         final parts = entry.split('|');
         if (parts.length == 2) {
@@ -70,7 +69,6 @@ class CoverService extends ChangeNotifier {
       }
     } catch (_) {}
 
-    // Load existing cover files
     try {
       final dir = await _coversDir();
       if (!await dir.exists()) {
@@ -100,14 +98,10 @@ class CoverService extends ChangeNotifier {
 
   // ─── Extract ───────────────────────────────────────
 
-  /// Extracts cover + page count + file size from a
-  /// downloaded PDF. Safe to call multiple times — skips
-  /// work already done. UI-independent.
   Future<void> extractCover({
     required String bookId,
     required String pdfPath,
   }) async {
-    // Already fully processed
     if (_coverPaths.containsKey(bookId) &&
         _pageCounts.containsKey(bookId) &&
         _fileSizesMb.containsKey(bookId)) {
@@ -121,7 +115,7 @@ class CoverService extends ChangeNotifier {
     _extracting.add(bookId);
 
     try {
-      // ── 1. File size (fast, no PDF open needed) ──
+      // ── 1. File size ──
       if (!_fileSizesMb.containsKey(bookId)) {
         final bytes = await pdfFile.length();
         _fileSizesMb[bookId] = bytes / (1024 * 1024);
@@ -137,19 +131,18 @@ class CoverService extends ChangeNotifier {
         return;
       }
 
-      // Save real page count
       if (!_pageCounts.containsKey(bookId)) {
         _pageCounts[bookId] = doc.pageCount;
         await _savePageCounts();
         notifyListeners();
       }
 
-      // Extract cover (only if not already done)
       if (!_coverPaths.containsKey(bookId)) {
         final page = await doc.getPage(1);
         final targetWidth = 400;
         final targetHeight =
-            (targetWidth * page.height / page.width).round();
+            (targetWidth * page.height / page.width)
+                .round();
 
         final pageImage = await page.render(
           width: targetWidth,
@@ -174,8 +167,8 @@ class CoverService extends ChangeNotifier {
 
         final dir = await _coversDir();
         final file = File('${dir.path}/$bookId.jpg');
-        await file.writeAsBytes(
-            byteData.buffer.asUint8List());
+        await file
+            .writeAsBytes(byteData.buffer.asUint8List());
 
         _coverPaths[bookId] = file.path;
         notifyListeners();
@@ -187,10 +180,40 @@ class CoverService extends ChangeNotifier {
     }
   }
 
-  // ─── Delete ────────────────────────────────────────
+  // ─── Clear for a single book (Task 4) ──────────────
 
-  /// Called when a PDF is deleted — removes its cover too.
-  /// Page count and file size are kept as valid metadata.
+  /// Deletes the extracted cover image, cached page count,
+  /// and cached file size for the given bookId.
+  ///
+  /// Called by AppState when a PDF is deleted so no
+  /// orphaned data is left behind.
+  Future<void> clearFor(String bookId) async {
+    // Delete the cover image file from disk.
+    try {
+      final path = _coverPaths[bookId];
+      if (path != null) {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      }
+    } catch (_) {}
+
+    // Remove from in-memory maps.
+    _coverPaths.remove(bookId);
+    _pageCounts.remove(bookId);
+    _fileSizesMb.remove(bookId);
+
+    // Persist the updated maps.
+    await _savePageCounts();
+    await _saveFileSizes();
+
+    notifyListeners();
+  }
+
+  // ─── Legacy individual deleters ────────────────────
+  // Kept for backward compatibility with any existing
+  // callers. Both now simply delegate to clearFor() or
+  // do their specific job.
+
   Future<void> deleteCover(String bookId) async {
     try {
       final path = _coverPaths[bookId];
@@ -241,17 +264,16 @@ class CoverService extends ChangeNotifier {
   // ─── Helpers ───────────────────────────────────────
 
   Future<Directory> _coversDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir = Directory('${appDir.path}/book_covers');
+    final appDir =
+        await getApplicationDocumentsDirectory();
+    final dir =
+        Directory('${appDir.path}/book_covers');
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
     return dir;
   }
 
-  // ─── Public formatter ──────────────────────────────
-
-  /// Formats an MB value nicely: KB if less than 1 MB.
   static String formatSize(double mb) {
     if (mb < 1) {
       return '${(mb * 1024).toStringAsFixed(0)} KB';
