@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/models.dart';
@@ -27,12 +28,17 @@ class HomeTab extends StatelessWidget {
           listenable: state,
           builder: (context, _) {
             return SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 24),
+              padding:
+                  const EdgeInsets.only(bottom: AppSpacing.lg),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   _TopBar(colors: c),
-                  const SizedBox(height: 18),
+
+                  // Tighter between top bar and
+                  // announcement — they are in sequence.
+                  const SizedBox(height: AppSpacing.base),
 
                   ListenableBuilder(
                     listenable: Listenable.merge([
@@ -40,8 +46,8 @@ class HomeTab extends StatelessWidget {
                       state,
                     ]),
                     builder: (context, _) {
-                      final a = state
-                          .catalogService.activeAnnouncement;
+                      final a = state.catalogService
+                          .activeAnnouncement;
                       if (a == null) {
                         return const SizedBox.shrink();
                       }
@@ -61,10 +67,14 @@ class HomeTab extends StatelessWidget {
                   ),
 
                   _DailyHadith(colors: c),
-                  const SizedBox(height: 18),
+
+                  // Larger gap — section break between
+                  // hadith and reading progress.
+                  const SizedBox(height: AppSpacing.xl),
 
                   _ContinueReading(colors: c),
-                  const SizedBox(height: 22),
+
+                  const SizedBox(height: AppSpacing.xl),
 
                   _BranchesSection(colors: c),
                 ],
@@ -78,6 +88,8 @@ class HomeTab extends StatelessWidget {
 }
 
 // ─── Announcement Banner ─────────────────────────────────
+// Left-border accent style — less visually heavy than
+// a full outlined box.
 
 class _AnnouncementBanner extends StatelessWidget {
   final Announcement announcement;
@@ -95,52 +107,65 @@ class _AnnouncementBanner extends StatelessWidget {
     final c = colors;
     final a = announcement;
 
-    Color bgColor;
-    Color textColor;
+    Color accentColor;
     IconData icon;
 
     switch (a.type) {
       case 'warning':
-        bgColor = c.goldLine;
-        textColor = c.goldText;
+        accentColor = c.goldText;
         icon = Icons.warning_amber_rounded;
         break;
       case 'success':
-        bgColor = c.brand.withOpacity(0.1);
-        textColor = c.brand;
+        accentColor = c.brand;
         icon = Icons.check_circle_outline_rounded;
         break;
       default:
-        bgColor = c.brand.withOpacity(0.08);
-        textColor = c.brand;
+        accentColor = c.brand;
         icon = Icons.info_outline_rounded;
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.base,
+          0,
+          AppSpacing.base,
+          AppSpacing.md),
       child: Container(
         padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 12,
+          horizontal: AppSpacing.base,
+          vertical: AppSpacing.md,
         ),
         decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: textColor.withOpacity(0.25),
+          color: c.card,
+          // Left-border accent only — less noise.
+          border: Border(
+            left: BorderSide(
+              color: accentColor,
+              width: 3,
+            ),
+            top: BorderSide(
+              color: accentColor.withOpacity(0.15),
+            ),
+            right: BorderSide(
+              color: accentColor.withOpacity(0.15),
+            ),
+            bottom: BorderSide(
+              color: accentColor.withOpacity(0.15),
+            ),
           ),
+          borderRadius: AppRadius.listItemRadius,
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: textColor),
-            const SizedBox(width: 10),
+            Icon(icon, size: 18, color: accentColor),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 a.message,
                 style: AppText.latin(
-                  color: textColor,
+                  color: c.textPrimary,
                   size: 13,
-                  weight: FontWeight.w600,
+                  weight: FontWeight.w500,
                 ),
               ),
             ),
@@ -152,7 +177,7 @@ class _AnnouncementBanner extends StatelessWidget {
               child: Icon(
                 Icons.close_rounded,
                 size: 16,
-                color: textColor,
+                color: c.textFaint,
               ),
             ),
           ],
@@ -162,7 +187,7 @@ class _AnnouncementBanner extends StatelessWidget {
   }
 }
 
-// ─── Top Bar ────────────────────────────────────────────
+// ─── Top Bar ─────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
   final AppColors colors;
@@ -174,9 +199,14 @@ class _TopBar extends StatelessWidget {
     final c = colors;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.base,
+          AppSpacing.base,
+          AppSpacing.base,
+          0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment:
+            MainAxisAlignment.spaceBetween,
         children: [
           GestureDetector(
             onTap: () => state.toggleTheme(),
@@ -185,7 +215,8 @@ class _TopBar extends StatelessWidget {
               height: 38,
               decoration: BoxDecoration(
                 color: c.surface2,
-                borderRadius: BorderRadius.circular(11),
+                borderRadius:
+                    AppRadius.buttonRadius,
                 border: Border.all(color: c.divider),
               ),
               child: Icon(
@@ -213,7 +244,7 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ─── Daily Hadith (compact) ──────────────────────────────
+// ─── Daily Hadith ─────────────────────────────────────────
 
 class _DailyHadith extends StatelessWidget {
   final AppColors colors;
@@ -231,7 +262,8 @@ class _DailyHadith extends StatelessWidget {
       'source': 'صحيح مسلم',
     },
     {
-      'text': 'خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ.',
+      'text':
+          'خَيْرُكُمْ مَنْ تَعَلَّمَ الْقُرْآنَ وَعَلَّمَهُ.',
       'source': 'صحيح البخاري',
     },
     {
@@ -263,7 +295,8 @@ class _DailyHadith extends StatelessWidget {
     final hadith = _hadiths[dayIndex % _hadiths.length];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.base),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -277,15 +310,15 @@ class _DailyHadith extends StatelessWidget {
                   weight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 7,
+                  horizontal: AppSpacing.sm - 1,
                   vertical: 2,
                 ),
                 decoration: BoxDecoration(
                   color: c.goldLine,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: AppRadius.pillRadius,
                 ),
                 child: Text(
                   'Daily',
@@ -298,22 +331,26 @@ class _DailyHadith extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+
+          const SizedBox(height: AppSpacing.sm),
+
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(AppSpacing.base),
             decoration: BoxDecoration(
               color: c.card,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: AppRadius.cardRadius,
               border: Border(
-                left: BorderSide(color: c.goldText, width: 3),
+                left: BorderSide(
+                    color: c.goldText, width: 3),
                 top: BorderSide(color: c.divider),
                 right: BorderSide(color: c.divider),
                 bottom: BorderSide(color: c.divider),
               ),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment:
+                  CrossAxisAlignment.end,
               children: [
                 Text(
                   hadith['text']!,
@@ -327,15 +364,15 @@ class _DailyHadith extends StatelessWidget {
                     height: 1.7,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.sm),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
+                    horizontal: AppSpacing.sm,
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
                     color: c.goldLine,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: AppRadius.pillRadius,
                   ),
                   child: Text(
                     hadith['source']!,
@@ -356,8 +393,10 @@ class _DailyHadith extends StatelessWidget {
   }
 }
 
-// ─── Continue Reading (compact) ──────────────────────────
-// Handles: regular books, Mus'haf editions, and Surahs.
+// ─── Continue Reading ─────────────────────────────────────
+// Replaced the download-style progress bar with a
+// reading-specific metaphor: book icon + "Page X of Y"
+// prominent text + dot-segment position indicator.
 
 class _ContinueReading extends StatelessWidget {
   final AppColors colors;
@@ -370,10 +409,10 @@ class _ContinueReading extends StatelessWidget {
       bookId != null && bookId.startsWith('surah_');
 
   static int? _surahNumberFromId(String? bookId) {
-    if (bookId == null || !bookId.startsWith('surah_')) {
-      return null;
-    }
-    return int.tryParse(bookId.replaceFirst('surah_', ''));
+    if (bookId == null ||
+        !bookId.startsWith('surah_')) return null;
+    return int.tryParse(
+        bookId.replaceFirst('surah_', ''));
   }
 
   @override
@@ -382,7 +421,8 @@ class _ContinueReading extends StatelessWidget {
     final c = colors;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.base),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -394,16 +434,16 @@ class _ContinueReading extends StatelessWidget {
               weight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           GestureDetector(
             onTap: state.hasLastBook
                 ? () => _handleTap(context, state)
                 : null,
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
                 color: c.card,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: AppRadius.cardRadius,
                 border: Border.all(
                     color: c.goldLine, width: 1.5),
               ),
@@ -417,19 +457,19 @@ class _ContinueReading extends StatelessWidget {
     );
   }
 
-  void _handleTap(BuildContext context, AppState state) {
+  void _handleTap(
+      BuildContext context, AppState state) {
     final bookId = state.lastBookId;
     if (bookId == null) return;
 
-    // ── Mus'haf ──
     if (_isMushafId(bookId)) {
-      // Find the mushaf sub-branch, then open its first
-      // (default) edition. The first edition is always
-      // the one with id "mushaf" for backward compat.
-      final mushafSub = state.catalogService.quranSubBranches
-          .where((sb) => sb.type == QuranSubBranchType.mushaf)
+      final mushafSub = state
+          .catalogService.quranSubBranches
+          .where((sb) =>
+              sb.type == QuranSubBranchType.mushaf)
           .firstOrNull;
-      if (mushafSub != null && mushafSub.editions.isNotEmpty) {
+      if (mushafSub != null &&
+          mushafSub.editions.isNotEmpty) {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => MushafReaderScreen(
@@ -441,7 +481,6 @@ class _ContinueReading extends StatelessWidget {
       return;
     }
 
-    // ── Surah ──
     if (_isSurahId(bookId)) {
       final num = _surahNumberFromId(bookId);
       if (num != null) {
@@ -449,7 +488,8 @@ class _ContinueReading extends StatelessWidget {
         if (meta != null) {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => SurahDetailScreen(meta: meta),
+              builder: (_) =>
+                  SurahDetailScreen(meta: meta),
             ),
           );
         }
@@ -457,7 +497,6 @@ class _ContinueReading extends StatelessWidget {
       return;
     }
 
-    // ── Regular book ──
     try {
       final book = state.catalogService.books
           .firstWhere((b) => b.id == bookId);
@@ -469,9 +508,7 @@ class _ContinueReading extends StatelessWidget {
           ),
         ),
       );
-    } catch (_) {
-      // Book not found in catalog — silently ignore
-    }
+    } catch (_) {}
   }
 }
 
@@ -486,21 +523,18 @@ class _LastBookContent extends StatelessWidget {
 
     final bookId = state.lastBookId;
     final isMushaf = bookId == 'mushaf';
-    final isSurah =
-        bookId != null && bookId.startsWith('surah_');
+    final isSurah = bookId != null &&
+        bookId.startsWith('surah_');
     final isQuran = isMushaf || isSurah;
 
-    // Try to find regular book
     Book? book;
     if (!isQuran) {
       try {
-        book = state.catalogService.books.firstWhere(
-          (b) => b.id == bookId,
-        );
+        book = state.catalogService.books
+            .firstWhere((b) => b.id == bookId);
       } catch (_) {}
     }
 
-    // Resolve display name
     String displayName;
     if (isMushaf) {
       displayName = 'القرآن الكريم';
@@ -509,8 +543,9 @@ class _LastBookContent extends StatelessWidget {
           bookId!.replaceFirst('surah_', ''));
       if (num != null) {
         final meta = QuranSkeleton.byNumber(num);
-        displayName =
-            meta != null ? 'سورة ${meta.nameAr}' : bookId;
+        displayName = meta != null
+            ? 'سورة ${meta.nameAr}'
+            : bookId;
       } else {
         displayName = bookId;
       }
@@ -519,17 +554,20 @@ class _LastBookContent extends StatelessWidget {
     }
 
     final progress = state.lastBookProgress;
-    final percent = (progress * 100).toInt();
+    final currentPage = state.lastBookPage + 1;
+    final totalPages = state.lastBookTotalPages;
+    final accentColor =
+        isQuran ? c.goldText : c.brand;
 
     return Row(
       children: [
-        // Icon / cover
+        // Cover / icon
         if (book != null)
           BookCoverWidget(
             book: book,
             width: 44,
             height: 58,
-            borderRadius: 8,
+            borderRadius: AppRadius.input,
           )
         else
           Container(
@@ -539,7 +577,8 @@ class _LastBookContent extends StatelessWidget {
               color: isQuran
                   ? c.goldLine
                   : c.brand.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(
+                  AppRadius.input),
               border: Border.all(
                 color: isQuran
                     ? c.goldText.withOpacity(0.35)
@@ -551,17 +590,19 @@ class _LastBookContent extends StatelessWidget {
                   ? Icons.import_contacts_rounded
                   : Icons.menu_book_rounded,
               size: 22,
-              color: isQuran ? c.goldText : c.brand,
+              color: accentColor,
             ),
           ),
 
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpacing.md),
 
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Book title
               Text(
                 displayName,
                 textDirection: TextDirection.rtl,
@@ -573,45 +614,104 @@ class _LastBookContent extends StatelessWidget {
                   weight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(
-                'Page ${state.lastBookPage + 1}'
-                '${state.lastBookTotalPages > 0 ? ' of ${state.lastBookTotalPages}' : ''}',
-                style: AppText.latin(
-                    color: c.textMuted, size: 10),
-              ),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: c.surface2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    isQuran ? c.goldText : c.brand,
+
+              const SizedBox(height: AppSpacing.xs),
+
+              // ── Reading progress metaphor ──────────
+              // "Page X of Y" is the primary reading
+              // indicator — specific to reading, not
+              // generic like a download bar.
+              Row(
+                children: [
+                  Icon(
+                    Icons.auto_stories_rounded,
+                    size: 11,
+                    color: accentColor,
                   ),
-                  minHeight: 3,
-                ),
+                  const SizedBox(
+                      width: AppSpacing.xs),
+                  Text(
+                    totalPages > 0
+                        ? 'Page $currentPage of $totalPages'
+                        : 'Page $currentPage',
+                    style: AppText.latin(
+                      color: accentColor,
+                      size: 11,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                '$percent%',
-                style: AppText.latin(
-                  color: isQuran ? c.goldText : c.brand,
-                  size: 9,
-                  weight: FontWeight.w700,
-                ),
+
+              const SizedBox(height: AppSpacing.sm),
+
+              // ── Dot segment indicator ──────────────
+              // Segments represent relative position
+              // in the book — feels like a bookmark,
+              // not a download progress bar.
+              _ReadingDotIndicator(
+                progress: progress,
+                accentColor: accentColor,
+                bgColor: c.surface2,
               ),
             ],
           ),
         ),
 
-        const SizedBox(width: 6),
+        const SizedBox(width: AppSpacing.sm),
         Icon(
           Icons.chevron_right_rounded,
           size: 16,
           color: c.textFaint,
         ),
       ],
+    );
+  }
+}
+
+/// Segmented dot indicator — 8 dots showing
+/// relative position in the book.
+class _ReadingDotIndicator extends StatelessWidget {
+  final double progress;
+  final Color accentColor;
+  final Color bgColor;
+
+  const _ReadingDotIndicator({
+    required this.progress,
+    required this.accentColor,
+    required this.bgColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const totalDots = 10;
+    final filledDots =
+        (progress * totalDots).round().clamp(0, totalDots);
+
+    return Row(
+      children: List.generate(totalDots, (i) {
+        final filled = i < filledDots;
+        // Slightly larger dot at current position
+        final isCurrent = i == filledDots - 1 &&
+            filledDots > 0;
+
+        return Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(
+                right: AppSpacing.xs),
+            child: AnimatedContainer(
+              duration:
+                  const Duration(milliseconds: 300),
+              height: isCurrent ? 6 : 4,
+              decoration: BoxDecoration(
+                color: filled ? accentColor : bgColor,
+                borderRadius:
+                    BorderRadius.circular(AppRadius.pill),
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 }
@@ -629,21 +729,23 @@ class _NoBookContent extends StatelessWidget {
           width: 44,
           height: 58,
           decoration: BoxDecoration(
-            color: c.brand.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(8),
+            color: c.brand.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(
+                AppRadius.input),
             border: Border.all(
-                color: c.brand.withOpacity(0.25)),
+                color: c.brand.withOpacity(0.2)),
           ),
           child: Icon(
             Icons.menu_book_rounded,
             size: 22,
-            color: c.brand,
+            color: c.brand.withOpacity(0.5),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
@@ -651,22 +753,31 @@ class _NoBookContent extends StatelessWidget {
                 style: AppText.latin(
                     color: c.textMuted, size: 12),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: AppSpacing.xs),
               Text(
                 'Tap a book in the Library to start',
                 style: AppText.latin(
                     color: c.textFaint, size: 10),
               ),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: 0,
-                  backgroundColor: c.surface2,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(c.brand),
-                  minHeight: 3,
-                ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: List.generate(10, (i) {
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                          right: AppSpacing.xs),
+                      child: Container(
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: c.surface2,
+                          borderRadius:
+                              BorderRadius.circular(
+                                  AppRadius.pill),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
               ),
             ],
           ),
@@ -676,7 +787,7 @@ class _NoBookContent extends StatelessWidget {
   }
 }
 
-// ─── Branches Section (Heroes + Grid) ────────────────────
+// ─── Branches Section ─────────────────────────────────────
 
 class _BranchesSection extends StatelessWidget {
   final AppColors colors;
@@ -695,7 +806,8 @@ class _BranchesSection extends StatelessWidget {
     final c = colors;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.base),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -707,7 +819,7 @@ class _BranchesSection extends StatelessWidget {
               weight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
           ListenableBuilder(
             listenable: state.catalogService,
             builder: (context, _) {
@@ -717,7 +829,8 @@ class _BranchesSection extends StatelessWidget {
                   .firstWhere((b) => b.id == 'hadith');
               final gridBranches = Catalog.branches
                   .where((b) =>
-                      b.id != 'quran' && b.id != 'hadith')
+                      b.id != 'quran' &&
+                      b.id != 'hadith')
                   .toList();
 
               return Column(
@@ -737,7 +850,7 @@ class _BranchesSection extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.md),
                   BranchHeroCard(
                     branch: hadithBranch,
                     style: BranchHeroStyle.hadith,
@@ -757,7 +870,7 @@ class _BranchesSection extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.md),
                   GridView.builder(
                     shrinkWrap: true,
                     physics:
@@ -765,13 +878,14 @@ class _BranchesSection extends StatelessWidget {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
+                      mainAxisSpacing: AppSpacing.md,
+                      crossAxisSpacing: AppSpacing.md,
                       childAspectRatio: 1.55,
                     ),
                     itemCount: gridBranches.length,
                     itemBuilder: (context, index) {
-                      final branch = gridBranches[index];
+                      final branch =
+                          gridBranches[index];
                       final iconData =
                           _squareIcons[branch.id] ??
                               Icons.category_rounded;
@@ -787,7 +901,8 @@ class _BranchesSection extends StatelessWidget {
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => BranchScreen(
+                              builder: (_) =>
+                                  BranchScreen(
                                 branch: branch,
                                 catalogService:
                                     state.catalogService,
@@ -833,28 +948,32 @@ class _BranchSquareCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: c.card,
-          borderRadius: BorderRadius.circular(16),
+          // Card radius for content cards
+          borderRadius: AppRadius.cardRadius,
           border: Border.all(color: c.divider),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
           children: [
             Row(
               mainAxisAlignment:
                   MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
                     color: hasBooks
                         ? c.brand.withOpacity(0.12)
                         : c.surface2,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius:
+                        AppRadius.buttonRadius,
                     border: Border.all(
                       color: hasBooks
                           ? c.brand.withOpacity(0.25)
@@ -863,7 +982,7 @@ class _BranchSquareCard extends StatelessWidget {
                   ),
                   child: Icon(
                     icon,
-                    size: 18,
+                    size: 17,
                     color: hasBooks
                         ? c.brand
                         : c.textFaint,
@@ -872,13 +991,13 @@ class _BranchSquareCard extends StatelessWidget {
                 if (!hasBooks)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
+                      horizontal: AppSpacing.sm - 1,
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
                       color: c.surface2,
                       borderRadius:
-                          BorderRadius.circular(6),
+                          AppRadius.pillRadius,
                     ),
                     child: Text(
                       'Soon',
@@ -898,7 +1017,8 @@ class _BranchSquareCard extends StatelessWidget {
               ],
             ),
             Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   branch.nameFor(language),
@@ -910,14 +1030,16 @@ class _BranchSquareCard extends StatelessWidget {
                     weight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 1),
+                const SizedBox(
+                    height: AppSpacing.xs),
                 Text(
                   hasBooks
                       ? '$count books'
                       : 'Coming soon',
                   style: AppText.latin(
-                    color:
-                        hasBooks ? c.brand : c.textFaint,
+                    color: hasBooks
+                        ? c.brand
+                        : c.textFaint,
                     size: 11,
                   ),
                 ),
