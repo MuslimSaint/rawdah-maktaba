@@ -197,6 +197,33 @@ class ReciterAudio {
       urls[partNumber];
 }
 
+// ─── ContentTableEntry (Task 6) ──────────────────────────
+
+/// One entry in a book's optional content table.
+/// titleEn is optional — only shown when non-empty.
+class ContentTableEntry {
+  final String titleAr;
+  final String titleEn;
+  final int page;
+
+  const ContentTableEntry({
+    required this.titleAr,
+    required this.titleEn,
+    required this.page,
+  });
+
+  factory ContentTableEntry.fromJson(
+      Map<String, dynamic> json) {
+    return ContentTableEntry(
+      titleAr: json['titleAr'] as String? ?? '',
+      titleEn: json['titleEn'] as String? ?? '',
+      page: json['page'] as int? ?? 1,
+    );
+  }
+
+  bool get hasEnglish => titleEn.isNotEmpty;
+}
+
 // ─── Book ────────────────────────────────────────────────
 
 class Book {
@@ -215,6 +242,10 @@ class Book {
   final String? coverUrl;
   final DateTime addedAt;
 
+  /// Optional chapter index. Empty list = no index button
+  /// shown in the PDF reader. Non-empty = index button shown.
+  final List<ContentTableEntry> contentTable;
+
   const Book({
     required this.id,
     required this.titleAr,
@@ -230,9 +261,19 @@ class Book {
     required this.pdfUrl,
     this.coverUrl,
     required this.addedAt,
+    this.contentTable = const [],
   });
 
   factory Book.fromJson(Map<String, dynamic> json) {
+    // Parse optional contentTable array.
+    final ctRaw =
+        json['contentTable'] as List? ?? const [];
+    final contentTable = ctRaw
+        .whereType<Map<String, dynamic>>()
+        .map((m) => ContentTableEntry.fromJson(m))
+        .where((e) => e.titleAr.isNotEmpty && e.page >= 1)
+        .toList();
+
     return Book(
       id: json['id'] as String,
       titleAr: json['titleAr'] as String,
@@ -258,9 +299,11 @@ class Book {
       addedAt: json['addedAt'] != null
           ? DateTime.parse(json['addedAt'] as String)
           : DateTime.now(),
+      contentTable: contentTable,
     );
   }
 
+  bool get hasContentTable => contentTable.isNotEmpty;
   bool get isRecentlyAdded =>
       DateTime.now().difference(addedAt).inDays <= 7;
   bool isInBranch(String branchId) =>
@@ -546,7 +589,6 @@ class QuranSubBranch {
                 (e) => e.hasPdf || e.hasContentTable)
             .toList();
       } else {
-        // Legacy single-edition format.
         final legacyPdfUrl =
             json['pdfUrl'] as String? ?? '';
         final legacySurahPagesRaw =
@@ -743,11 +785,6 @@ class Catalog {
   }
 
   // ─── Split-catalog assembly ─────────────────────────
-  //
-  // Called by CatalogService after fetching all 6 split
-  // files in parallel. Stitches them into the exact same
-  // JSON shape that fromJson() expects so no other code
-  // needs to change.
 
   static Map<String, dynamic> assembleJson({
     required Map<String, dynamic> root,
@@ -757,17 +794,10 @@ class Catalog {
     required Map<String, dynamic> surahs,
     required Map<String, dynamic> mushaf,
   }) {
-    // teachers.json shape: {"teachers": [...]}
     final teachersList = _asList(teachers['teachers']);
-
-    // reciters.json shape: {"reciters": [...]}
     final recitersList = _asList(reciters['reciters']);
-
-    // books.json shape: {"books": [...]}
     final booksList = _asList(books['books']);
 
-    // surahs.json shape: {"surahs": {"1": {...}, ...}}
-    // OR {"quran": {"surahs": {...}}}  (either is fine)
     Map<String, dynamic> surahMap;
     if (surahs.containsKey('surahs')) {
       surahMap = _asMap(surahs['surahs']);
@@ -778,10 +808,6 @@ class Catalog {
       surahMap = {};
     }
 
-    // mushaf.json shape:
-    //   { "mushafPdfUrl": "...",
-    //     "subBranches": [...] }
-    // OR wrapped in {"quran": {...}}
     Map<String, dynamic> mushafContent;
     if (mushaf.containsKey('subBranches')) {
       mushafContent = mushaf;
