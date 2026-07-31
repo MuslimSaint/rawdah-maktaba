@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/catalog_service.dart';
@@ -10,9 +11,6 @@ import 'lessons_screen.dart';
 import 'pdf_reader_screen.dart';
 
 /// Full book detail screen.
-/// - Page count only shown when PDF is downloaded
-/// - File size only shown when PDF is downloaded (real size)
-/// - Cover image is tappable (same as tapping download card)
 class BookDetailScreen extends StatelessWidget {
   final Book book;
   final CatalogService catalogService;
@@ -35,18 +33,26 @@ class BookDetailScreen extends StatelessWidget {
           children: [
             // ── Top Bar ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.base,
+                AppSpacing.base,
+                AppSpacing.base,
+                0,
+              ),
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
+                    onTap: () =>
+                        Navigator.of(context).pop(),
                     child: Container(
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius: BorderRadius.circular(11),
-                        border: Border.all(color: c.divider),
+                        borderRadius:
+                            AppRadius.buttonRadius,
+                        border: Border.all(
+                            color: c.divider),
                       ),
                       child: Icon(
                         Icons.arrow_back_rounded,
@@ -55,7 +61,8 @@ class BookDetailScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(
+                      width: AppSpacing.md),
                   Expanded(
                     child: Text(
                       'Book Details',
@@ -70,29 +77,38 @@ class BookDetailScreen extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
 
             Expanded(
               child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.base,
+                  0,
+                  AppSpacing.base,
+                  AppSpacing.xl,
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
                     _HeroCard(
                       book: book,
                       colors: c,
                       coverService: state.coverService,
-                      downloadService: state.downloadService,
+                      downloadService:
+                          state.downloadService,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(
+                        height: AppSpacing.lg),
                     _PdfSection(
                       book: book,
                       colors: c,
-                      downloadService: state.downloadService,
+                      downloadService:
+                          state.downloadService,
                       coverService: state.coverService,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(
+                        height: AppSpacing.lg),
                     if (book.hasAudio &&
                         book.teacherAudio.isNotEmpty)
                       _TeachersSection(
@@ -100,10 +116,13 @@ class BookDetailScreen extends StatelessWidget {
                         catalogService: catalogService,
                         colors: c,
                         language: state.language,
+                        downloadService:
+                            state.downloadService,
                         onTeacherTap: (teacher) {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => LessonsScreen(
+                              builder: (_) =>
+                                  LessonsScreen(
                                 book: book,
                                 teacher: teacher,
                               ),
@@ -137,16 +156,19 @@ class _HeroCard extends StatelessWidget {
     required this.downloadService,
   });
 
-  Future<void> _handleCoverTap(BuildContext context) async {
+  Future<void> _handleCoverTap(
+      BuildContext context) async {
     final fileId = DownloadService.pdfId(book.id);
-    final isDownloaded = downloadService.isDownloaded(fileId);
+    final isDownloaded =
+        downloadService.isDownloaded(fileId);
     final isDownloading =
         downloadService.isDownloading(fileId);
 
     if (isDownloading) return;
 
     if (isDownloaded) {
-      final path = await downloadService.localPath(fileId);
+      final path =
+          await downloadService.localPath(fileId);
       if (path != null && context.mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -180,31 +202,35 @@ class _HeroCard extends StatelessWidget {
         downloadService,
       ]),
       builder: (context, _) {
-        final realPages = coverService.pageCount(book.id);
+        final realPages =
+            coverService.pageCount(book.id);
 
         return Container(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(AppSpacing.base),
           decoration: BoxDecoration(
             color: c.card,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: c.goldLine, width: 1.5),
+            borderRadius: AppRadius.cardRadius,
+            border: Border.all(
+                color: c.goldLine, width: 1.5),
           ),
           child: Column(
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
-                  // Tappable cover
                   GestureDetector(
-                    onTap: () => _handleCoverTap(context),
+                    onTap: () =>
+                        _handleCoverTap(context),
                     child: BookCoverWidget(
                       book: book,
                       width: 80,
                       height: 108,
-                      borderRadius: 12,
+                      borderRadius: AppRadius.input,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(
+                      width: AppSpacing.base),
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
@@ -213,23 +239,28 @@ class _HeroCard extends StatelessWidget {
                         if (book.isNew ||
                             book.isRecentlyAdded)
                           Align(
-                            alignment: Alignment.centerLeft,
+                            alignment:
+                                Alignment.centerLeft,
                             child: Container(
-                              margin: const EdgeInsets.only(
-                                  bottom: 8),
+                              margin:
+                                  const EdgeInsets.only(
+                                bottom: AppSpacing.sm,
+                              ),
                               padding:
-                                  const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
+                                  const EdgeInsets
+                                      .symmetric(
+                                horizontal:
+                                    AppSpacing.sm,
+                                vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color:
-                                    c.brand.withOpacity(0.12),
+                                color: c.brand
+                                    .withOpacity(0.12),
                                 borderRadius:
-                                    BorderRadius.circular(6),
+                                    AppRadius.pillRadius,
                                 border: Border.all(
-                                  color:
-                                      c.brand.withOpacity(0.3),
+                                  color: c.brand
+                                      .withOpacity(0.3),
                                 ),
                               ),
                               child: Text(
@@ -241,7 +272,8 @@ class _HeroCard extends StatelessWidget {
                           ),
                         Text(
                           book.titleAr,
-                          textDirection: TextDirection.rtl,
+                          textDirection:
+                              TextDirection.rtl,
                           textAlign: TextAlign.right,
                           style: AppText.arabic(
                             color: c.textPrimary,
@@ -250,17 +282,20 @@ class _HeroCard extends StatelessWidget {
                             height: 1.6,
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(
+                            height: AppSpacing.md),
                         Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
+                          spacing: AppSpacing.sm - 2,
+                          runSpacing: AppSpacing.xs,
                           alignment: WrapAlignment.end,
-                          children:
-                              book.branches.map((branchId) {
+                          children: book.branches
+                              .map((branchId) {
                             final branch =
-                                Catalog.branches.firstWhere(
+                                Catalog.branches
+                                    .firstWhere(
                               (b) => b.id == branchId,
-                              orElse: () => const Branch(
+                              orElse: () =>
+                                  const Branch(
                                 id: '',
                                 nameEn: '',
                                 nameAr: '',
@@ -269,18 +304,20 @@ class _HeroCard extends StatelessWidget {
                             );
                             return Container(
                               padding:
-                                  const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
+                                  const EdgeInsets
+                                      .symmetric(
+                                horizontal:
+                                    AppSpacing.sm,
+                                vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color:
-                                    c.brand.withOpacity(0.08),
+                                color: c.brand
+                                    .withOpacity(0.08),
                                 borderRadius:
-                                    BorderRadius.circular(6),
+                                    AppRadius.pillRadius,
                                 border: Border.all(
-                                  color:
-                                      c.brand.withOpacity(0.2),
+                                  color: c.brand
+                                      .withOpacity(0.2),
                                 ),
                               ),
                               child: Text(
@@ -288,26 +325,28 @@ class _HeroCard extends StatelessWidget {
                                 style: AppText.latin(
                                   color: c.brand,
                                   size: 10,
-                                  weight: FontWeight.w600,
+                                  weight:
+                                      FontWeight.w600,
                                 ),
                               ),
                             );
                           }).toList(),
                         ),
-
-                        // Real page count only
                         if (realPages != null) ...[
-                          const SizedBox(height: 10),
+                          const SizedBox(
+                              height: AppSpacing.sm),
                           Row(
                             mainAxisAlignment:
                                 MainAxisAlignment.end,
                             children: [
                               Icon(
-                                Icons.menu_book_outlined,
+                                Icons
+                                    .menu_book_outlined,
                                 size: 13,
                                 color: c.textFaint,
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(
+                                  width: AppSpacing.xs),
                               Text(
                                 '$realPages pages',
                                 style: AppText.latin(
@@ -324,19 +363,21 @@ class _HeroCard extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.base),
               Divider(color: c.divider, height: 1),
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpacing.md),
 
-              // ── AUTHOR ──
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   Text(
                     'AUTHOR',
-                    style: AppText.label(color: c.textFaint),
+                    style: AppText.label(
+                        color: c.textFaint),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(
+                      width: AppSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
@@ -344,7 +385,8 @@ class _HeroCard extends StatelessWidget {
                       children: [
                         Text(
                           book.authorAr,
-                          textDirection: TextDirection.rtl,
+                          textDirection:
+                              TextDirection.rtl,
                           textAlign: TextAlign.right,
                           style: AppText.arabic(
                             color: c.goldText,
@@ -352,7 +394,8 @@ class _HeroCard extends StatelessWidget {
                             weight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(
+                            height: AppSpacing.xs),
                         Text(
                           book.authorEn,
                           textAlign: TextAlign.right,
@@ -390,16 +433,19 @@ class _PdfSection extends StatefulWidget {
   });
 
   @override
-  State<_PdfSection> createState() => _PdfSectionState();
+  State<_PdfSection> createState() =>
+      _PdfSectionState();
 }
 
 class _PdfSectionState extends State<_PdfSection> {
   String? _errorMessage;
 
-  String get _fileId => DownloadService.pdfId(widget.book.id);
+  String get _fileId =>
+      DownloadService.pdfId(widget.book.id);
 
   Future<void> _openBook(BuildContext context) async {
-    if (!widget.downloadService.isDownloaded(_fileId)) {
+    if (!widget.downloadService
+        .isDownloaded(_fileId)) {
       setState(() => _errorMessage =
           'File not found. Please download again.');
       return;
@@ -456,19 +502,17 @@ class _PdfSectionState extends State<_PdfSection> {
         final isDownloaded =
             widget.downloadService.isDownloaded(_fileId);
         final isDownloading =
-            widget.downloadService.isDownloading(_fileId);
+            widget.downloadService
+                .isDownloading(_fileId);
         final progress =
             widget.downloadService.progress(_fileId);
         final hasUrl = widget.book.pdfUrl.isNotEmpty;
 
-        final realPages =
-            widget.coverService.pageCount(widget.book.id);
-        final realSize =
-            widget.coverService.fileSizeMb(widget.book.id);
+        final realPages = widget.coverService
+            .pageCount(widget.book.id);
+        final realSize = widget.coverService
+            .fileSizeMb(widget.book.id);
 
-        // Subtitle:
-        // - Before download: no size, no pages
-        // - After download: real size · real pages
         String? subtitle;
         if (realSize != null && realPages != null) {
           subtitle =
@@ -480,7 +524,8 @@ class _PdfSectionState extends State<_PdfSection> {
         }
 
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             Text(
               'PDF Book',
@@ -490,7 +535,7 @@ class _PdfSectionState extends State<_PdfSection> {
                 weight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpacing.sm),
 
             GestureDetector(
               onTap: () {
@@ -501,10 +546,11 @@ class _PdfSectionState extends State<_PdfSection> {
                 }
               },
               child: Container(
-                padding: const EdgeInsets.all(16),
+                padding:
+                    const EdgeInsets.all(AppSpacing.base),
                 decoration: BoxDecoration(
                   color: c.card,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: AppRadius.cardRadius,
                   border: Border.all(
                     color: isDownloaded
                         ? c.brand.withOpacity(0.4)
@@ -525,20 +571,23 @@ class _PdfSectionState extends State<_PdfSection> {
                                 ? c.brand
                                 : !hasUrl
                                     ? c.surface2
-                                    : c.brand.withOpacity(0.12),
+                                    : c.brand
+                                        .withOpacity(0.12),
                             border: Border.all(
                               color: isDownloaded
                                   ? c.brand
                                   : !hasUrl
                                       ? c.divider
-                                      : c.brand.withOpacity(0.3),
+                                      : c.brand
+                                          .withOpacity(0.3),
                               width: 1.5,
                             ),
                           ),
                           child: isDownloading
                               ? Padding(
                                   padding:
-                                      const EdgeInsets.all(14),
+                                      const EdgeInsets
+                                          .all(14),
                                   child:
                                       CircularProgressIndicator(
                                     value: progress > 0
@@ -550,7 +599,8 @@ class _PdfSectionState extends State<_PdfSection> {
                                 )
                               : Icon(
                                   isDownloaded
-                                      ? Icons.menu_book_rounded
+                                      ? Icons
+                                          .menu_book_rounded
                                       : !hasUrl
                                           ? Icons
                                               .hourglass_empty_rounded
@@ -564,7 +614,8 @@ class _PdfSectionState extends State<_PdfSection> {
                                           : c.brand,
                                 ),
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(
+                            width: AppSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
@@ -587,7 +638,9 @@ class _PdfSectionState extends State<_PdfSection> {
                                 ),
                               ),
                               if (subtitle != null) ...[
-                                const SizedBox(height: 3),
+                                const SizedBox(
+                                    height:
+                                        AppSpacing.xs),
                                 Text(
                                   subtitle,
                                   style: AppText.latin(
@@ -597,7 +650,9 @@ class _PdfSectionState extends State<_PdfSection> {
                                 ),
                               ],
                               if (isDownloaded) ...[
-                                const SizedBox(height: 2),
+                                const SizedBox(
+                                    height:
+                                        AppSpacing.xs),
                                 Text(
                                   'Downloaded · Tap anywhere to read',
                                   style: AppText.latin(
@@ -621,10 +676,10 @@ class _PdfSectionState extends State<_PdfSection> {
                               decoration: BoxDecoration(
                                 color: c.dangerBg,
                                 borderRadius:
-                                    BorderRadius.circular(10),
+                                    AppRadius.buttonRadius,
                                 border: Border.all(
-                                  color:
-                                      c.danger.withOpacity(0.3),
+                                  color: c.danger
+                                      .withOpacity(0.3),
                                 ),
                               ),
                               child: Icon(
@@ -638,17 +693,17 @@ class _PdfSectionState extends State<_PdfSection> {
                           Container(
                             padding:
                                 const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xs,
                             ),
                             decoration: BoxDecoration(
-                              color:
-                                  c.brand.withOpacity(0.1),
+                              color: c.brand
+                                  .withOpacity(0.1),
                               borderRadius:
-                                  BorderRadius.circular(8),
+                                  AppRadius.pillRadius,
                               border: Border.all(
-                                color:
-                                    c.brand.withOpacity(0.25),
+                                color: c.brand
+                                    .withOpacity(0.25),
                               ),
                             ),
                             child: Text(
@@ -664,11 +719,15 @@ class _PdfSectionState extends State<_PdfSection> {
                     ),
 
                     if (isDownloading) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(
+                          height: AppSpacing.md),
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius:
+                            AppRadius.pillRadius,
                         child: LinearProgressIndicator(
-                          value: progress > 0 ? progress : null,
+                          value: progress > 0
+                              ? progress
+                              : null,
                           backgroundColor: c.surface2,
                           valueColor:
                               AlwaysStoppedAnimation<Color>(
@@ -676,10 +735,12 @@ class _PdfSectionState extends State<_PdfSection> {
                           minHeight: 4,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(
+                          height: AppSpacing.sm - 2),
                       Row(
                         mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
+                            MainAxisAlignment
+                                .spaceBetween,
                         children: [
                           Text(
                             progress > 0
@@ -703,25 +764,30 @@ class _PdfSectionState extends State<_PdfSection> {
                     ],
 
                     if (_errorMessage != null) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(
+                          height: AppSpacing.sm),
                       Container(
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(
+                            AppSpacing.sm),
                         decoration: BoxDecoration(
                           color: c.dangerBg,
                           borderRadius:
-                              BorderRadius.circular(8),
+                              AppRadius.listItemRadius,
                           border: Border.all(
-                            color: c.danger.withOpacity(0.3),
+                            color: c.danger
+                                .withOpacity(0.3),
                           ),
                         ),
                         child: Row(
                           children: [
                             Icon(
-                              Icons.error_outline_rounded,
+                              Icons
+                                  .error_outline_rounded,
                               color: c.danger,
                               size: 14,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(
+                                width: AppSpacing.sm),
                             Expanded(
                               child: Text(
                                 _errorMessage!,
@@ -755,13 +821,14 @@ class _PdfSectionState extends State<_PdfSection> {
   }
 }
 
-// ─── Teachers Section ────────────────────────────────────
+// ─── Teachers Section ─────────────────────────────────────
 
 class _TeachersSection extends StatelessWidget {
   final Book book;
   final CatalogService catalogService;
   final AppColors colors;
   final String language;
+  final DownloadService downloadService;
   final Function(Teacher) onTeacherTap;
 
   const _TeachersSection({
@@ -769,6 +836,7 @@ class _TeachersSection extends StatelessWidget {
     required this.catalogService,
     required this.colors,
     required this.language,
+    required this.downloadService,
     required this.onTeacherTap,
   });
 
@@ -777,7 +845,8 @@ class _TeachersSection extends StatelessWidget {
     final c = colors;
 
     final teachers = book.teacherAudio
-        .map((ta) => catalogService.teacherById(ta.teacherId))
+        .map((ta) =>
+            catalogService.teacherById(ta.teacherId))
         .where((t) => t != null)
         .cast<Teacher>()
         .toList();
@@ -791,7 +860,7 @@ class _TeachersSection extends StatelessWidget {
           'TEACHING SCHOLARS',
           style: AppText.label(color: c.textFaint),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: AppSpacing.xs + 2),
         Text(
           'These scholars provide audio explanations for this book.',
           style: AppText.latin(
@@ -800,14 +869,16 @@ class _TeachersSection extends StatelessWidget {
             height: 1.5,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpacing.md),
         ...teachers.map((teacher) {
           return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.only(
+                bottom: AppSpacing.sm),
             child: _TeacherCard(
               teacher: teacher,
               colors: c,
               language: language,
+              downloadService: downloadService,
               onTap: () => onTeacherTap(teacher),
             ),
           );
@@ -821,12 +892,14 @@ class _TeacherCard extends StatelessWidget {
   final Teacher teacher;
   final AppColors colors;
   final String language;
+  final DownloadService downloadService;
   final VoidCallback onTap;
 
   const _TeacherCard({
     required this.teacher,
     required this.colors,
     required this.language,
+    required this.downloadService,
     required this.onTap,
   });
 
@@ -837,36 +910,28 @@ class _TeacherCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: c.card,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: AppRadius.cardRadius,
           border: Border.all(color: c.divider),
         ),
         child: Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: c.brand.withOpacity(0.12),
-                border: Border.all(
-                  color: c.brand.withOpacity(0.25),
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                teacher.initials,
-                textDirection: TextDirection.rtl,
-                style: AppText.arabic(
-                  color: c.brand,
-                  size: 14,
-                  weight: FontWeight.w700,
-                ),
-              ),
+            // ── Avatar: photo if downloaded,
+            //    else initials circle ──
+            ListenableBuilder(
+              listenable: downloadService,
+              builder: (context, _) {
+                return _TeacherAvatar(
+                  teacher: teacher,
+                  downloadService: downloadService,
+                  colors: c,
+                  size: 48,
+                );
+              },
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment:
@@ -881,7 +946,7 @@ class _TeacherCard extends StatelessWidget {
                       weight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     teacher.nameFor(language),
                     style: AppText.latin(
@@ -897,7 +962,7 @@ class _TeacherCard extends StatelessWidget {
               height: 34,
               decoration: BoxDecoration(
                 color: c.goldLine,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: AppRadius.buttonRadius,
                 border: Border.all(
                   color: c.goldText.withOpacity(0.3),
                 ),
@@ -909,6 +974,139 @@ class _TeacherCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Teacher Avatar ──────────────────────────────────────
+// Shared widget used in book detail, lessons, and audio
+// player. Shows downloaded photo in a circle if available,
+// otherwise falls back to the initials circle.
+
+class TeacherAvatar extends StatelessWidget {
+  final Teacher teacher;
+  final DownloadService downloadService;
+  final AppColors colors;
+  final double size;
+
+  const TeacherAvatar({
+    super.key,
+    required this.teacher,
+    required this.downloadService,
+    required this.colors,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _TeacherAvatar(
+      teacher: teacher,
+      downloadService: downloadService,
+      colors: colors,
+      size: size,
+    );
+  }
+}
+
+class _TeacherAvatar extends StatelessWidget {
+  final Teacher teacher;
+  final DownloadService downloadService;
+  final AppColors colors;
+  final double size;
+
+  const _TeacherAvatar({
+    required this.teacher,
+    required this.downloadService,
+    required this.colors,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final hasPhoto = downloadService.hasPhoto(teacher.id);
+
+    if (hasPhoto) {
+      return FutureBuilder<String?>(
+        future: downloadService.photoPath(teacher.id),
+        builder: (context, snapshot) {
+          final path = snapshot.data;
+          if (path != null) {
+            return Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: c.brand.withOpacity(0.25),
+                  width: 1.5,
+                ),
+              ),
+              child: ClipOval(
+                child: Image.file(
+                  File(path),
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      _InitialsCircle(
+                    teacher: teacher,
+                    colors: c,
+                    size: size,
+                  ),
+                ),
+              ),
+            );
+          }
+          return _InitialsCircle(
+            teacher: teacher,
+            colors: c,
+            size: size,
+          );
+        },
+      );
+    }
+
+    return _InitialsCircle(
+      teacher: teacher,
+      colors: c,
+      size: size,
+    );
+  }
+}
+
+class _InitialsCircle extends StatelessWidget {
+  final Teacher teacher;
+  final AppColors colors;
+  final double size;
+
+  const _InitialsCircle({
+    required this.teacher,
+    required this.colors,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: c.brand.withOpacity(0.12),
+        border: Border.all(
+          color: c.brand.withOpacity(0.25),
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        teacher.initials,
+        textDirection: TextDirection.rtl,
+        style: AppText.arabic(
+          color: c.brand,
+          size: size * 0.28,
+          weight: FontWeight.w700,
         ),
       ),
     );
