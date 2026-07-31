@@ -7,6 +7,7 @@ import '../core/cover_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import 'book_detail_screen.dart';
 import 'pdf_reader_screen.dart';
 
 class AudioPlayerScreen extends StatefulWidget {
@@ -42,15 +43,16 @@ class _AudioPlayerScreenState
     super.initState();
     _currentPartIndex = widget.initialPartIndex;
 
-    // Bind services synchronously — first frame gets valid refs.
     final state = AppState.of(context);
     _audioService = state.audioService;
     _downloadService = state.downloadService;
     _coverService = state.coverService;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_audioService.currentFileId != _currentFileId) {
+      if (_audioService.currentFileId !=
+          _currentFileId) {
         if (_audioService.currentFileId == null &&
             _isCurrentDownloaded) {
           _startPlayback();
@@ -61,10 +63,11 @@ class _AudioPlayerScreenState
 
   int get _currentPartNumber =>
       widget.teacherAudio.parts[_currentPartIndex];
+  int get _totalParts =>
+      widget.teacherAudio.totalParts;
 
-  int get _totalParts => widget.teacherAudio.totalParts;
-
-  String get _currentFileId => DownloadService.audioId(
+  String get _currentFileId =>
+      DownloadService.audioId(
         widget.book.id,
         widget.teacher.id,
         _currentPartNumber,
@@ -75,29 +78,34 @@ class _AudioPlayerScreenState
 
   bool get _isCurrentDownloaded =>
       _downloadService.isDownloaded(_currentFileId);
-
   bool get _isPdfDownloaded =>
       _downloadService.isDownloaded(_pdfFileId);
 
-  Future<AudioResolution?> _resolvePart(int partNumber) async {
+  Future<AudioResolution?> _resolvePart(
+      int partNumber) async {
     final fileId = DownloadService.audioId(
       widget.book.id,
       widget.teacher.id,
       partNumber,
     );
-    if (!_downloadService.isDownloaded(fileId)) return null;
+    if (!_downloadService.isDownloaded(fileId)) {
+      return null;
+    }
 
-    final path = await _downloadService.localPath(fileId);
+    final path =
+        await _downloadService.localPath(fileId);
     if (path == null) return null;
 
-    final lessonTitle = ArabicUtils.lessonTitle(partNumber);
+    final lessonTitle =
+        ArabicUtils.lessonTitle(partNumber);
     final coverPath =
         _coverService.coverPath(widget.book.id);
 
     return AudioResolution(
       filePath: path,
       fileId: fileId,
-      title: '${widget.book.titleAr} — $lessonTitle',
+      title:
+          '${widget.book.titleAr} — $lessonTitle',
       subtitle: widget.teacher.nameAr,
       artPath: coverPath,
     );
@@ -106,7 +114,8 @@ class _AudioPlayerScreenState
   Future<void> _startPlayback() async {
     if (!_isCurrentDownloaded) return;
 
-    final resolved = await _resolvePart(_currentPartNumber);
+    final resolved =
+        await _resolvePart(_currentPartNumber);
     if (resolved == null) {
       if (mounted) {
         setState(() => _errorMessage =
@@ -129,7 +138,8 @@ class _AudioPlayerScreenState
     );
 
     if (mounted && _audioService.error != null) {
-      setState(() => _errorMessage = _audioService.error);
+      setState(
+          () => _errorMessage = _audioService.error);
     }
   }
 
@@ -183,8 +193,8 @@ class _AudioPlayerScreenState
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
     final hasPrev = _currentPartIndex > 0;
-    final hasNext = _currentPartIndex < _totalParts - 1;
-
+    final hasNext =
+        _currentPartIndex < _totalParts - 1;
     final lessonTitle =
         ArabicUtils.lessonTitle(_currentPartNumber);
 
@@ -210,21 +220,27 @@ class _AudioPlayerScreenState
 
             return Column(
               children: [
+                // ── Top bar ──────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                      20, 16, 20, 0),
+                    AppSpacing.base,
+                    AppSpacing.base,
+                    AppSpacing.base,
+                    0,
+                  ),
                   child: Row(
                     children: [
                       GestureDetector(
                         onTap: () =>
-                            Navigator.of(context).pop(),
+                            Navigator.of(context)
+                                .pop(),
                         child: Container(
                           width: 38,
                           height: 38,
                           decoration: BoxDecoration(
                             color: c.surface2,
                             borderRadius:
-                                BorderRadius.circular(11),
+                                AppRadius.buttonRadius,
                             border: Border.all(
                                 color: c.divider),
                           ),
@@ -244,7 +260,8 @@ class _AudioPlayerScreenState
                               style: AppText.label(
                                   color: c.textFaint),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(
+                                height: AppSpacing.xs),
                             Text(
                               lessonTitle,
                               textDirection:
@@ -264,9 +281,9 @@ class _AudioPlayerScreenState
                         decoration: BoxDecoration(
                           color: c.surface2,
                           borderRadius:
-                              BorderRadius.circular(11),
-                          border:
-                              Border.all(color: c.divider),
+                              AppRadius.buttonRadius,
+                          border: Border.all(
+                              color: c.divider),
                         ),
                         alignment: Alignment.center,
                         child: Text(
@@ -282,8 +299,9 @@ class _AudioPlayerScreenState
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.lg),
 
+                // ── Big cover ─────────────────────
                 GestureDetector(
                   onTap: _onCoverTap,
                   child: _BigCover(
@@ -296,11 +314,12 @@ class _AudioPlayerScreenState
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.lg),
 
+                // ── Book + Teacher info ───────────
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 32),
+                      horizontal: AppSpacing.xl),
                   child: Column(
                     children: [
                       Text(
@@ -316,16 +335,43 @@ class _AudioPlayerScreenState
                           height: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        widget.teacher.nameAr,
-                        textDirection: TextDirection.rtl,
-                        style: AppText.arabic(
-                          color: c.goldText,
-                          size: 13,
-                        ),
+                      const SizedBox(
+                          height: AppSpacing.sm),
+
+                      // Teacher row with avatar
+                      Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          ListenableBuilder(
+                            listenable:
+                                state.downloadService,
+                            builder: (context, _) {
+                              return _TeacherAvatar(
+                                teacher: widget.teacher,
+                                downloadService:
+                                    state.downloadService,
+                                colors: c,
+                                size: 28,
+                              );
+                            },
+                          ),
+                          const SizedBox(
+                              width: AppSpacing.sm),
+                          Text(
+                            widget.teacher.nameAr,
+                            textDirection:
+                                TextDirection.rtl,
+                            style: AppText.arabic(
+                              color: c.goldText,
+                              size: 13,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
+
+                      const SizedBox(
+                          height: AppSpacing.xs),
                       Text(
                         'تأليف: ${widget.book.authorShort}',
                         textDirection: TextDirection.rtl,
@@ -338,20 +384,21 @@ class _AudioPlayerScreenState
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.base),
 
                 if (!_isCurrentDownloaded) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24),
+                        horizontal: AppSpacing.lg),
                     child: Container(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(
+                          AppSpacing.md),
                       decoration: BoxDecoration(
                         color: c.surface2,
                         borderRadius:
-                            BorderRadius.circular(14),
-                        border:
-                            Border.all(color: c.divider),
+                            AppRadius.listItemRadius,
+                        border: Border.all(
+                            color: c.divider),
                       ),
                       child: Row(
                         children: [
@@ -360,7 +407,8 @@ class _AudioPlayerScreenState
                             color: c.brand,
                             size: 20,
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(
+                              width: AppSpacing.sm),
                           Expanded(
                             child: Text(
                               'Download this lesson from the Lessons screen to play it.',
@@ -375,22 +423,25 @@ class _AudioPlayerScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(
+                      height: AppSpacing.md),
                 ],
 
                 if (_errorMessage != null) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24),
+                        horizontal: AppSpacing.lg),
                     child: Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(
+                          AppSpacing.md),
                       decoration: BoxDecoration(
                         color: c.dangerBg,
                         borderRadius:
-                            BorderRadius.circular(12),
+                            AppRadius.listItemRadius,
                         border: Border.all(
-                            color:
-                                c.danger.withOpacity(0.3)),
+                          color:
+                              c.danger.withOpacity(0.3),
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -399,7 +450,8 @@ class _AudioPlayerScreenState
                             color: c.danger,
                             size: 16,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(
+                              width: AppSpacing.sm),
                           Expanded(
                             child: Text(
                               _errorMessage!,
@@ -413,17 +465,19 @@ class _AudioPlayerScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(
+                      height: AppSpacing.md),
                 ],
 
+                // ── Seek slider ───────────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 24),
+                      horizontal: AppSpacing.lg),
                   child: Column(
                     children: [
                       SliderTheme(
-                        data:
-                            SliderTheme.of(context).copyWith(
+                        data: SliderTheme.of(context)
+                            .copyWith(
                           activeTrackColor: c.brand,
                           inactiveTrackColor: c.surface2,
                           thumbColor: c.brand,
@@ -433,7 +487,8 @@ class _AudioPlayerScreenState
                           ),
                           trackHeight: 4,
                           overlayShape:
-                              SliderComponentShape.noOverlay,
+                              SliderComponentShape
+                                  .noOverlay,
                         ),
                         child: Slider(
                           value: isActive
@@ -441,8 +496,10 @@ class _AudioPlayerScreenState
                                   .toDouble()
                                   .clamp(
                                     0,
-                                    duration.inSeconds > 0
-                                        ? duration.inSeconds
+                                    duration.inSeconds >
+                                            0
+                                        ? duration
+                                            .inSeconds
                                             .toDouble()
                                         : 1,
                                   )
@@ -456,15 +513,18 @@ class _AudioPlayerScreenState
                               ? (v) {
                                   _audioService.seekTo(
                                     Duration(
-                                        seconds: v.toInt()),
+                                        seconds:
+                                            v.toInt()),
                                   );
                                 }
                               : null,
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8),
+                        padding:
+                            const EdgeInsets.symmetric(
+                                horizontal:
+                                    AppSpacing.sm),
                         child: Row(
                           mainAxisAlignment:
                               MainAxisAlignment
@@ -501,11 +561,12 @@ class _AudioPlayerScreenState
                   ),
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
 
+                // ── Playback controls ─────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 24),
+                      horizontal: AppSpacing.lg),
                   child: Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceEvenly,
@@ -525,7 +586,6 @@ class _AudioPlayerScreenState
                                 _audioService.seekBack(10)
                             : null,
                       ),
-
                       GestureDetector(
                         onTap: _isCurrentDownloaded
                             ? () {
@@ -547,25 +607,31 @@ class _AudioPlayerScreenState
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: _isCurrentDownloaded
-                                  ? [c.brand, c.brandHover]
-                                  : [
-                                      c.textFaint,
-                                      c.textFaint
-                                    ],
+                              colors:
+                                  _isCurrentDownloaded
+                                      ? [
+                                          c.brand,
+                                          c.brandHover
+                                        ]
+                                      : [
+                                          c.textFaint,
+                                          c.textFaint
+                                        ],
                             ),
-                            boxShadow: _isCurrentDownloaded
-                                ? [
-                                    BoxShadow(
-                                      color: c.brand
-                                          .withOpacity(
-                                              0.4),
-                                      blurRadius: 20,
-                                      offset: const Offset(
-                                          0, 6),
-                                    ),
-                                  ]
-                                : null,
+                            boxShadow:
+                                _isCurrentDownloaded
+                                    ? [
+                                        BoxShadow(
+                                          color: c.brand
+                                              .withOpacity(
+                                                  0.4),
+                                          blurRadius: 20,
+                                          offset:
+                                              const Offset(
+                                                  0, 6),
+                                        ),
+                                      ]
+                                    : null,
                           ),
                           child: isLoading
                               ? const Padding(
@@ -587,7 +653,6 @@ class _AudioPlayerScreenState
                                 ),
                         ),
                       ),
-
                       _SeekButton(
                         isForward: true,
                         colors: c,
@@ -607,29 +672,31 @@ class _AudioPlayerScreenState
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.base),
 
+                // ── Speed button ──────────────────
                 GestureDetector(
                   onTap: isActive
                       ? () => _audioService.cycleSpeed()
                       : null,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.sm,
                     ),
                     decoration: BoxDecoration(
                       color: c.surface2,
                       borderRadius:
-                          BorderRadius.circular(12),
+                          AppRadius.listItemRadius,
                       border:
                           Border.all(color: c.divider),
                     ),
                     child: Text(
                       'Speed: ${speed}x',
                       style: AppText.latin(
-                        color:
-                            isActive ? c.brand : c.textFaint,
+                        color: isActive
+                            ? c.brand
+                            : c.textFaint,
                         size: 13,
                         weight: FontWeight.w700,
                       ),
@@ -639,18 +706,23 @@ class _AudioPlayerScreenState
 
                 const Spacer(),
 
+                // ── Info bar ──────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                      24, 0, 24, 16),
+                    AppSpacing.lg,
+                    0,
+                    AppSpacing.lg,
+                    AppSpacing.base,
+                  ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+                      horizontal: AppSpacing.base,
+                      vertical: AppSpacing.sm,
                     ),
                     decoration: BoxDecoration(
                       color: c.goldLine,
                       borderRadius:
-                          BorderRadius.circular(12),
+                          AppRadius.listItemRadius,
                       border: Border.all(
                         color:
                             c.goldText.withOpacity(0.3),
@@ -663,7 +735,8 @@ class _AudioPlayerScreenState
                           size: 16,
                           color: c.goldText,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(
+                            width: AppSpacing.sm),
                         Expanded(
                           child: Text(
                             isActive && isPlaying
@@ -714,8 +787,9 @@ class _BigCover extends StatelessWidget {
       height: 240,
       decoration: BoxDecoration(
         color: c.brand.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: c.goldLine, width: 1.5),
+        borderRadius: AppRadius.cardRadius,
+        border: Border.all(
+            color: c.goldLine, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: c.brand.withOpacity(0.15),
@@ -727,13 +801,14 @@ class _BigCover extends StatelessWidget {
       child: Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: AppRadius.cardRadius,
             child: SizedBox.expand(
               child: coverPath != null
                   ? Image.file(
                       File(coverPath),
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Center(
+                      errorBuilder: (_, __, ___) =>
+                          Center(
                         child: Icon(
                           Icons.menu_book_rounded,
                           size: 56,
@@ -752,19 +827,19 @@ class _BigCover extends StatelessWidget {
           ),
           if (hasPdfUrl)
             Positioned(
-              bottom: 8,
+              bottom: AppSpacing.sm,
               left: 0,
               right: 0,
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.55),
-                    borderRadius:
-                        BorderRadius.circular(20),
+                    color:
+                        Colors.black.withOpacity(0.55),
+                    borderRadius: AppRadius.pillRadius,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -776,7 +851,8 @@ class _BigCover extends StatelessWidget {
                         size: 11,
                         color: Colors.white,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(
+                          width: AppSpacing.xs),
                       Text(
                         isPdfDownloaded
                             ? 'Open'
@@ -827,7 +903,9 @@ class _SeekButton extends StatelessWidget {
               ? Icons.forward_10_rounded
               : Icons.replay_10_rounded,
           size: 28,
-          color: onTap != null ? c.textPrimary : c.textFaint,
+          color: onTap != null
+              ? c.textPrimary
+              : c.textFaint,
         ),
       ),
     );
