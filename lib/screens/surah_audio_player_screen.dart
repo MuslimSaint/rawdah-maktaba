@@ -7,8 +7,10 @@ import '../core/cover_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import 'book_detail_screen.dart' show TeacherAvatar;
 import 'pdf_reader_screen.dart';
-import 'surah_detail_screen.dart' show fakeBookForSurah;
+import 'surah_detail_screen.dart'
+    show fakeBookForSurah, _ReciterAvatar;
 import 'surah_lessons_screen.dart';
 
 class SurahAudioPlayerScreen extends StatefulWidget {
@@ -74,8 +76,8 @@ class _SurahAudioPlayerScreenState
 
   String get _surahPdfFileId =>
       'pdf_surah_${widget.meta.number}';
-
-  String get _surahCoverKey => 'surah_${widget.meta.number}';
+  String get _surahCoverKey =>
+      'surah_${widget.meta.number}';
 
   @override
   void initState() {
@@ -87,9 +89,11 @@ class _SurahAudioPlayerScreenState
     _downloadService = state.downloadService;
     _coverService = state.coverService;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_audioService.currentFileId != _currentFileId) {
+      if (_audioService.currentFileId !=
+          _currentFileId) {
         if (_audioService.currentFileId == null &&
             _isCurrentDownloaded) {
           _startPlayback();
@@ -98,8 +102,8 @@ class _SurahAudioPlayerScreenState
     });
   }
 
-  int get _currentPartNumber => _parts[_currentPartIndex];
-
+  int get _currentPartNumber =>
+      _parts[_currentPartIndex];
   int get _totalParts => _parts.length;
 
   String get _currentFileId => _isReciter
@@ -116,7 +120,6 @@ class _SurahAudioPlayerScreenState
 
   bool get _isCurrentDownloaded =>
       _downloadService.isDownloaded(_currentFileId);
-
   bool get _isPdfDownloaded =>
       _downloadService.isDownloaded(_surahPdfFileId);
 
@@ -127,19 +130,28 @@ class _SurahAudioPlayerScreenState
     return surah.hasPdf;
   }
 
-  Future<AudioResolution?> _resolvePart(int partNumber) async {
+  Future<AudioResolution?> _resolvePart(
+      int partNumber) async {
     final fileId = _isReciter
         ? DownloadService.surahReciterAudioId(
-            widget.meta.number, _narratorId, partNumber)
+            widget.meta.number,
+            _narratorId,
+            partNumber)
         : DownloadService.surahTeacherAudioId(
-            widget.meta.number, _narratorId, partNumber);
+            widget.meta.number,
+            _narratorId,
+            partNumber);
 
-    if (!_downloadService.isDownloaded(fileId)) return null;
+    if (!_downloadService.isDownloaded(fileId)) {
+      return null;
+    }
 
-    final path = await _downloadService.localPath(fileId);
+    final path =
+        await _downloadService.localPath(fileId);
     if (path == null) return null;
 
-    final lessonTitle = ArabicUtils.lessonTitle(partNumber);
+    final lessonTitle =
+        ArabicUtils.lessonTitle(partNumber);
     final coverPath =
         _coverService.coverPath(_surahCoverKey);
 
@@ -155,7 +167,8 @@ class _SurahAudioPlayerScreenState
   Future<void> _startPlayback() async {
     if (!_isCurrentDownloaded) return;
 
-    final resolved = await _resolvePart(_currentPartNumber);
+    final resolved =
+        await _resolvePart(_currentPartNumber);
     if (resolved == null) {
       if (mounted) {
         setState(() => _errorMessage =
@@ -178,7 +191,8 @@ class _SurahAudioPlayerScreenState
     );
 
     if (mounted && _audioService.error != null) {
-      setState(() => _errorMessage = _audioService.error);
+      setState(
+          () => _errorMessage = _audioService.error);
     }
   }
 
@@ -202,8 +216,8 @@ class _SurahAudioPlayerScreenState
 
   Future<void> _onCoverTap() async {
     if (_isPdfDownloaded) {
-      final path =
-          await _downloadService.localPath(_surahPdfFileId);
+      final path = await _downloadService
+          .localPath(_surahPdfFileId);
       if (path != null && mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -237,13 +251,14 @@ class _SurahAudioPlayerScreenState
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
     final hasPrev = _currentPartIndex > 0;
-    final hasNext = _currentPartIndex < _totalParts - 1;
-
+    final hasNext =
+        _currentPartIndex < _totalParts - 1;
     final lessonTitle =
         ArabicUtils.lessonTitle(_currentPartNumber);
-
-    final accent = _isReciter ? c.goldText : c.brand;
-    final accentHover = _isReciter ? c.goldText : c.brandHover;
+    final accent =
+        _isReciter ? c.goldText : c.brand;
+    final accentHover =
+        _isReciter ? c.goldText : c.brandHover;
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -267,9 +282,14 @@ class _SurahAudioPlayerScreenState
 
             return Column(
               children: [
+                // ── Top bar ──────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                      20, 16, 20, 0),
+                    AppSpacing.base,
+                    AppSpacing.base,
+                    AppSpacing.base,
+                    0,
+                  ),
                   child: Row(
                     children: [
                       GestureDetector(
@@ -281,7 +301,7 @@ class _SurahAudioPlayerScreenState
                           decoration: BoxDecoration(
                             color: c.surface2,
                             borderRadius:
-                                BorderRadius.circular(11),
+                                AppRadius.buttonRadius,
                             border: Border.all(
                                 color: c.divider),
                           ),
@@ -301,7 +321,8 @@ class _SurahAudioPlayerScreenState
                               style: AppText.label(
                                   color: c.textFaint),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(
+                                height: AppSpacing.xs),
                             Text(
                               lessonTitle,
                               textDirection:
@@ -321,9 +342,9 @@ class _SurahAudioPlayerScreenState
                         decoration: BoxDecoration(
                           color: c.surface2,
                           borderRadius:
-                              BorderRadius.circular(11),
-                          border:
-                              Border.all(color: c.divider),
+                              AppRadius.buttonRadius,
+                          border: Border.all(
+                              color: c.divider),
                         ),
                         alignment: Alignment.center,
                         child: Text(
@@ -339,8 +360,9 @@ class _SurahAudioPlayerScreenState
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.lg),
 
+                // ── Surah cover ───────────────────
                 GestureDetector(
                   onTap: _onCoverTap,
                   child: _SurahCover(
@@ -354,11 +376,12 @@ class _SurahAudioPlayerScreenState
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.lg),
 
+                // ── Surah + narrator info ─────────
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 32),
+                      horizontal: AppSpacing.xl),
                   child: Column(
                     children: [
                       Text(
@@ -374,16 +397,56 @@ class _SurahAudioPlayerScreenState
                           height: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _narratorNameAr,
-                        textDirection: TextDirection.rtl,
-                        style: AppText.arabic(
-                          color: accent,
-                          size: 13,
-                        ),
+
+                      const SizedBox(
+                          height: AppSpacing.sm),
+
+                      // Narrator row with avatar
+                      Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          ListenableBuilder(
+                            listenable:
+                                state.downloadService,
+                            builder: (context, _) {
+                              if (_isReciter) {
+                                return _ReciterAvatar(
+                                  reciter:
+                                      widget.reciter!,
+                                  downloadService:
+                                      state.downloadService,
+                                  colors: c,
+                                  size: 28,
+                                );
+                              } else {
+                                return TeacherAvatar(
+                                  teacher:
+                                      widget.teacher!,
+                                  downloadService:
+                                      state.downloadService,
+                                  colors: c,
+                                  size: 28,
+                                );
+                              }
+                            },
+                          ),
+                          const SizedBox(
+                              width: AppSpacing.sm),
+                          Text(
+                            _narratorNameAr,
+                            textDirection:
+                                TextDirection.rtl,
+                            style: AppText.arabic(
+                              color: accent,
+                              size: 13,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
+
+                      const SizedBox(
+                          height: AppSpacing.xs),
                       Text(
                         _isReciter ? 'تلاوة' : 'تفسير',
                         textDirection: TextDirection.rtl,
@@ -396,20 +459,21 @@ class _SurahAudioPlayerScreenState
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.base),
 
                 if (!_isCurrentDownloaded) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24),
+                        horizontal: AppSpacing.lg),
                     child: Container(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(
+                          AppSpacing.md),
                       decoration: BoxDecoration(
                         color: c.surface2,
                         borderRadius:
-                            BorderRadius.circular(14),
-                        border:
-                            Border.all(color: c.divider),
+                            AppRadius.listItemRadius,
+                        border: Border.all(
+                            color: c.divider),
                       ),
                       child: Row(
                         children: [
@@ -418,7 +482,8 @@ class _SurahAudioPlayerScreenState
                             color: accent,
                             size: 20,
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(
+                              width: AppSpacing.sm),
                           Expanded(
                             child: Text(
                               'Download this part from the previous screen to play it.',
@@ -433,22 +498,25 @@ class _SurahAudioPlayerScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(
+                      height: AppSpacing.md),
                 ],
 
                 if (_errorMessage != null) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24),
+                        horizontal: AppSpacing.lg),
                     child: Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(
+                          AppSpacing.md),
                       decoration: BoxDecoration(
                         color: c.dangerBg,
                         borderRadius:
-                            BorderRadius.circular(12),
+                            AppRadius.listItemRadius,
                         border: Border.all(
-                            color:
-                                c.danger.withOpacity(0.3)),
+                          color: c.danger
+                              .withOpacity(0.3),
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -457,7 +525,8 @@ class _SurahAudioPlayerScreenState
                             color: c.danger,
                             size: 16,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(
+                              width: AppSpacing.sm),
                           Expanded(
                             child: Text(
                               _errorMessage!,
@@ -471,12 +540,14 @@ class _SurahAudioPlayerScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(
+                      height: AppSpacing.md),
                 ],
 
+                // ── Seek slider ───────────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 24),
+                      horizontal: AppSpacing.lg),
                   child: Column(
                     children: [
                       SliderTheme(
@@ -491,7 +562,8 @@ class _SurahAudioPlayerScreenState
                           ),
                           trackHeight: 4,
                           overlayShape:
-                              SliderComponentShape.noOverlay,
+                              SliderComponentShape
+                                  .noOverlay,
                         ),
                         child: Slider(
                           value: isActive
@@ -499,8 +571,10 @@ class _SurahAudioPlayerScreenState
                                   .toDouble()
                                   .clamp(
                                     0,
-                                    duration.inSeconds > 0
-                                        ? duration.inSeconds
+                                    duration.inSeconds >
+                                            0
+                                        ? duration
+                                            .inSeconds
                                             .toDouble()
                                         : 1,
                                   )
@@ -514,7 +588,8 @@ class _SurahAudioPlayerScreenState
                               ? (v) {
                                   _audioService.seekTo(
                                     Duration(
-                                        seconds: v.toInt()),
+                                        seconds:
+                                            v.toInt()),
                                   );
                                 }
                               : null,
@@ -523,7 +598,8 @@ class _SurahAudioPlayerScreenState
                       Padding(
                         padding:
                             const EdgeInsets.symmetric(
-                                horizontal: 8),
+                                horizontal:
+                                    AppSpacing.sm),
                         child: Row(
                           mainAxisAlignment:
                               MainAxisAlignment
@@ -560,11 +636,12 @@ class _SurahAudioPlayerScreenState
                   ),
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
 
+                // ── Playback controls ─────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 24),
+                      horizontal: AppSpacing.lg),
                   child: Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceEvenly,
@@ -584,7 +661,6 @@ class _SurahAudioPlayerScreenState
                                 _audioService.seekBack(10)
                             : null,
                       ),
-
                       GestureDetector(
                         onTap: _isCurrentDownloaded
                             ? () {
@@ -606,25 +682,31 @@ class _SurahAudioPlayerScreenState
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: _isCurrentDownloaded
-                                  ? [accent, accentHover]
-                                  : [
-                                      c.textFaint,
-                                      c.textFaint
-                                    ],
+                              colors:
+                                  _isCurrentDownloaded
+                                      ? [
+                                          accent,
+                                          accentHover
+                                        ]
+                                      : [
+                                          c.textFaint,
+                                          c.textFaint
+                                        ],
                             ),
-                            boxShadow: _isCurrentDownloaded
-                                ? [
-                                    BoxShadow(
-                                      color: accent
-                                          .withOpacity(
-                                              0.4),
-                                      blurRadius: 20,
-                                      offset: const Offset(
-                                          0, 6),
-                                    ),
-                                  ]
-                                : null,
+                            boxShadow:
+                                _isCurrentDownloaded
+                                    ? [
+                                        BoxShadow(
+                                          color: accent
+                                              .withOpacity(
+                                                  0.4),
+                                          blurRadius: 20,
+                                          offset:
+                                              const Offset(
+                                                  0, 6),
+                                        ),
+                                      ]
+                                    : null,
                           ),
                           child: isLoading
                               ? const Padding(
@@ -646,7 +728,6 @@ class _SurahAudioPlayerScreenState
                                 ),
                         ),
                       ),
-
                       _SeekButton(
                         isForward: true,
                         colors: c,
@@ -666,21 +747,22 @@ class _SurahAudioPlayerScreenState
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.base),
 
+                // ── Speed button ──────────────────
                 GestureDetector(
                   onTap: isActive
                       ? () => _audioService.cycleSpeed()
                       : null,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.sm,
                     ),
                     decoration: BoxDecoration(
                       color: c.surface2,
                       borderRadius:
-                          BorderRadius.circular(12),
+                          AppRadius.listItemRadius,
                       border:
                           Border.all(color: c.divider),
                     ),
@@ -699,18 +781,23 @@ class _SurahAudioPlayerScreenState
 
                 const Spacer(),
 
+                // ── Info bar ──────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                      24, 0, 24, 16),
+                    AppSpacing.lg,
+                    0,
+                    AppSpacing.lg,
+                    AppSpacing.base,
+                  ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+                      horizontal: AppSpacing.base,
+                      vertical: AppSpacing.sm,
                     ),
                     decoration: BoxDecoration(
                       color: c.goldLine,
                       borderRadius:
-                          BorderRadius.circular(12),
+                          AppRadius.listItemRadius,
                       border: Border.all(
                         color:
                             c.goldText.withOpacity(0.3),
@@ -723,7 +810,8 @@ class _SurahAudioPlayerScreenState
                           size: 16,
                           color: c.goldText,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(
+                            width: AppSpacing.sm),
                         Expanded(
                           child: Text(
                             isActive && isPlaying
@@ -749,6 +837,8 @@ class _SurahAudioPlayerScreenState
   }
 }
 
+// ─── Surah Cover ─────────────────────────────────────────
+
 class _SurahCover extends StatelessWidget {
   final SurahMeta meta;
   final CoverService coverService;
@@ -771,14 +861,15 @@ class _SurahCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    final coverPath = coverService.coverPath(surahCoverKey);
+    final coverPath =
+        coverService.coverPath(surahCoverKey);
 
     return Container(
       width: 180,
       height: 240,
       decoration: BoxDecoration(
         color: c.goldText.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: AppRadius.cardRadius,
         border: Border.all(
           color: c.goldText.withOpacity(0.4),
           width: 1.5,
@@ -794,7 +885,7 @@ class _SurahCover extends StatelessWidget {
       child: Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: AppRadius.cardRadius,
             child: SizedBox.expand(
               child: coverPath != null
                   ? Image.file(
@@ -808,19 +899,19 @@ class _SurahCover extends StatelessWidget {
           ),
           if (hasPdfUrl)
             Positioned(
-              bottom: 8,
+              bottom: AppSpacing.sm,
               left: 0,
               right: 0,
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.55),
-                    borderRadius:
-                        BorderRadius.circular(20),
+                    color:
+                        Colors.black.withOpacity(0.55),
+                    borderRadius: AppRadius.pillRadius,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -832,7 +923,8 @@ class _SurahCover extends StatelessWidget {
                         size: 11,
                         color: Colors.white,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(
+                          width: AppSpacing.xs),
                       Text(
                         isPdfDownloaded
                             ? 'Open'
@@ -864,7 +956,7 @@ class _SurahCover extends StatelessWidget {
             size: 56,
             color: c.goldText,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           Text(
             meta.nameAr,
             textDirection: TextDirection.rtl,
@@ -879,6 +971,8 @@ class _SurahCover extends StatelessWidget {
     );
   }
 }
+
+// ─── Controls ────────────────────────────────────────────
 
 class _SeekButton extends StatelessWidget {
   final bool isForward;
@@ -909,7 +1003,9 @@ class _SeekButton extends StatelessWidget {
               ? Icons.forward_10_rounded
               : Icons.replay_10_rounded,
           size: 28,
-          color: onTap != null ? c.textPrimary : c.textFaint,
+          color: onTap != null
+              ? c.textPrimary
+              : c.textFaint,
         ),
       ),
     );
