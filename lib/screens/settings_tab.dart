@@ -22,13 +22,20 @@ class SettingsTab extends StatelessWidget {
       backgroundColor: c.bg,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 40),
+          padding: const EdgeInsets.only(
+              bottom: AppSpacing.xxl),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
-              // ── Top Bar ──
+              // ── Top Bar ──────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.base,
+                  AppSpacing.base,
+                  AppSpacing.base,
+                  0,
+                ),
                 child: Text(
                   'Settings',
                   style: AppText.latin(
@@ -39,221 +46,95 @@ class SettingsTab extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.lg),
 
-              // ── Profile Card ──
+              // ── Profile ──────────────────────────
+              _SectionLabel(
+                  label: 'ACCOUNT', colors: c),
+              const SizedBox(height: AppSpacing.sm),
+
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: c.card,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: c.goldLine, width: 1.5),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: c.brand.withOpacity(0.12),
-                          border: Border.all(
-                            color: c.brand.withOpacity(0.25),
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          userName.isNotEmpty
-                              ? userName[0].toUpperCase()
-                              : 'U',
-                          style: AppText.latin(
-                            color: c.brand,
-                            size: 22,
-                            weight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              userName,
-                              style: AppText.latin(
-                                color: c.textPrimary,
-                                size: 15,
-                                weight: FontWeight.w700,
-                              ),
-                            ),
-                            if (userEmail.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                userEmail,
-                                style: AppText.latin(
-                                  color: c.textMuted,
-                                  size: 12,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _signOut(context, state),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: c.dangerBg,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: c.danger.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Text(
-                            'Sign Out',
-                            style: AppText.latin(
-                              color: c.danger,
-                              size: 12,
-                              weight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.base),
+                child: _ProfileCard(
+                  userName: userName,
+                  userEmail: userEmail,
+                  colors: c,
+                  onSignOut: () =>
+                      _signOut(context, state),
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: AppSpacing.xl),
 
-              // ── APPEARANCE ──
-              _SectionLabel(label: 'APPEARANCE', colors: c),
-              const SizedBox(height: 10),
+              // ── Appearance ───────────────────────
+              _SectionLabel(
+                  label: 'APPEARANCE', colors: c),
+              const SizedBox(height: AppSpacing.sm),
 
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.base),
                 child: Container(
-                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: c.card,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: c.divider),
+                    borderRadius: AppRadius.cardRadius,
+                    border:
+                        Border.all(color: c.divider),
                   ),
                   child: Column(
                     children: [
-                      Row(
-                        children: [
-                          _IconBox(
-                            icon: state.isDark
-                                ? Icons.dark_mode_rounded
-                                : Icons.light_mode_rounded,
-                            colors: c,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Dark Mode',
-                                  style: AppText.latin(
-                                    color: c.textPrimary,
-                                    size: 14,
-                                    weight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  state.isDark
-                                      ? 'Dark theme active'
-                                      : 'Light theme active',
-                                  style: AppText.latin(
-                                    color: c.textFaint,
-                                    size: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: state.isDark,
-                            onChanged: (_) => state.toggleTheme(),
-                            activeColor: c.brand,
-                          ),
-                        ],
+                      // Dark mode row — taller because
+                      // it has two lines of text
+                      _SettingsToggleRow(
+                        icon: state.isDark
+                            ? Icons.dark_mode_rounded
+                            : Icons.light_mode_rounded,
+                        title: 'Dark Mode',
+                        subtitle: state.isDark
+                            ? 'Dark theme active'
+                            : 'Light theme active',
+                        value: state.isDark,
+                        onChanged: (_) =>
+                            state.toggleTheme(),
+                        colors: c,
                       ),
 
-                      Divider(color: c.divider, height: 24),
+                      Divider(
+                          color: c.divider,
+                          height: 1,
+                          indent: 16,
+                          endIndent: 16),
 
-                      Row(
-                        children: [
-                          _IconBox(
-                            icon: Icons.language_rounded,
-                            colors: c,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Language',
-                                  style: AppText.latin(
-                                    color: c.textPrimary,
-                                    size: 14,
-                                    weight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  _languageName(state.language),
-                                  style: AppText.latin(
-                                    color: c.textFaint,
-                                    size: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          _LangButton(
-                              code: 'ar', label: 'ع', colors: c),
-                          const SizedBox(width: 6),
-                          _LangButton(
-                              code: 'en', label: 'A', colors: c),
-                          const SizedBox(width: 6),
-                          _LangButton(
-                              code: 'am', label: 'አ', colors: c),
-                        ],
-                      ),
+                      // Language row
+                      _LanguageRow(colors: c),
                     ],
                   ),
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: AppSpacing.xl),
 
-              // ── CONNECT ──
-              _SectionLabel(label: 'CONNECT', colors: c),
-              const SizedBox(height: 10),
+              // ── Connect ──────────────────────────
+              _SectionLabel(
+                  label: 'CONNECT', colors: c),
+              const SizedBox(height: AppSpacing.sm),
 
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.base),
                 child: GestureDetector(
-                  onTap: () =>
-                      _launchUrl('https://t.me/JUMadrasabot'),
+                  onTap: () => _launchUrl(
+                      'https://t.me/JUMadrasabot'),
                   child: Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(
+                        AppSpacing.base),
                     decoration: BoxDecoration(
                       color: c.card,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: c.divider),
+                      borderRadius:
+                          AppRadius.cardRadius,
+                      border: Border.all(
+                          color: c.divider),
                     ),
                     child: Row(
                       children: [
@@ -261,11 +142,14 @@ class SettingsTab extends StatelessWidget {
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF229ED9)
+                            color: const Color(
+                                    0xFF229ED9)
                                 .withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius:
+                                AppRadius.buttonRadius,
                             border: Border.all(
-                              color: const Color(0xFF229ED9)
+                              color: const Color(
+                                      0xFF229ED9)
                                   .withOpacity(0.3),
                             ),
                           ),
@@ -275,29 +159,37 @@ class SettingsTab extends StatelessWidget {
                             size: 22,
                           ),
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(
+                            width: AppSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                                CrossAxisAlignment
+                                    .start,
                             children: [
                               Text(
                                 'Rawdah · روضة',
                                 style: AppText.latin(
-                                  color: c.textPrimary,
+                                  color:
+                                      c.textPrimary,
                                   size: 14,
-                                  weight: FontWeight.w700,
+                                  weight:
+                                      FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(
+                                  height:
+                                      AppSpacing.xs),
                               Text(
-                                '@JUMadrasabot · Telegram Bot',
+                                '@JUMadrasabot · Telegram',
                                 style: AppText.latin(
                                   color: c.textMuted,
                                   size: 12,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(
+                                  height:
+                                      AppSpacing.xs),
                               Text(
                                 'Islamic Studies & University Materials',
                                 style: AppText.latin(
@@ -319,23 +211,26 @@ class SettingsTab extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: AppSpacing.xl),
 
-              // ── FAQ ──
+              // ── FAQ ──────────────────────────────
               _SectionLabel(label: 'FAQ', colors: c),
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpacing.sm),
 
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.base),
                 child: Container(
                   decoration: BoxDecoration(
                     color: c.card,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: c.divider),
+                    borderRadius: AppRadius.cardRadius,
+                    border:
+                        Border.all(color: c.divider),
                   ),
                   child: Column(
                     children: [
                       _FaqItem(
+                        number: 1,
                         question:
                             'Is everything in this app free?',
                         answer:
@@ -344,6 +239,7 @@ class SettingsTab extends StatelessWidget {
                         isFirst: true,
                       ),
                       _FaqItem(
+                        number: 2,
                         question:
                             'Do I need internet to use the app?',
                         answer:
@@ -351,6 +247,7 @@ class SettingsTab extends StatelessWidget {
                         colors: c,
                       ),
                       _FaqItem(
+                        number: 3,
                         question:
                             'How do I read a downloaded book?',
                         answer:
@@ -358,12 +255,15 @@ class SettingsTab extends StatelessWidget {
                         colors: c,
                       ),
                       _FaqItem(
-                        question: 'Will new books be added?',
+                        number: 4,
+                        question:
+                            'Will new books be added?',
                         answer:
                             'Yes. New books and audio lessons are added regularly. When you open the app with internet, your library updates automatically — no app update needed.',
                         colors: c,
                       ),
                       _FaqItem(
+                        number: 5,
                         question:
                             'Are the books scholar-verified?',
                         answer:
@@ -376,19 +276,23 @@ class SettingsTab extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: AppSpacing.xl),
 
-              // ── PRIVACY ──
-              _SectionLabel(label: 'PRIVACY & DATA', colors: c),
-              const SizedBox(height: 10),
+              // ── Privacy ──────────────────────────
+              _SectionLabel(
+                  label: 'PRIVACY & DATA',
+                  colors: c),
+              const SizedBox(height: AppSpacing.sm),
 
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.base),
                 child: Container(
                   decoration: BoxDecoration(
                     color: c.card,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: c.divider),
+                    borderRadius: AppRadius.cardRadius,
+                    border:
+                        Border.all(color: c.divider),
                   ),
                   child: Column(
                     children: [
@@ -400,7 +304,8 @@ class SettingsTab extends StatelessWidget {
                         isFirst: true,
                       ),
                       _PrivacyItem(
-                        title: 'What we do NOT collect',
+                        title:
+                            'What we do NOT collect',
                         content:
                             'We do not collect your location, contacts, camera, microphone, or any personal device data. We do not sell or share your data with any third party.',
                         colors: c,
@@ -435,168 +340,24 @@ class SettingsTab extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: AppSpacing.xl),
 
-              // ── ABOUT ──
-              _SectionLabel(label: 'ABOUT', colors: c),
-              const SizedBox(height: 10),
+              // ── About ────────────────────────────
+              _SectionLabel(
+                  label: 'ABOUT', colors: c),
+              const SizedBox(height: AppSpacing.sm),
 
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: c.card,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: c.divider),
-                  ),
-                  child: Column(
-                    children: [
-                      // ── Real app icon (replaces the old book icon) ──
-                      Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: c.goldLine,
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: c.brand.withOpacity(0.18),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius:
-                              BorderRadius.circular(18),
-                          child: Image.asset(
-                            'assets/icon.png',
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                Container(
-                              color: c.brand.withOpacity(0.15),
-                              child: Icon(
-                                Icons.menu_book_rounded,
-                                size: 32,
-                                color: c.gold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 14),
-
-                      Text(
-                        'مكتبة الروضة',
-                        textDirection: TextDirection.rtl,
-                        style: AppText.arabic(
-                          color: c.goldText,
-                          size: 22,
-                          weight: FontWeight.w700,
-                        ),
-                      ),
-
-                      const SizedBox(height: 6),
-
-                      Text(
-                        'Your personal Islamic library',
-                        style: AppText.latin(
-                          color: c.textMuted,
-                          size: 13,
-                        ),
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: c.surface2,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: c.divider),
-                        ),
-                        child: Text(
-                          'v1.0.0 · Free · No ads',
-                          style: AppText.latin(
-                            color: c.textMuted,
-                            size: 11,
-                            weight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-                      Divider(color: c.divider, height: 1),
-                      const SizedBox(height: 16),
-
-                      Text(
-                        'مكتبة الروضة is a free Islamic learning app built to make authentic knowledge accessible to every Muslim student. Browse verified PDF books, listen to scholar explanations, and track your learning — all offline after download.',
-                        textAlign: TextAlign.center,
-                        style: AppText.latin(
-                          color: c.textMuted,
-                          size: 12,
-                          height: 1.6,
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-                      Divider(color: c.divider, height: 1),
-                      const SizedBox(height: 16),
-
-                      _AboutRow(
-                        icon: Icons.menu_book_rounded,
-                        label: 'Books in library',
-                        value:
-                            '${AppState.of(context).catalogService.books.length}',
-                        colors: c,
-                      ),
-                      const SizedBox(height: 10),
-                      _AboutRow(
-                        icon: Icons.headphones_rounded,
-                        label: 'Audio teachers',
-                        value: '7',
-                        colors: c,
-                      ),
-                      const SizedBox(height: 10),
-                      _AboutRow(
-                        icon: Icons.download_rounded,
-                        label: 'Your downloads',
-                        value:
-                            '${AppState.of(context).downloadService.downloadedCount}',
-                        colors: c,
-                      ),
-                      const SizedBox(height: 10),
-                      _AboutRow(
-                        icon: Icons.star_outline_rounded,
-                        label: 'Admission',
-                        value: 'Always free',
-                        colors: c,
-                      ),
-                      const SizedBox(height: 10),
-                      _AboutRow(
-                        icon: Icons.school_rounded,
-                        label: 'Rawdah Project',
-                        value: 'Est. 2025',
-                        colors: c,
-                      ),
-                    ],
-                  ),
-                ),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.base),
+                child: _AboutCard(colors: c),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpacing.lg),
 
               Center(
                 child: Text(
-                  'Made with ❤️ for the Muslim Ummah',
+                  'Rawdah project for the Muslim Ummah',
                   style: AppText.latin(
                     color: c.textFaint,
                     size: 11,
@@ -604,7 +365,7 @@ class SettingsTab extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
             ],
           ),
         ),
@@ -626,7 +387,8 @@ class SettingsTab extends StatelessWidget {
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await launchUrl(uri,
+          mode: LaunchMode.externalApplication);
     }
   }
 
@@ -639,7 +401,7 @@ class SettingsTab extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: AppRadius.cardRadius,
         ),
         title: Text(
           'Sign Out?',
@@ -651,18 +413,22 @@ class SettingsTab extends StatelessWidget {
         ),
         content: Text(
           'Are you sure you want to sign out?',
-          style: AppText.latin(color: c.textMuted, size: 13),
+          style: AppText.latin(
+              color: c.textMuted, size: 13),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () =>
+                Navigator.of(ctx).pop(false),
             child: Text(
               'Cancel',
-              style: AppText.latin(color: c.textMuted, size: 14),
+              style: AppText.latin(
+                  color: c.textMuted, size: 14),
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () =>
+                Navigator.of(ctx).pop(true),
             child: Text(
               'Sign Out',
               style: AppText.latin(
@@ -695,6 +461,600 @@ class SettingsTab extends StatelessWidget {
   }
 }
 
+// ─── Profile Card ─────────────────────────────────────────
+// Profile is the most important row — it gets its own
+// card with a larger avatar and clear destructive action
+// separation.
+
+class _ProfileCard extends StatelessWidget {
+  final String userName;
+  final String userEmail;
+  final AppColors colors;
+  final VoidCallback onSignOut;
+
+  const _ProfileCard({
+    required this.userName,
+    required this.userEmail,
+    required this.colors,
+    required this.onSignOut,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: c.card,
+        borderRadius: AppRadius.cardRadius,
+        border: Border.all(
+            color: c.goldLine, width: 1.5),
+      ),
+      child: Column(
+        children: [
+          // ── Identity row ──
+          Padding(
+            padding: const EdgeInsets.all(
+                AppSpacing.base),
+            child: Row(
+              children: [
+                // Larger avatar = higher importance
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: c.brand.withOpacity(0.12),
+                    border: Border.all(
+                      color:
+                          c.brand.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    userName.isNotEmpty
+                        ? userName[0].toUpperCase()
+                        : 'U',
+                    style: AppText.latin(
+                      color: c.brand,
+                      size: 24,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                    width: AppSpacing.md),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        userName,
+                        style: AppText.latin(
+                          color: c.textPrimary,
+                          size: 16,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                      if (userEmail.isNotEmpty) ...[
+                        const SizedBox(
+                            height: AppSpacing.xs),
+                        Text(
+                          userEmail,
+                          style: AppText.latin(
+                            color: c.textMuted,
+                            size: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Divider between identity and
+          //    destructive action ──
+          Divider(color: c.divider, height: 1),
+
+          // ── Sign Out row — visually distinct from
+          //    neutral settings rows ──
+          GestureDetector(
+            onTap: onSignOut,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.base,
+                vertical: AppSpacing.md,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: c.dangerBg,
+                      borderRadius:
+                          AppRadius.buttonRadius,
+                    ),
+                    child: Icon(
+                      Icons.logout_rounded,
+                      size: 16,
+                      color: c.danger,
+                    ),
+                  ),
+                  const SizedBox(
+                      width: AppSpacing.md),
+                  Text(
+                    'Sign Out',
+                    style: AppText.latin(
+                      color: c.danger,
+                      size: 14,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color:
+                        c.danger.withOpacity(0.5),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Settings Toggle Row ─────────────────────────────────
+
+class _SettingsToggleRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final AppColors colors;
+
+  const _SettingsToggleRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.base,
+        vertical: AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: c.brand.withOpacity(0.1),
+              borderRadius: AppRadius.buttonRadius,
+            ),
+            child: Icon(icon,
+                color: c.brand, size: 18),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppText.latin(
+                    color: c.textPrimary,
+                    size: 14,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(
+                    height: AppSpacing.xs),
+                Text(
+                  subtitle,
+                  style: AppText.latin(
+                    color: c.textFaint,
+                    size: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: c.brand,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Language Row ─────────────────────────────────────────
+
+class _LanguageRow extends StatelessWidget {
+  final AppColors colors;
+  const _LanguageRow({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.base,
+        vertical: AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: c.brand.withOpacity(0.1),
+              borderRadius: AppRadius.buttonRadius,
+            ),
+            child: Icon(Icons.language_rounded,
+                color: c.brand, size: 18),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              'Language',
+              style: AppText.latin(
+                color: c.textPrimary,
+                size: 14,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+          _LangButton(
+              code: 'ar', label: 'ع', colors: c),
+          const SizedBox(width: AppSpacing.sm),
+          _LangButton(
+              code: 'en', label: 'A', colors: c),
+          const SizedBox(width: AppSpacing.sm),
+          _LangButton(
+              code: 'am', label: 'አ', colors: c),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── About Card ──────────────────────────────────────────
+// Stats redesigned: ONE hero stat large and central,
+// secondary stats in a compact 2-column row below.
+// Footer items are small pills.
+
+class _AboutCard extends StatelessWidget {
+  final AppColors colors;
+  const _AboutCard({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final state = AppState.of(context);
+    final bookCount =
+        state.catalogService.books.length;
+    final downloadCount =
+        state.downloadService.downloadedCount;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: c.card,
+        borderRadius: AppRadius.cardRadius,
+        border: Border.all(color: c.divider),
+      ),
+      child: Column(
+        children: [
+          // App icon
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              borderRadius:
+                  BorderRadius.circular(18),
+              border: Border.all(
+                color: c.goldLine,
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: c.brand.withOpacity(0.15),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius:
+                  BorderRadius.circular(16),
+              child: Image.asset(
+                'assets/icon.png',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    Container(
+                  color: c.brand.withOpacity(0.15),
+                  child: Icon(
+                    Icons.menu_book_rounded,
+                    size: 30,
+                    color: c.gold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+
+          Text(
+            'مكتبة الروضة',
+            textDirection: TextDirection.rtl,
+            style: AppText.arabic(
+              color: c.goldText,
+              size: 21,
+              weight: FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.xs),
+
+          Text(
+            'Your personal Islamic library',
+            style: AppText.latin(
+              color: c.textMuted,
+              size: 12,
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.sm),
+
+          // Version pill
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs + 1,
+            ),
+            decoration: BoxDecoration(
+              color: c.surface2,
+              borderRadius: AppRadius.pillRadius,
+              border: Border.all(color: c.divider),
+            ),
+            child: Text(
+              'v1.0.0 · Free · No ads',
+              style: AppText.latin(
+                color: c.textMuted,
+                size: 11,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.lg),
+          Divider(color: c.divider, height: 1),
+          const SizedBox(height: AppSpacing.lg),
+
+          // Description
+          Text(
+            'مكتبة الروضة is a free Islamic learning app built to make authentic knowledge accessible to every Muslim student. Browse verified PDF books, listen to scholar explanations, and track your learning — all offline after download.',
+            textAlign: TextAlign.center,
+            style: AppText.latin(
+              color: c.textMuted,
+              size: 12,
+              height: 1.6,
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.lg),
+          Divider(color: c.divider, height: 1),
+          const SizedBox(height: AppSpacing.lg),
+
+          // ── Hero stat — books in library ────────
+          // The primary thing that communicates the
+          // app's value. Large and central.
+          Column(
+            children: [
+              Text(
+                '$bookCount',
+                style: AppText.latin(
+                  color: c.brand,
+                  size: 48,
+                  weight: FontWeight.w800,
+                  height: 1.0,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Row(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.menu_book_rounded,
+                    size: 13,
+                    color: c.textMuted,
+                  ),
+                  const SizedBox(
+                      width: AppSpacing.xs),
+                  Text(
+                    'Books in library',
+                    style: AppText.latin(
+                      color: c.textMuted,
+                      size: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.lg),
+
+          // ── Secondary stats — compact 2-column ──
+          Row(
+            children: [
+              Expanded(
+                child: _SecondaryStatCell(
+                  icon: Icons.headphones_rounded,
+                  value: '7',
+                  label: 'Teachers',
+                  colors: c,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: c.divider,
+              ),
+              Expanded(
+                child: _SecondaryStatCell(
+                  icon: Icons.download_rounded,
+                  value: '$downloadCount',
+                  label: 'Downloads',
+                  colors: c,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.lg),
+          Divider(color: c.divider, height: 1),
+          const SizedBox(height: AppSpacing.md),
+
+          // ── Footer pills ──────────────────────
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              _FooterPill(
+                icon: Icons.star_outline_rounded,
+                label: 'Always free',
+                colors: c,
+              ),
+              _FooterPill(
+                icon: Icons.school_rounded,
+                label: 'Rawdah · Est. 2025',
+                colors: c,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SecondaryStatCell extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+  final AppColors colors;
+
+  const _SecondaryStatCell({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          value,
+          style: AppText.latin(
+            color: c.textPrimary,
+            size: 22,
+            weight: FontWeight.w700,
+            height: 1.0,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 11, color: c.textFaint),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              label,
+              style: AppText.latin(
+                color: c.textFaint,
+                size: 11,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _FooterPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final AppColors colors;
+
+  const _FooterPill({
+    required this.icon,
+    required this.label,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs + 1,
+      ),
+      decoration: BoxDecoration(
+        color: c.surface2,
+        borderRadius: AppRadius.pillRadius,
+        border: Border.all(color: c.divider),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: c.textFaint),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            label,
+            style: AppText.latin(
+              color: c.textMuted,
+              size: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Section Label ───────────────────────────────────────
 
 class _SectionLabel extends StatelessWidget {
@@ -709,7 +1069,8 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.base),
       child: Text(
         label,
         style: AppText.label(color: colors.textFaint),
@@ -724,7 +1085,8 @@ class _IconBox extends StatelessWidget {
   final IconData icon;
   final AppColors colors;
 
-  const _IconBox({required this.icon, required this.colors});
+  const _IconBox(
+      {required this.icon, required this.colors});
 
   @override
   Widget build(BuildContext context) {
@@ -734,7 +1096,7 @@ class _IconBox extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         color: c.brand.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.buttonRadius,
       ),
       child: Icon(icon, color: c.brand, size: 18),
     );
@@ -768,7 +1130,7 @@ class _LangButton extends StatelessWidget {
         height: 32,
         decoration: BoxDecoration(
           color: active ? c.brand : c.surface2,
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: AppRadius.buttonRadius,
           border: Border.all(
             color: active ? c.brand : c.divider,
           ),
@@ -777,7 +1139,8 @@ class _LangButton extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            color: active ? Colors.white : c.textMuted,
+            color:
+                active ? Colors.white : c.textMuted,
             fontSize: 13,
             fontWeight: FontWeight.w700,
           ),
@@ -787,49 +1150,12 @@ class _LangButton extends StatelessWidget {
   }
 }
 
-// ─── About Row ───────────────────────────────────────────
-
-class _AboutRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final AppColors colors;
-
-  const _AboutRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = colors;
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: c.textFaint),
-        const SizedBox(width: 10),
-        Text(
-          label,
-          style: AppText.latin(color: c.textMuted, size: 12),
-        ),
-        const Spacer(),
-        Text(
-          value,
-          style: AppText.latin(
-            color: c.textPrimary,
-            size: 12,
-            weight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─── FAQ Item (collapsible) ───────────────────────────────
+// ─── FAQ Item ────────────────────────────────────────────
+// Numbers added so questions feel structured.
+// Expanded answer uses left-border accent.
 
 class _FaqItem extends StatefulWidget {
+  final int number;
   final String question;
   final String answer;
   final AppColors colors;
@@ -837,6 +1163,7 @@ class _FaqItem extends StatefulWidget {
   final bool isLast;
 
   const _FaqItem({
+    required this.number,
     required this.question,
     required this.answer,
     required this.colors,
@@ -861,21 +1188,48 @@ class _FaqItemState extends State<_FaqItem> {
           Divider(
             color: c.divider,
             height: 1,
-            indent: 16,
-            endIndent: 16,
+            indent: AppSpacing.base,
+            endIndent: AppSpacing.base,
           ),
         GestureDetector(
-          onTap: () => setState(() => _expanded = !_expanded),
+          onTap: () =>
+              setState(() => _expanded = !_expanded),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
+              horizontal: AppSpacing.base,
+              vertical: AppSpacing.md,
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
+                    // Question number badge
+                    Container(
+                      width: 22,
+                      height: 22,
+                      margin: const EdgeInsets.only(
+                          top: 1,
+                          right: AppSpacing.sm),
+                      decoration: BoxDecoration(
+                        color:
+                            c.brand.withOpacity(0.1),
+                        borderRadius:
+                            AppRadius.pillRadius,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '${widget.number}',
+                        style: AppText.latin(
+                          color: c.brand,
+                          size: 10,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                     Expanded(
                       child: Text(
                         widget.question,
@@ -886,10 +1240,12 @@ class _FaqItemState extends State<_FaqItem> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(
+                        width: AppSpacing.sm),
                     AnimatedRotation(
                       turns: _expanded ? 0.25 : 0,
-                      duration: const Duration(milliseconds: 200),
+                      duration: const Duration(
+                          milliseconds: 200),
                       child: Icon(
                         Icons.chevron_right_rounded,
                         size: 18,
@@ -899,13 +1255,33 @@ class _FaqItemState extends State<_FaqItem> {
                   ],
                 ),
                 if (_expanded) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.answer,
-                    style: AppText.latin(
-                      color: c.textMuted,
-                      size: 12,
-                      height: 1.6,
+                  const SizedBox(
+                      height: AppSpacing.sm),
+                  // Left-border accent on expanded
+                  // answer — visually distinct from
+                  // the question without being heavy.
+                  Container(
+                    padding: const EdgeInsets.only(
+                      left: AppSpacing.md,
+                      top: AppSpacing.sm,
+                      bottom: AppSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        left: BorderSide(
+                          color: c.brand
+                              .withOpacity(0.4),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      widget.answer,
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 12,
+                        height: 1.6,
+                      ),
                     ),
                   ),
                 ],
@@ -918,7 +1294,7 @@ class _FaqItemState extends State<_FaqItem> {
   }
 }
 
-// ─── Privacy Item (collapsible) ──────────────────────────
+// ─── Privacy Item ────────────────────────────────────────
 
 class _PrivacyItem extends StatefulWidget {
   final String title;
@@ -936,7 +1312,8 @@ class _PrivacyItem extends StatefulWidget {
   });
 
   @override
-  State<_PrivacyItem> createState() => _PrivacyItemState();
+  State<_PrivacyItem> createState() =>
+      _PrivacyItemState();
 }
 
 class _PrivacyItemState extends State<_PrivacyItem> {
@@ -952,18 +1329,20 @@ class _PrivacyItemState extends State<_PrivacyItem> {
           Divider(
             color: c.divider,
             height: 1,
-            indent: 16,
-            endIndent: 16,
+            indent: AppSpacing.base,
+            endIndent: AppSpacing.base,
           ),
         GestureDetector(
-          onTap: () => setState(() => _expanded = !_expanded),
+          onTap: () =>
+              setState(() => _expanded = !_expanded),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
+              horizontal: AppSpacing.base,
+              vertical: AppSpacing.md,
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
@@ -972,7 +1351,8 @@ class _PrivacyItemState extends State<_PrivacyItem> {
                       size: 14,
                       color: c.brand,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(
+                        width: AppSpacing.sm),
                     Expanded(
                       child: Text(
                         widget.title,
@@ -985,7 +1365,8 @@ class _PrivacyItemState extends State<_PrivacyItem> {
                     ),
                     AnimatedRotation(
                       turns: _expanded ? 0.25 : 0,
-                      duration: const Duration(milliseconds: 200),
+                      duration: const Duration(
+                          milliseconds: 200),
                       child: Icon(
                         Icons.chevron_right_rounded,
                         size: 18,
@@ -995,13 +1376,30 @@ class _PrivacyItemState extends State<_PrivacyItem> {
                   ],
                 ),
                 if (_expanded) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.content,
-                    style: AppText.latin(
-                      color: c.textMuted,
-                      size: 12,
-                      height: 1.6,
+                  const SizedBox(
+                      height: AppSpacing.sm),
+                  Container(
+                    padding: const EdgeInsets.only(
+                      left: AppSpacing.md,
+                      top: AppSpacing.sm,
+                      bottom: AppSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        left: BorderSide(
+                          color: c.brand
+                              .withOpacity(0.4),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      widget.content,
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 12,
+                        height: 1.6,
+                      ),
                     ),
                   ),
                 ],
