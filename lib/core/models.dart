@@ -32,12 +32,19 @@ class Teacher {
   final String nameAm;
   final String initials;
 
+  /// Optional direct URL to a photo of this teacher.
+  /// When set, the app downloads the photo automatically
+  /// the first time any of this teacher's audio is downloaded.
+  /// Empty string means no photo.
+  final String photoUrl;
+
   const Teacher({
     required this.id,
     required this.nameAr,
     required this.nameEn,
     required this.nameAm,
     required this.initials,
+    this.photoUrl = '',
   });
 
   factory Teacher.fromJson(Map<String, dynamic> json) {
@@ -50,8 +57,11 @@ class Teacher {
               ? json['nameAm'] as String
               : json['nameEn'] as String,
       initials: json['initials'] as String,
+      photoUrl: json['photoUrl'] as String? ?? '',
     );
   }
+
+  bool get hasPhoto => photoUrl.isNotEmpty;
 
   String nameFor(String lang) {
     switch (lang) {
@@ -74,12 +84,17 @@ class Reciter {
   final String nameAm;
   final String initials;
 
+  /// Optional direct URL to a photo of this reciter.
+  /// Same download semantics as Teacher.photoUrl.
+  final String photoUrl;
+
   const Reciter({
     required this.id,
     required this.nameAr,
     required this.nameEn,
     required this.nameAm,
     required this.initials,
+    this.photoUrl = '',
   });
 
   factory Reciter.fromJson(Map<String, dynamic> json) {
@@ -92,8 +107,11 @@ class Reciter {
               ? json['nameAm'] as String
               : json['nameEn'] as String,
       initials: json['initials'] as String,
+      photoUrl: json['photoUrl'] as String? ?? '',
     );
   }
+
+  bool get hasPhoto => photoUrl.isNotEmpty;
 
   String nameFor(String lang) {
     switch (lang) {
@@ -197,10 +215,8 @@ class ReciterAudio {
       urls[partNumber];
 }
 
-// ─── ContentTableEntry (Task 6) ──────────────────────────
+// ─── ContentTableEntry ───────────────────────────────────
 
-/// One entry in a book's optional content table.
-/// titleEn is optional — only shown when non-empty.
 class ContentTableEntry {
   final String titleAr;
   final String titleEn;
@@ -241,9 +257,6 @@ class Book {
   final String pdfUrl;
   final String? coverUrl;
   final DateTime addedAt;
-
-  /// Optional chapter index. Empty list = no index button
-  /// shown in the PDF reader. Non-empty = index button shown.
   final List<ContentTableEntry> contentTable;
 
   const Book({
@@ -265,13 +278,13 @@ class Book {
   });
 
   factory Book.fromJson(Map<String, dynamic> json) {
-    // Parse optional contentTable array.
     final ctRaw =
         json['contentTable'] as List? ?? const [];
     final contentTable = ctRaw
         .whereType<Map<String, dynamic>>()
         .map((m) => ContentTableEntry.fromJson(m))
-        .where((e) => e.titleAr.isNotEmpty && e.page >= 1)
+        .where(
+            (e) => e.titleAr.isNotEmpty && e.page >= 1)
         .toList();
 
     return Book(
@@ -570,10 +583,8 @@ class QuranSubBranch {
         type = QuranSubBranchType.unknown;
     }
 
-    final titleAr =
-        json['titleAr'] as String? ?? '';
-    final titleEn =
-        json['titleEn'] as String? ?? '';
+    final titleAr = json['titleAr'] as String? ?? '';
+    final titleEn = json['titleEn'] as String? ?? '';
     final titleAmRaw =
         json['titleAm'] as String? ?? '';
 
@@ -723,6 +734,184 @@ class QuranData {
   }
 }
 
+// ─── Settings models (catalog-controlled) ────────────────
+
+/// A single link entry in the Connect section of Settings.
+/// Platform drives the icon automatically in the UI.
+/// Supported platform values:
+///   telegram, youtube, instagram, twitter, facebook, website
+class SettingsLink {
+  final String name;
+  final String platform;
+  final String handle;
+  final String url;
+  final String description;
+
+  const SettingsLink({
+    required this.name,
+    required this.platform,
+    required this.handle,
+    required this.url,
+    required this.description,
+  });
+
+  factory SettingsLink.fromJson(
+      Map<String, dynamic> json) {
+    return SettingsLink(
+      name: json['name'] as String? ?? '',
+      platform:
+          (json['platform'] as String? ?? '')
+              .toLowerCase(),
+      handle: json['handle'] as String? ?? '',
+      url: json['url'] as String? ?? '',
+      description:
+          json['description'] as String? ?? '',
+    );
+  }
+}
+
+/// A single FAQ entry.
+class FaqEntry {
+  final String question;
+  final String answer;
+
+  const FaqEntry({
+    required this.question,
+    required this.answer,
+  });
+
+  factory FaqEntry.fromJson(
+      Map<String, dynamic> json) {
+    return FaqEntry(
+      question: json['question'] as String? ?? '',
+      answer: json['answer'] as String? ?? '',
+    );
+  }
+}
+
+/// A single Privacy policy item.
+class PrivacyEntry {
+  final String title;
+  final String content;
+
+  const PrivacyEntry({
+    required this.title,
+    required this.content,
+  });
+
+  factory PrivacyEntry.fromJson(
+      Map<String, dynamic> json) {
+    return PrivacyEntry(
+      title: json['title'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+    );
+  }
+}
+
+/// A credit entry for a teacher or reciter —
+/// their name and social media links.
+class CreditEntry {
+  final String nameAr;
+  final String nameEn;
+
+  /// List of social links for this person.
+  final List<SettingsLink> links;
+
+  const CreditEntry({
+    required this.nameAr,
+    required this.nameEn,
+    required this.links,
+  });
+
+  factory CreditEntry.fromJson(
+      Map<String, dynamic> json) {
+    final linksRaw =
+        json['links'] as List? ?? const [];
+    return CreditEntry(
+      nameAr: json['nameAr'] as String? ?? '',
+      nameEn: json['nameEn'] as String? ?? '',
+      links: linksRaw
+          .whereType<Map<String, dynamic>>()
+          .map((m) => SettingsLink.fromJson(m))
+          .toList(),
+    );
+  }
+}
+
+/// All catalog-controlled content for the Settings tab.
+class AppSettings {
+  /// Links shown in the Connect section.
+  final List<SettingsLink> connectLinks;
+
+  /// FAQ questions and answers.
+  final List<FaqEntry> faq;
+
+  /// Privacy policy items.
+  final List<PrivacyEntry> privacy;
+
+  /// About section description paragraph.
+  final String aboutDescription;
+
+  /// Credits section — teacher/reciter social links.
+  final List<CreditEntry> credits;
+
+  const AppSettings({
+    required this.connectLinks,
+    required this.faq,
+    required this.privacy,
+    required this.aboutDescription,
+    required this.credits,
+  });
+
+  factory AppSettings.fromJson(
+      Map<String, dynamic> json) {
+    final connectRaw =
+        json['connectLinks'] as List? ?? const [];
+    final faqRaw =
+        json['faq'] as List? ?? const [];
+    final privacyRaw =
+        json['privacy'] as List? ?? const [];
+    final creditsRaw =
+        json['credits'] as List? ?? const [];
+
+    return AppSettings(
+      connectLinks: connectRaw
+          .whereType<Map<String, dynamic>>()
+          .map((m) => SettingsLink.fromJson(m))
+          .toList(),
+      faq: faqRaw
+          .whereType<Map<String, dynamic>>()
+          .map((m) => FaqEntry.fromJson(m))
+          .toList(),
+      privacy: privacyRaw
+          .whereType<Map<String, dynamic>>()
+          .map((m) => PrivacyEntry.fromJson(m))
+          .toList(),
+      aboutDescription:
+          json['aboutDescription'] as String? ?? '',
+      credits: creditsRaw
+          .whereType<Map<String, dynamic>>()
+          .map((m) => CreditEntry.fromJson(m))
+          .toList(),
+    );
+  }
+
+  factory AppSettings.defaults() {
+    return const AppSettings(
+      connectLinks: [],
+      faq: [],
+      privacy: [],
+      aboutDescription: '',
+      credits: [],
+    );
+  }
+
+  bool get hasConnectLinks => connectLinks.isNotEmpty;
+  bool get hasFaq => faq.isNotEmpty;
+  bool get hasPrivacy => privacy.isNotEmpty;
+  bool get hasCredits => credits.isNotEmpty;
+}
+
 // ─── Catalog ─────────────────────────────────────────────
 
 class Catalog {
@@ -736,6 +925,9 @@ class Catalog {
   final String quranBaseUrl;
   final Announcement? announcement;
 
+  /// Catalog-controlled settings tab content.
+  final AppSettings settings;
+
   const Catalog({
     required this.books,
     required this.teachers,
@@ -746,7 +938,14 @@ class Catalog {
     required this.audioBaseUrl,
     required this.quranBaseUrl,
     this.announcement,
-  });
+    AppSettings? settings,
+  }) : settings = settings ?? const AppSettings(
+          connectLinks: [],
+          faq: [],
+          privacy: [],
+          aboutDescription: '',
+          credits: [],
+        );
 
   factory Catalog.fromJson(Map<String, dynamic> json) {
     return Catalog(
@@ -781,6 +980,10 @@ class Catalog {
           ? Announcement.fromJson(json['announcement']
               as Map<String, dynamic>)
           : null,
+      settings: json['settings'] != null
+          ? AppSettings.fromJson(
+              json['settings'] as Map<String, dynamic>)
+          : AppSettings.defaults(),
     );
   }
 
@@ -823,8 +1026,7 @@ class Catalog {
         _asList(mushafContent['subBranches']);
 
     return {
-      'version':
-          root['version']?.toString() ?? '1',
+      'version': root['version']?.toString() ?? '1',
       'minAppVersion':
           root['minAppVersion']?.toString() ??
               '1.0.0',
@@ -840,6 +1042,9 @@ class Catalog {
             'message': '',
             'type': 'info',
           },
+      // Settings lives in root catalog.json
+      if (root['settings'] != null)
+        'settings': root['settings'],
       'teachers': teachersList,
       'reciters': recitersList,
       'books': booksList,
