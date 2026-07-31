@@ -4,10 +4,6 @@ import '../core/theme.dart';
 
 /// A beautiful full-width hero card for the two special
 /// branches: Quran and Hadith. Used on the Home tab.
-///
-/// Two visual variants:
-///   • BranchHeroStyle.quran  → gold/cream Islamic feel
-///   • BranchHeroStyle.hadith → deep green scholarly feel
 class BranchHeroCard extends StatelessWidget {
   final Branch branch;
   final BranchHeroStyle style;
@@ -49,7 +45,7 @@ class BranchHeroCard extends StatelessWidget {
 
 enum BranchHeroStyle { quran, hadith }
 
-// ─── Quran Hero (gold / cream Islamic feel) ────────────
+// ─── Quran Hero ──────────────────────────────────────────
 
 class _QuranHero extends StatelessWidget {
   final Branch branch;
@@ -75,7 +71,7 @@ class _QuranHero extends StatelessWidget {
       child: Container(
         height: 84,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: AppRadius.cardRadius,
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -99,7 +95,6 @@ class _QuranHero extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Decorative background icon
             Positioned(
               right: -10,
               bottom: -8,
@@ -112,23 +107,23 @@ class _QuranHero extends StatelessWidget {
                 ),
               ),
             ),
-
             Padding(
               padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 10,
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm + 2,
               ),
               child: Row(
                 children: [
-                  // Left: Mus'haf icon in gold circle
                   Container(
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: c.goldText.withOpacity(0.15),
+                      color:
+                          c.goldText.withOpacity(0.15),
                       border: Border.all(
-                        color: c.goldText.withOpacity(0.4),
+                        color:
+                            c.goldText.withOpacity(0.4),
                         width: 1.3,
                       ),
                     ),
@@ -138,10 +133,8 @@ class _QuranHero extends StatelessWidget {
                       color: c.goldText,
                     ),
                   ),
-
-                  const SizedBox(width: 12),
-
-                  // Middle: name + subtitle
+                  const SizedBox(
+                      width: AppSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
@@ -151,27 +144,31 @@ class _QuranHero extends StatelessWidget {
                       children: [
                         Text(
                           branch.nameAr,
-                          textDirection: TextDirection.rtl,
+                          textDirection:
+                              TextDirection.rtl,
                           textAlign: TextAlign.right,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          overflow:
+                              TextOverflow.ellipsis,
                           style: AppText.arabic(
                             color: c.goldText,
                             size: 18,
                             weight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(
+                            height: AppSpacing.xs),
                         Text(
                           language == 'ar'
                               ? '١١٤ سورة'
                               : '114 Surahs',
-                          textDirection: language == 'ar'
-                              ? TextDirection.rtl
-                              : TextDirection.ltr,
+                          textDirection:
+                              language == 'ar'
+                                  ? TextDirection.rtl
+                                  : TextDirection.ltr,
                           style: AppText.latin(
-                            color:
-                                c.goldText.withOpacity(0.75),
+                            color: c.goldText
+                                .withOpacity(0.75),
                             size: 11,
                             weight: FontWeight.w600,
                           ),
@@ -179,8 +176,8 @@ class _QuranHero extends StatelessWidget {
                       ],
                     ),
                   ),
-
-                  const SizedBox(width: 4),
+                  const SizedBox(
+                      width: AppSpacing.xs),
                   Icon(
                     Icons.chevron_right_rounded,
                     size: 18,
@@ -196,7 +193,7 @@ class _QuranHero extends StatelessWidget {
   }
 }
 
-// ─── Hadith Hero (deep green scholarly feel) ───────────
+// ─── Hadith Hero ─────────────────────────────────────────
 
 class _HadithHero extends StatelessWidget {
   final Branch branch;
@@ -223,14 +220,11 @@ class _HadithHero extends StatelessWidget {
       child: Container(
         height: 84,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: AppRadius.cardRadius,
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              c.brand,
-              c.brandHover,
-            ],
+            colors: [c.brand, c.brandHover],
           ),
           border: Border.all(
             color: c.goldText.withOpacity(0.35),
@@ -246,7 +240,6 @@ class _HadithHero extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Decorative background icon
             Positioned(
               right: -14,
               bottom: -10,
@@ -259,15 +252,13 @@ class _HadithHero extends StatelessWidget {
                 ),
               ),
             ),
-
             Padding(
               padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 10,
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm + 2,
               ),
               child: Row(
                 children: [
-                  // Left: hadith book icon in gold circle
                   Container(
                     width: 48,
                     height: 48,
@@ -285,10 +276,8 @@ class _HadithHero extends StatelessWidget {
                       color: c.gold,
                     ),
                   ),
-
-                  const SizedBox(width: 12),
-
-                  // Middle: name + subtitle
+                  const SizedBox(
+                      width: AppSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
@@ -298,17 +287,20 @@ class _HadithHero extends StatelessWidget {
                       children: [
                         Text(
                           branch.nameAr,
-                          textDirection: TextDirection.rtl,
+                          textDirection:
+                              TextDirection.rtl,
                           textAlign: TextAlign.right,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          overflow:
+                              TextOverflow.ellipsis,
                           style: AppText.arabic(
                             color: c.gold,
                             size: 18,
                             weight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(
+                            height: AppSpacing.xs),
                         Text(
                           count > 0
                               ? (language == 'ar'
@@ -317,11 +309,13 @@ class _HadithHero extends StatelessWidget {
                               : (language == 'ar'
                                   ? 'قريباً'
                                   : 'Coming soon'),
-                          textDirection: language == 'ar'
-                              ? TextDirection.rtl
-                              : TextDirection.ltr,
+                          textDirection:
+                              language == 'ar'
+                                  ? TextDirection.rtl
+                                  : TextDirection.ltr,
                           style: AppText.latin(
-                            color: c.gold.withOpacity(0.8),
+                            color:
+                                c.gold.withOpacity(0.8),
                             size: 11,
                             weight: FontWeight.w600,
                           ),
@@ -329,8 +323,8 @@ class _HadithHero extends StatelessWidget {
                       ],
                     ),
                   ),
-
-                  const SizedBox(width: 4),
+                  const SizedBox(
+                      width: AppSpacing.xs),
                   Icon(
                     Icons.chevron_right_rounded,
                     size: 18,
