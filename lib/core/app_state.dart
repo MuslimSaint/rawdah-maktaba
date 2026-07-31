@@ -20,7 +20,6 @@ class AppState extends ChangeNotifier {
       'last_book_total_pages';
   static const _keyDismissedAnnouncements =
       'dismissed_announcements';
-
   static const _keyLegacyMushafLastPage =
       'mushaf_last_page';
   static const _keyMushafLastPagePrefix =
@@ -45,7 +44,8 @@ class AppState extends ChangeNotifier {
       <String>{};
 
   // ─── Services ──────────────────────────────────────
-  final CatalogService catalogService = CatalogService();
+  final CatalogService catalogService =
+      CatalogService();
   final DownloadService downloadService =
       DownloadService();
   final AudioService audioService = AudioService();
@@ -66,9 +66,10 @@ class AppState extends ChangeNotifier {
   bool get hasLastBook =>
       _lastBookId != null && _lastBookId!.isNotEmpty;
 
-  double get lastBookProgress => _lastBookTotalPages > 0
-      ? _lastBookPage / _lastBookTotalPages
-      : 0;
+  double get lastBookProgress =>
+      _lastBookTotalPages > 0
+          ? _lastBookPage / _lastBookTotalPages
+          : 0;
 
   TextDirection get textDirection => TextDirection.ltr;
 
@@ -81,10 +82,8 @@ class AppState extends ChangeNotifier {
     if (savedTheme != null) {
       _isDark = savedTheme == 'dark';
     } else {
-      final brightness = WidgetsBinding
-          .instance
-          .platformDispatcher
-          .platformBrightness;
+      final brightness = WidgetsBinding.instance
+          .platformDispatcher.platformBrightness;
       _isDark = brightness == Brightness.dark;
     }
 
@@ -120,12 +119,18 @@ class AppState extends ChangeNotifier {
               pdfPath: pdfPath,
             );
 
-    // ── Cover + metadata cleanup on PDF delete (Task 4) ──
-    // When any PDF is deleted via DownloadService,
-    // CoverService removes the extracted cover, cached
-    // page count, and cached file size for that book.
+    // ── Cover cleanup on PDF delete ──
     downloadService.onPdfFileDeleted =
         (bookId) => coverService.clearFor(bookId);
+
+    // ── Photo notification (UI refresh) ──
+    // When a teacher/reciter photo finishes
+    // downloading, notify listeners so any screen
+    // currently showing that person updates its avatar.
+    downloadService.onPhotoDownloaded =
+        (personId, photoPath) async {
+      notifyListeners();
+    };
 
     catalogService.addListener(_onCatalogLoaded);
     catalogService.load();
@@ -161,9 +166,15 @@ class AppState extends ChangeNotifier {
     _coverExtractionDone = true;
     catalogService.removeListener(_onCatalogLoaded);
     _extractCoversForDownloadedBooks();
+
+    // Also trigger photo downloads for any
+    // teacher/reciter whose audio is already downloaded
+    // but whose photo is not yet on disk.
+    _downloadMissingPhotos();
   }
 
-  Future<void> _extractCoversForDownloadedBooks() async {
+  Future<void> _extractCoversForDownloadedBooks()
+      async {
     final books = catalogService.books;
     for (final book in books) {
       final fileId = 'pdf_${book.id}';
@@ -199,6 +210,75 @@ class AppState extends ChangeNotifier {
                 .catchError((_) {});
           }
         }
+      }
+    }
+  }
+
+  /// After catalog loads, check all teachers and
+  /// reciters that have a photoUrl. If any audio from
+  /// them is already downloaded but their photo is not,
+  /// download their photo now silently.
+  Future<void> _downloadMissingPhotos() async {
+    // Teachers
+    for (final teacher in catalogService.teachers) {
+      if (!teacher.hasPhoto) continue;
+      if (downloadService.hasPhoto(teacher.id)) {
+        continue;
+      }
+      // Check if any audio from this teacher is
+      // already downloaded.
+      bool hasAudio = false;
+      for (final book in catalogService.books) {
+        final ta = book.audioForTeacher(teacher.id);
+        if (ta == null) continue;
+        for (final part in ta.parts) {
+          final fid = DownloadService.audioId(
+              book.id, teacher.id, part);
+          if (downloadService.isDownloaded(fid)) {
+            hasAudio = true;
+            break;
+          }
+        }
+        if (hasAudio) break;
+      }
+      if (hasAudio) {
+        downloadService.downloadPhoto(
+          personId: teacher.id,
+          photoUrl: teacher.photoUrl,
+        );
+      }
+    }
+
+    // Reciters
+    for (final reciter in catalogService.reciters) {
+      if (!reciter.hasPhoto) continue;
+      if (downloadService.hasPhoto(reciter.id)) {
+        continue;
+      }
+      bool hasAudio = false;
+      for (int n = 1; n <= 114; n++) {
+        final surah =
+            catalogService.quran.surahFor(n);
+        for (final ra in surah.reciters) {
+          if (ra.reciterId != reciter.id) continue;
+          for (final part in ra.parts) {
+            final fid =
+                DownloadService.surahReciterAudioId(
+                    n, reciter.id, part);
+            if (downloadService.isDownloaded(fid)) {
+              hasAudio = true;
+              break;
+            }
+          }
+          if (hasAudio) break;
+        }
+        if (hasAudio) break;
+      }
+      if (hasAudio) {
+        downloadService.downloadPhoto(
+          personId: reciter.id,
+          photoUrl: reciter.photoUrl,
+        );
       }
     }
   }
@@ -335,7 +415,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── Mus'haf Position (per-edition) ───────────────
+  // ─── Mus'haf Position ──────────────────────────────
 
   int mushafLastPageFor(String editionId) {
     if (_mushafLastPages.containsKey(editionId)) {
@@ -373,9 +453,8 @@ class AppState extends ChangeNotifier {
 
   Future<void> dismissAnnouncement(
       String fingerprint) async {
-    if (_dismissedAnnouncements.contains(fingerprint)) {
-      return;
-    }
+    if (_dismissedAnnouncements
+        .contains(fingerprint)) return;
     _dismissedAnnouncements.add(fingerprint);
     await _prefs.setStringList(
       _keyDismissedAnnouncements,
