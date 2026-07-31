@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/arabic_utils.dart';
@@ -5,7 +6,9 @@ import '../core/catalog_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+import 'book_detail_screen.dart' show TeacherAvatar;
 import 'surah_audio_player_screen.dart';
+import 'surah_detail_screen.dart' show _ReciterAvatar;
 
 enum SurahNarratorType { reciter, teacher }
 
@@ -42,30 +45,26 @@ class SurahLessonsScreen extends StatefulWidget {
       _SurahLessonsScreenState();
 }
 
-class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
+class _SurahLessonsScreenState
+    extends State<SurahLessonsScreen> {
   late Map<int, bool> _completed;
 
-  List<int> get _parts => widget.narratorType ==
-          SurahNarratorType.reciter
-      ? widget.reciterAudio!.parts
-      : widget.teacherAudio!.parts;
+  List<int> get _parts =>
+      widget.narratorType == SurahNarratorType.reciter
+          ? widget.reciterAudio!.parts
+          : widget.teacherAudio!.parts;
 
   int get _totalParts => _parts.length;
 
-  String get _narratorNameAr => widget.narratorType ==
-          SurahNarratorType.reciter
-      ? widget.reciter!.nameAr
-      : widget.teacher!.nameAr;
+  String get _narratorNameAr =>
+      widget.narratorType == SurahNarratorType.reciter
+          ? widget.reciter!.nameAr
+          : widget.teacher!.nameAr;
 
-  String get _narratorNameEn => widget.narratorType ==
-          SurahNarratorType.reciter
-      ? widget.reciter!.nameEn
-      : widget.teacher!.nameEn;
-
-  String get _narratorInitials => widget.narratorType ==
-          SurahNarratorType.reciter
-      ? widget.reciter!.initials
-      : widget.teacher!.initials;
+  String get _narratorNameEn =>
+      widget.narratorType == SurahNarratorType.reciter
+          ? widget.reciter!.nameEn
+          : widget.teacher!.nameEn;
 
   bool get _isReciter =>
       widget.narratorType == SurahNarratorType.reciter;
@@ -78,7 +77,6 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
 
   int get _completedCount =>
       _completed.values.where((v) => v).length;
-
   double get _progress =>
       _totalParts > 0 ? _completedCount / _totalParts : 0;
 
@@ -88,12 +86,6 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
     final c = AppColors(isDark: state.isDark);
 
     final accent = _isReciter ? c.goldText : c.brand;
-    final accentBg = _isReciter
-        ? c.goldLine
-        : c.brand.withOpacity(0.12);
-    final accentBorder = _isReciter
-        ? c.goldText.withOpacity(0.35)
-        : c.brand.withOpacity(0.25);
 
     if (_totalParts == 0) {
       return Scaffold(
@@ -104,13 +96,16 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
               _TopBar(
                 meta: widget.meta,
                 narratorNameEn: _narratorNameEn,
-                label: _isReciter ? 'Recited by' : 'Taught by',
+                label: _isReciter
+                    ? 'Recited by'
+                    : 'Taught by',
                 colors: c,
               ),
               Expanded(
                 child: Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(32),
+                    padding: const EdgeInsets.all(
+                        AppSpacing.xl),
                     child: Column(
                       mainAxisAlignment:
                           MainAxisAlignment.center,
@@ -120,7 +115,8 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                           size: 48,
                           color: c.textFaint,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(
+                            height: AppSpacing.base),
                         Text(
                           'No audio available yet',
                           style: AppText.latin(
@@ -129,7 +125,8 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                             weight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(
+                            height: AppSpacing.sm),
                         Text(
                           _isReciter
                               ? 'Recitations by this Qari are coming soon.'
@@ -159,20 +156,22 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
             _TopBar(
               meta: widget.meta,
               narratorNameEn: _narratorNameEn,
-              label: _isReciter ? 'Recited by' : 'Taught by',
+              label:
+                  _isReciter ? 'Recited by' : 'Taught by',
               colors: c,
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
 
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.base),
               child: Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(
+                    AppSpacing.base),
                 decoration: BoxDecoration(
                   color: c.card,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: AppRadius.cardRadius,
                   border: Border.all(
                       color: c.goldLine, width: 1.5),
                 ),
@@ -180,41 +179,41 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                   children: [
                     Row(
                       children: [
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: accentBg,
-                            border: Border.all(
-                              color: accentBorder,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: _isReciter
-                              ? Icon(
-                                  Icons.mic_rounded,
-                                  size: 22,
-                                  color: accent,
-                                )
-                              : Text(
-                                  _narratorInitials,
-                                  textDirection:
-                                      TextDirection.rtl,
-                                  style: AppText.arabic(
-                                    color: accent,
-                                    size: 16,
-                                    weight: FontWeight.w700,
-                                  ),
-                                ),
+                        // ── Narrator avatar ──────
+                        // Teacher → photo or initials
+                        // Reciter → photo or mic icon
+                        ListenableBuilder(
+                          listenable:
+                              state.downloadService,
+                          builder: (context, _) {
+                            if (_isReciter) {
+                              return _ReciterAvatar(
+                                reciter: widget.reciter!,
+                                downloadService:
+                                    state.downloadService,
+                                colors: c,
+                                size: 52,
+                              );
+                            } else {
+                              return TeacherAvatar(
+                                teacher: widget.teacher!,
+                                downloadService:
+                                    state.downloadService,
+                                colors: c,
+                                size: 52,
+                              );
+                            }
+                          },
                         ),
 
-                        const SizedBox(width: 14),
+                        const SizedBox(
+                            width: AppSpacing.md),
 
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                                CrossAxisAlignment
+                                    .start,
                             children: [
                               Text(
                                 _narratorNameAr,
@@ -223,10 +222,12 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                                 style: AppText.arabic(
                                   color: c.textPrimary,
                                   size: 15,
-                                  weight: FontWeight.w700,
+                                  weight:
+                                      FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(
+                                  height: AppSpacing.xs),
                               Text(
                                 _narratorNameEn,
                                 style: AppText.latin(
@@ -241,16 +242,17 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                         Container(
                           padding:
                               const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                            horizontal: AppSpacing.md,
+                            vertical: AppSpacing.sm,
                           ),
                           decoration: BoxDecoration(
-                            color: accent.withOpacity(0.1),
+                            color:
+                                accent.withOpacity(0.1),
                             borderRadius:
-                                BorderRadius.circular(10),
+                                AppRadius.listItemRadius,
                             border: Border.all(
-                              color:
-                                  accent.withOpacity(0.25),
+                              color: accent
+                                  .withOpacity(0.25),
                             ),
                           ),
                           child: Column(
@@ -260,7 +262,8 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                                 style: AppText.latin(
                                   color: accent,
                                   size: 18,
-                                  weight: FontWeight.w700,
+                                  weight:
+                                      FontWeight.w700,
                                 ),
                               ),
                               Text(
@@ -276,7 +279,8 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                       ],
                     ),
 
-                    const SizedBox(height: 14),
+                    const SizedBox(
+                        height: AppSpacing.md),
 
                     Column(
                       crossAxisAlignment:
@@ -284,7 +288,8 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                       children: [
                         Row(
                           mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
+                              MainAxisAlignment
+                                  .spaceBetween,
                           children: [
                             Text(
                               'Progress',
@@ -303,16 +308,17 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(
+                            height: AppSpacing.sm - 2),
                         ClipRRect(
                           borderRadius:
-                              BorderRadius.circular(4),
+                              AppRadius.pillRadius,
                           child: LinearProgressIndicator(
                             value: _progress,
                             backgroundColor: c.surface2,
                             valueColor:
-                                AlwaysStoppedAnimation<Color>(
-                                    accent),
+                                AlwaysStoppedAnimation<
+                                    Color>(accent),
                             minHeight: 6,
                           ),
                         ),
@@ -323,15 +329,20 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
 
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(
-                    20, 0, 20, 24),
+                  AppSpacing.base,
+                  0,
+                  AppSpacing.base,
+                  AppSpacing.lg,
+                ),
                 itemCount: _parts.length,
                 separatorBuilder: (_, __) =>
-                    const SizedBox(height: 10),
+                    const SizedBox(
+                        height: AppSpacing.sm),
                 itemBuilder: (context, index) {
                   final partNumber = _parts[index];
                   final isDone =
@@ -348,36 +359,41 @@ class _SurahLessonsScreenState extends State<SurahLessonsScreen> {
                     isReciter: _isReciter,
                     reciterAudio: widget.reciterAudio,
                     teacherAudio: widget.teacherAudio,
-                    downloadService: state.downloadService,
+                    reciter: widget.reciter,
+                    teacher: widget.teacher,
+                    downloadService:
+                        state.downloadService,
                     catalogService: state.catalogService,
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) =>
-                              _isReciter
-                                  ? SurahAudioPlayerScreen
-                                      .reciter(
-                                      meta: widget.meta,
-                                      reciter: widget.reciter!,
-                                      reciterAudio:
-                                          widget.reciterAudio!,
-                                      initialPartIndex: index,
-                                    )
-                                  : SurahAudioPlayerScreen
-                                      .teacher(
-                                      meta: widget.meta,
-                                      teacher: widget.teacher!,
-                                      teacherAudio:
-                                          widget.teacherAudio!,
-                                      initialPartIndex: index,
-                                    ),
+                          builder: (_) => _isReciter
+                              ? SurahAudioPlayerScreen
+                                  .reciter(
+                                  meta: widget.meta,
+                                  reciter:
+                                      widget.reciter!,
+                                  reciterAudio:
+                                      widget.reciterAudio!,
+                                  initialPartIndex: index,
+                                )
+                              : SurahAudioPlayerScreen
+                                  .teacher(
+                                  meta: widget.meta,
+                                  teacher:
+                                      widget.teacher!,
+                                  teacherAudio:
+                                      widget.teacherAudio!,
+                                  initialPartIndex: index,
+                                ),
                         ),
                       );
                     },
                     onCompletedToggle: () {
                       setState(() {
                         _completed[partNumber] =
-                            !(_completed[partNumber] ?? false);
+                            !(_completed[partNumber] ??
+                                false);
                       });
                     },
                   );
@@ -408,7 +424,12 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.base,
+        AppSpacing.base,
+        AppSpacing.base,
+        0,
+      ),
       child: Row(
         children: [
           GestureDetector(
@@ -418,7 +439,7 @@ class _TopBar extends StatelessWidget {
               height: 38,
               decoration: BoxDecoration(
                 color: c.surface2,
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: AppRadius.buttonRadius,
                 border: Border.all(color: c.divider),
               ),
               child: Icon(
@@ -428,10 +449,11 @@ class _TopBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   meta.nameAr,
@@ -471,6 +493,8 @@ class _SurahLessonRow extends StatelessWidget {
   final bool isReciter;
   final ReciterAudio? reciterAudio;
   final TeacherAudio? teacherAudio;
+  final Reciter? reciter;
+  final Teacher? teacher;
   final DownloadService downloadService;
   final CatalogService catalogService;
   final VoidCallback onTap;
@@ -487,6 +511,8 @@ class _SurahLessonRow extends StatelessWidget {
     required this.isReciter,
     required this.reciterAudio,
     required this.teacherAudio,
+    required this.reciter,
+    required this.teacher,
     required this.downloadService,
     required this.catalogService,
     required this.onTap,
@@ -515,10 +541,19 @@ class _SurahLessonRow extends StatelessWidget {
           partNumber: partNumber,
         );
 
+  String get _personId => isReciter
+      ? reciterAudio!.reciterId
+      : teacherAudio!.teacherId;
+
+  String get _personPhotoUrl => isReciter
+      ? (reciter?.photoUrl ?? '')
+      : (teacher?.photoUrl ?? '');
+
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    final lessonTitle = ArabicUtils.lessonTitle(partNumber);
+    final lessonTitle =
+        ArabicUtils.lessonTitle(partNumber);
 
     return ListenableBuilder(
       listenable: downloadService,
@@ -527,15 +562,17 @@ class _SurahLessonRow extends StatelessWidget {
             downloadService.isDownloaded(_fileId);
         final isDownloading =
             downloadService.isDownloading(_fileId);
-        final progress = downloadService.progress(_fileId);
+        final progress =
+            downloadService.progress(_fileId);
 
         return GestureDetector(
           onTap: isDownloaded ? onTap : null,
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding:
+                const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: c.card,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: AppRadius.cardRadius,
               border: Border.all(
                 color: isDone
                     ? accent.withOpacity(0.3)
@@ -549,15 +586,19 @@ class _SurahLessonRow extends StatelessWidget {
                     GestureDetector(
                       onTap: onCompletedToggle,
                       child: AnimatedContainer(
-                        duration:
-                            const Duration(milliseconds: 200),
+                        duration: const Duration(
+                            milliseconds: 200),
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: isDone ? accent : c.surface2,
+                          color: isDone
+                              ? accent
+                              : c.surface2,
                           border: Border.all(
-                            color: isDone ? accent : c.divider,
+                            color: isDone
+                                ? accent
+                                : c.divider,
                           ),
                         ),
                         alignment: Alignment.center,
@@ -572,13 +613,15 @@ class _SurahLessonRow extends StatelessWidget {
                                 style: AppText.latin(
                                   color: c.textMuted,
                                   size: 13,
-                                  weight: FontWeight.w700,
+                                  weight:
+                                      FontWeight.w700,
                                 ),
                               ),
                       ),
                     ),
 
-                    const SizedBox(width: 14),
+                    const SizedBox(
+                        width: AppSpacing.md),
 
                     Expanded(
                       child: Column(
@@ -587,7 +630,8 @@ class _SurahLessonRow extends StatelessWidget {
                         children: [
                           Text(
                             lessonTitle,
-                            textDirection: TextDirection.rtl,
+                            textDirection:
+                                TextDirection.rtl,
                             style: AppText.arabic(
                               color: isDone
                                   ? c.textMuted
@@ -596,7 +640,8 @@ class _SurahLessonRow extends StatelessWidget {
                               weight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(
+                              height: AppSpacing.xs),
                           Text(
                             '$displayIndex of $totalParts',
                             style: AppText.latin(
@@ -608,7 +653,8 @@ class _SurahLessonRow extends StatelessWidget {
                       ),
                     ),
 
-                    const SizedBox(width: 12),
+                    const SizedBox(
+                        width: AppSpacing.md),
 
                     GestureDetector(
                       onTap: () {
@@ -618,20 +664,26 @@ class _SurahLessonRow extends StatelessWidget {
                         } else if (isDownloaded) {
                           onTap();
                         } else {
+                          // Pass photo params so photo
+                          // downloads with audio
                           downloadService.download(
                             fileId: _fileId,
                             url: _audioUrl,
                             displayName:
                                 '${meta.nameAr} - $lessonTitle',
-                            bookId: 'surah_${meta.number}',
+                            bookId:
+                                'surah_${meta.number}',
+                            personId: _personId,
+                            personPhotoUrl:
+                                _personPhotoUrl,
                             onError: (_) {},
                             onComplete: () {},
                           );
                         }
                       },
                       child: AnimatedContainer(
-                        duration:
-                            const Duration(milliseconds: 200),
+                        duration: const Duration(
+                            milliseconds: 200),
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
@@ -640,13 +692,17 @@ class _SurahLessonRow extends StatelessWidget {
                               ? c.dangerBg
                               : isDownloaded
                                   ? accent
-                                  : accent.withOpacity(0.1),
+                                  : accent
+                                      .withOpacity(0.1),
                           border: Border.all(
                             color: isDownloading
-                                ? c.danger.withOpacity(0.3)
+                                ? c.danger
+                                    .withOpacity(0.3)
                                 : isDownloaded
                                     ? accent
-                                    : accent.withOpacity(0.3),
+                                    : accent
+                                        .withOpacity(
+                                            0.3),
                           ),
                         ),
                         child: isDownloading
@@ -657,8 +713,10 @@ class _SurahLessonRow extends StatelessWidget {
                               )
                             : Icon(
                                 isDownloaded
-                                    ? Icons.play_arrow_rounded
-                                    : Icons.download_rounded,
+                                    ? Icons
+                                        .play_arrow_rounded
+                                    : Icons
+                                        .download_rounded,
                                 size: 20,
                                 color: isDownloaded
                                     ? Colors.white
@@ -670,14 +728,16 @@ class _SurahLessonRow extends StatelessWidget {
                 ),
 
                 if (isDownloading) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.sm),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: AppRadius.pillRadius,
                     child: LinearProgressIndicator(
-                      value: progress > 0 ? progress : null,
+                      value:
+                          progress > 0 ? progress : null,
                       backgroundColor: c.surface2,
                       valueColor:
-                          AlwaysStoppedAnimation<Color>(accent),
+                          AlwaysStoppedAnimation<Color>(
+                              accent),
                       minHeight: 3,
                     ),
                   ),
