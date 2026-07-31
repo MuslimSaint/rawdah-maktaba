@@ -10,7 +10,8 @@ class LibraryTab extends StatefulWidget {
   const LibraryTab({super.key});
 
   @override
-  State<LibraryTab> createState() => _LibraryTabState();
+  State<LibraryTab> createState() =>
+      _LibraryTabState();
 }
 
 class _LibraryTabState extends State<LibraryTab> {
@@ -35,7 +36,12 @@ class _LibraryTabState extends State<LibraryTab> {
           children: [
             // ── Top Bar ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.base,
+                AppSpacing.base,
+                AppSpacing.base,
+                0,
+              ),
               child: Row(
                 children: [
                   Text(
@@ -50,32 +56,38 @@ class _LibraryTabState extends State<LibraryTab> {
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
 
             // ── Search Bar ──
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.base),
               child: Container(
                 height: 46,
                 decoration: BoxDecoration(
                   color: c.card,
-                  borderRadius: BorderRadius.circular(13),
+                  // listItem radius — search bar is
+                  // a compact interactive element
+                  borderRadius:
+                      AppRadius.listItemRadius,
                   border: Border.all(color: c.divider),
                 ),
                 child: Row(
                   children: [
-                    const SizedBox(width: 14),
+                    const SizedBox(
+                        width: AppSpacing.md),
                     Icon(
                       Icons.search_rounded,
                       size: 20,
                       color: c.textFaint,
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(
+                        width: AppSpacing.sm + 2),
                     Expanded(
                       child: TextField(
                         controller: _searchController,
-                        onChanged: (v) =>
-                            setState(() => _searchQuery = v),
+                        onChanged: (v) => setState(
+                            () => _searchQuery = v),
                         style: AppText.latin(
                           color: c.textPrimary,
                           size: 14,
@@ -95,11 +107,13 @@ class _LibraryTabState extends State<LibraryTab> {
                       GestureDetector(
                         onTap: () {
                           _searchController.clear();
-                          setState(() => _searchQuery = '');
+                          setState(
+                              () => _searchQuery = '');
                         },
                         child: Padding(
                           padding:
-                              const EdgeInsets.only(right: 12),
+                              const EdgeInsets.only(
+                                  right: AppSpacing.md),
                           child: Icon(
                             Icons.close_rounded,
                             size: 18,
@@ -112,7 +126,7 @@ class _LibraryTabState extends State<LibraryTab> {
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.base),
 
             // ── Book List ──
             Expanded(
@@ -122,18 +136,21 @@ class _LibraryTabState extends State<LibraryTab> {
                   if (state.catalogService.isLoading &&
                       !state.catalogService.hasData) {
                     return Center(
-                      child: CircularProgressIndicator(
+                      child:
+                          CircularProgressIndicator(
                         color: c.brand,
                         strokeWidth: 2,
                       ),
                     );
                   }
 
-                  if (state.catalogService.error != null &&
+                  if (state.catalogService.error !=
+                          null &&
                       !state.catalogService.hasData) {
                     return Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(32),
+                        padding: const EdgeInsets.all(
+                            AppSpacing.xl),
                         child: Column(
                           mainAxisAlignment:
                               MainAxisAlignment.center,
@@ -143,7 +160,8 @@ class _LibraryTabState extends State<LibraryTab> {
                               size: 48,
                               color: c.textFaint,
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(
+                                height: AppSpacing.base),
                             Text(
                               'No internet connection',
                               style: AppText.latin(
@@ -152,37 +170,46 @@ class _LibraryTabState extends State<LibraryTab> {
                                 weight: FontWeight.w700,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(
+                                height: AppSpacing.sm),
                             Text(
                               'Please connect to load the book catalog.',
-                              textAlign: TextAlign.center,
+                              textAlign:
+                                  TextAlign.center,
                               style: AppText.latin(
                                 color: c.textMuted,
                                 size: 13,
                               ),
                             ),
-                            const SizedBox(height: 24),
+                            const SizedBox(
+                                height: AppSpacing.lg),
                             GestureDetector(
                               onTap: () => state
                                   .catalogService
                                   .refresh(),
                               child: Container(
                                 padding:
-                                    const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
+                                    const EdgeInsets
+                                        .symmetric(
+                                  horizontal:
+                                      AppSpacing.lg,
+                                  vertical:
+                                      AppSpacing.md,
                                 ),
-                                decoration: BoxDecoration(
+                                decoration:
+                                    BoxDecoration(
                                   color: c.brand,
                                   borderRadius:
-                                      BorderRadius.circular(12),
+                                      AppRadius
+                                          .buttonRadius,
                                 ),
                                 child: Text(
                                   'Try Again',
                                   style: AppText.latin(
                                     color: Colors.white,
                                     size: 14,
-                                    weight: FontWeight.w700,
+                                    weight:
+                                        FontWeight.w700,
                                   ),
                                 ),
                               ),
@@ -207,7 +234,8 @@ class _LibraryTabState extends State<LibraryTab> {
                             size: 48,
                             color: c.textFaint,
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(
+                              height: AppSpacing.base),
                           Text(
                             'No books found',
                             style: AppText.latin(
@@ -222,11 +250,17 @@ class _LibraryTabState extends State<LibraryTab> {
                   }
 
                   return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(
-                        20, 0, 20, 24),
+                    padding:
+                        const EdgeInsets.fromLTRB(
+                      AppSpacing.base,
+                      0,
+                      AppSpacing.base,
+                      AppSpacing.lg,
+                    ),
                     itemCount: books.length,
                     separatorBuilder: (_, __) =>
-                        const SizedBox(height: 12),
+                        const SizedBox(
+                            height: AppSpacing.md),
                     itemBuilder: (context, index) {
                       return _BookCard(
                         book: books[index],
@@ -234,10 +268,11 @@ class _LibraryTabState extends State<LibraryTab> {
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => BookDetailScreen(
+                              builder: (_) =>
+                                  BookDetailScreen(
                                 book: books[index],
-                                catalogService:
-                                    state.catalogService,
+                                catalogService: state
+                                    .catalogService,
                               ),
                             ),
                           );
@@ -275,47 +310,54 @@ class _BookCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: c.card,
-          borderRadius: BorderRadius.circular(16),
+          // Large content card → card radius
+          borderRadius: AppRadius.cardRadius,
           border: Border.all(color: c.divider),
         ),
         child: Row(
           children: [
-            // ← Real cover from PDF
             BookCoverWidget(
               book: book,
               width: 58,
               height: 78,
-              borderRadius: 10,
+              borderRadius: AppRadius.input,
             ),
 
-            const SizedBox(width: 14),
+            const SizedBox(width: AppSpacing.md),
 
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
-                  if (book.isNew || book.isRecentlyAdded)
+                  if (book.isNew ||
+                      book.isRecentlyAdded)
                     Container(
-                      margin:
-                          const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
+                      margin: const EdgeInsets.only(
+                          bottom: AppSpacing.sm - 2),
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: c.brand.withOpacity(0.12),
+                        color:
+                            c.brand.withOpacity(0.12),
+                        // pill radius for tags/badges
                         borderRadius:
-                            BorderRadius.circular(5),
+                            AppRadius.pillRadius,
                         border: Border.all(
-                          color: c.brand.withOpacity(0.3),
+                          color:
+                              c.brand.withOpacity(0.3),
                         ),
                       ),
                       child: Text(
                         'NEW',
-                        style: AppText.label(color: c.brand),
+                        style: AppText.label(
+                            color: c.brand),
                       ),
                     ),
 
@@ -330,7 +372,8 @@ class _BookCard extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 4),
+                  const SizedBox(
+                      height: AppSpacing.xs),
 
                   Text(
                     book.authorShort,
@@ -341,15 +384,17 @@ class _BookCard extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(
+                      height: AppSpacing.sm),
 
                   Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
+                    spacing: AppSpacing.sm - 2,
+                    runSpacing: AppSpacing.xs,
                     children: [
                       ...book.branches.map((branchId) {
                         final branch =
-                            Catalog.branches.firstWhere(
+                            Catalog.branches
+                                .firstWhere(
                           (b) => b.id == branchId,
                           orElse: () => const Branch(
                             id: '',
@@ -377,7 +422,7 @@ class _BookCard extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.sm),
             Icon(
               Icons.chevron_right_rounded,
               size: 18,
@@ -407,13 +452,16 @@ class _Tag extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 3,
+      ),
       decoration: BoxDecoration(
         color: isGold
             ? c.goldLine
             : c.brand.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(6),
+        // pill radius for all tags/chips
+        borderRadius: AppRadius.pillRadius,
         border: Border.all(
           color: isGold
               ? c.goldText.withOpacity(0.3)
@@ -429,7 +477,7 @@ class _Tag extends StatelessWidget {
               size: 10,
               color: isGold ? c.goldText : c.brand,
             ),
-            const SizedBox(width: 3),
+            const SizedBox(width: AppSpacing.xs),
           ],
           Text(
             label,
