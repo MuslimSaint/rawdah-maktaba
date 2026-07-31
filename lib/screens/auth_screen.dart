@@ -88,7 +88,8 @@ class _AuthScreenState extends State<AuthScreen> {
     } else if (error == 'google_unavailable') {
       setState(() {
         _isGoogleLoading = false;
-        _errorMessage = 'Google sign-in is coming soon. Please use email for now.';
+        _errorMessage =
+            'Google sign-in is coming soon. Please use email for now.';
       });
     } else {
       setState(() {
@@ -119,43 +120,56 @@ class _AuthScreenState extends State<AuthScreen> {
         backgroundColor: c.bg,
         body: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment:
+                  CrossAxisAlignment.center,
               children: [
-                const SizedBox(height: 48),
+                // More breathing room at the top
+                const SizedBox(height: AppSpacing.xl),
 
-                // ── Real App Icon (replaces the old book icon) ──
+                // ── App icon ──────────────────────────
                 Container(
-                  width: 80,
-                  height: 80,
+                  width: 76,
+                  height: 76,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: c.goldLine, width: 1.5),
+                    borderRadius:
+                        BorderRadius.circular(20),
+                    border: Border.all(
+                      color: c.goldLine,
+                      width: 1.5,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: c.brand.withOpacity(0.25),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
+                        color:
+                            c.brand.withOpacity(0.22),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius:
+                        BorderRadius.circular(18),
                     child: Image.asset(
                       'assets/icon.png',
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (_, __, ___) =>
+                          Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [c.brand, c.brandHover],
+                            colors: [
+                              c.brand,
+                              c.brandHover
+                            ],
                           ),
                         ),
                         child: Icon(
                           Icons.menu_book_rounded,
-                          size: 36,
+                          size: 34,
                           color: c.gold,
                         ),
                       ),
@@ -163,7 +177,9 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                // Tight spacing — icon + app name are
+                // one visual unit.
+                const SizedBox(height: AppSpacing.md),
 
                 Text(
                   'مكتبة الروضة',
@@ -175,35 +191,96 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 6),
+                // Tighter — subtitle belongs to the
+                // name, not a separate section.
+                const SizedBox(height: AppSpacing.xs),
 
                 Text(
-                  _isSignIn ? 'Sign In to Continue' : 'Create Your Account',
-                  style: AppText.latin(color: c.textMuted, size: 14),
+                  _isSignIn
+                      ? 'Sign In to Continue'
+                      : 'Create Your Account',
+                  style: AppText.latin(
+                      color: c.textMuted, size: 13),
                 ),
 
-                const SizedBox(height: 32),
+                // Larger gap — next unit is the mode
+                // toggle, which is a separate concern.
+                const SizedBox(height: AppSpacing.xl),
 
+                // ── Welcome message in Arabic script ──
+                // Specific to an Islamic library.
+                // Appears above the form, not the logo,
+                // so it feels like a greeting rather
+                // than branding.
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.sm,
+                    horizontal: AppSpacing.base,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      right: BorderSide(
+                        color: c.goldText,
+                        width: 2.5,
+                      ),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'أهلاً بك في مكتبة الروضة',
+                        textDirection:
+                            TextDirection.rtl,
+                        style: AppText.arabic(
+                          color: c.textSecondary,
+                          size: 14,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(
+                          height: AppSpacing.xs),
+                      Text(
+                        'مكان للتعلم والنور',
+                        textDirection:
+                            TextDirection.rtl,
+                        style: AppText.arabic(
+                          color: c.textFaint,
+                          size: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: AppSpacing.lg),
+
+                // ── Mode toggle ───────────────────────
                 _ModeToggle(
                   isSignIn: _isSignIn,
                   onToggle: _switchMode,
                   colors: c,
                 ),
 
-                const SizedBox(height: 28),
+                const SizedBox(height: AppSpacing.lg),
 
+                // ── Google button ─────────────────────
                 _GoogleButton(
                   isLoading: _isGoogleLoading,
                   onTap: _signInWithGoogle,
                   colors: c,
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.base),
 
+                // ── Arabic "أو" divider ───────────────
                 _OrDivider(colors: c),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.base),
 
+                // ── Form ─────────────────────────────
                 Form(
                   key: _formKey,
                   child: Column(
@@ -213,16 +290,20 @@ class _AuthScreenState extends State<AuthScreen> {
                           controller: _nameController,
                           label: 'Full Name',
                           hint: 'Your name',
-                          icon: Icons.person_outline_rounded,
+                          icon: Icons
+                              .person_outline_rounded,
                           colors: c,
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty) {
+                            if (v == null ||
+                                v.trim().isEmpty) {
                               return 'Please enter your name';
                             }
                             return null;
                           },
                         ),
-                        const SizedBox(height: 14),
+                        // Tight — fields belong together
+                        const SizedBox(
+                            height: AppSpacing.md),
                       ],
 
                       _FormField(
@@ -231,21 +312,25 @@ class _AuthScreenState extends State<AuthScreen> {
                         hint: 'your@email.com',
                         icon: Icons.email_outlined,
                         colors: c,
-                        keyboardType: TextInputType.emailAddress,
+                        keyboardType:
+                            TextInputType.emailAddress,
                         textDirection: TextDirection.ltr,
                         textAlign: TextAlign.left,
                         validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
+                          if (v == null ||
+                              v.trim().isEmpty) {
                             return 'Please enter your email';
                           }
-                          if (!v.contains('@') || !v.contains('.')) {
+                          if (!v.contains('@') ||
+                              !v.contains('.')) {
                             return 'Please enter a valid email';
                           }
                           return null;
                         },
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(
+                          height: AppSpacing.md),
 
                       _FormField(
                         controller: _passwordController,
@@ -259,14 +344,17 @@ class _AuthScreenState extends State<AuthScreen> {
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
+                                ? Icons
+                                    .visibility_outlined
+                                : Icons
+                                    .visibility_off_outlined,
                             color: c.textFaint,
                             size: 20,
                           ),
                           onPressed: () {
                             setState(() {
-                              _obscurePassword = !_obscurePassword;
+                              _obscurePassword =
+                                  !_obscurePassword;
                             });
                           },
                         ),
@@ -274,7 +362,8 @@ class _AuthScreenState extends State<AuthScreen> {
                           if (v == null || v.isEmpty) {
                             return 'Please enter your password';
                           }
-                          if (!_isSignIn && v.length < 6) {
+                          if (!_isSignIn &&
+                              v.length < 6) {
                             return 'Password must be at least 6 characters';
                           }
                           return null;
@@ -285,27 +374,38 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
 
                 if (_errorMessage != null) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.md),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+                      horizontal: AppSpacing.base,
+                      vertical: AppSpacing.sm + 2,
                     ),
                     decoration: BoxDecoration(
                       color: c.dangerBg,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: c.danger.withOpacity(0.3)),
+                      borderRadius:
+                          AppRadius.listItemRadius,
+                      border: Border.all(
+                        color:
+                            c.danger.withOpacity(0.3),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.error_outline_rounded,
-                            color: c.danger, size: 16),
-                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.error_outline_rounded,
+                          color: c.danger,
+                          size: 16,
+                        ),
+                        const SizedBox(
+                            width: AppSpacing.sm),
                         Expanded(
                           child: Text(
                             _errorMessage!,
-                            style: AppText.latin(color: c.danger, size: 13),
+                            style: AppText.latin(
+                              color: c.danger,
+                              size: 13,
+                            ),
                           ),
                         ),
                       ],
@@ -313,7 +413,10 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ],
 
-                const SizedBox(height: 24),
+                // Larger gap before the CTA button —
+                // it is the primary action, deserves
+                // its own breathing room.
+                const SizedBox(height: AppSpacing.lg),
 
                 _SubmitButton(
                   isSignIn: _isSignIn,
@@ -322,7 +425,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   colors: c,
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.base),
 
                 GestureDetector(
                   onTap: _switchMode,
@@ -333,10 +436,15 @@ class _AuthScreenState extends State<AuthScreen> {
                           text: _isSignIn
                               ? "Don't have an account? "
                               : 'Already have an account? ',
-                          style: AppText.latin(color: c.textMuted, size: 13),
+                          style: AppText.latin(
+                            color: c.textMuted,
+                            size: 13,
+                          ),
                         ),
                         TextSpan(
-                          text: _isSignIn ? 'Create one' : 'Sign in',
+                          text: _isSignIn
+                              ? 'Create one'
+                              : 'Sign in',
                           style: AppText.latin(
                             color: c.brand,
                             size: 13,
@@ -348,7 +456,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 40),
+                const SizedBox(height: AppSpacing.xxl),
               ],
             ),
           ),
@@ -358,7 +466,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-// ─── Sub-widgets ────────────────────────────────────────
+// ─── Sub-widgets ─────────────────────────────────────────
 
 class _ModeToggle extends StatelessWidget {
   final bool isSignIn;
@@ -378,20 +486,24 @@ class _ModeToggle extends StatelessWidget {
       height: 44,
       decoration: BoxDecoration(
         color: c.surface2,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.listItemRadius,
       ),
       child: Row(
         children: [
           _Tab(
             label: 'Sign In',
             active: isSignIn,
-            onTap: () { if (!isSignIn) onToggle(); },
+            onTap: () {
+              if (!isSignIn) onToggle();
+            },
             colors: c,
           ),
           _Tab(
             label: 'Create Account',
             active: !isSignIn,
-            onTap: () { if (isSignIn) onToggle(); },
+            onTap: () {
+              if (isSignIn) onToggle();
+            },
             colors: c,
           ),
         ],
@@ -424,11 +536,13 @@ class _Tab extends StatelessWidget {
           margin: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: active ? c.card : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(
+                AppRadius.listItem - 2),
             boxShadow: active
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color:
+                          Colors.black.withOpacity(0.08),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -441,7 +555,9 @@ class _Tab extends StatelessWidget {
             style: AppText.latin(
               color: active ? c.brand : c.textMuted,
               size: 13,
-              weight: active ? FontWeight.w700 : FontWeight.w400,
+              weight: active
+                  ? FontWeight.w700
+                  : FontWeight.w400,
             ),
           ),
         ),
@@ -468,11 +584,21 @@ class _GoogleButton extends StatelessWidget {
       onTap: isLoading ? null : onTap,
       child: Container(
         width: double.infinity,
-        height: 52,
+        height: 50,
         decoration: BoxDecoration(
           color: c.card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: c.goldLine, width: 1.5),
+          borderRadius: AppRadius.buttonRadius,
+          // Gold left-border accent instead of full
+          // gold border — more deliberate, less generic.
+          border: Border(
+            left: BorderSide(
+              color: c.goldText,
+              width: 3,
+            ),
+            top: BorderSide(color: c.divider),
+            right: BorderSide(color: c.divider),
+            bottom: BorderSide(color: c.divider),
+          ),
         ),
         child: isLoading
             ? Center(
@@ -486,7 +612,8 @@ class _GoogleButton extends StatelessWidget {
                 ),
               )
             : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
                 children: [
                   const Text(
                     'G',
@@ -496,7 +623,8 @@ class _GoogleButton extends StatelessWidget {
                       color: Color(0xFF4285F4),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(
+                      width: AppSpacing.sm + 2),
                   Text(
                     'Continue with Google',
                     style: AppText.latin(
@@ -512,6 +640,8 @@ class _GoogleButton extends StatelessWidget {
   }
 }
 
+/// Arabic "أو" divider between two gold lines.
+/// Replaces the generic "or use email" text.
 class _OrDivider extends StatelessWidget {
   final AppColors colors;
   const _OrDivider({required this.colors});
@@ -521,15 +651,31 @@ class _OrDivider extends StatelessWidget {
     final c = colors;
     return Row(
       children: [
-        Expanded(child: Divider(color: c.divider, height: 1)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            'or use email',
-            style: AppText.latin(color: c.textFaint, size: 12),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: c.goldText.withOpacity(0.25),
           ),
         ),
-        Expanded(child: Divider(color: c.divider, height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md),
+          child: Text(
+            'أو',
+            textDirection: TextDirection.rtl,
+            style: AppText.arabic(
+              color: c.goldText,
+              size: 13,
+              weight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: c.goldText.withOpacity(0.25),
+          ),
+        ),
       ],
     );
   }
@@ -568,8 +714,12 @@ class _FormField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: AppText.label(color: c.textMuted)),
-        const SizedBox(height: 6),
+        Text(
+          label,
+          style: AppText.label(color: c.textMuted),
+        ),
+        // Tight — label belongs to its field
+        const SizedBox(height: AppSpacing.xs + 2),
         TextFormField(
           controller: controller,
           obscureText: obscureText,
@@ -577,37 +727,46 @@ class _FormField extends StatelessWidget {
           textDirection: textDirection,
           textAlign: textAlign,
           validator: validator,
-          style: AppText.latin(color: c.textPrimary, size: 15),
+          style: AppText.latin(
+              color: c.textPrimary, size: 15),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: AppText.latin(color: c.textFaint, size: 15),
-            prefixIcon: Icon(icon, color: c.textMuted, size: 20),
+            hintStyle: AppText.latin(
+                color: c.textFaint, size: 15),
+            prefixIcon:
+                Icon(icon, color: c.textMuted, size: 20),
             suffixIcon: suffixIcon,
             filled: true,
             fillColor: c.card,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: c.divider),
+              borderRadius: AppRadius.inputRadius,
+              borderSide:
+                  BorderSide(color: c.divider),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: c.divider),
+              borderRadius: AppRadius.inputRadius,
+              borderSide:
+                  BorderSide(color: c.divider),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: c.brand, width: 1.5),
+              borderRadius: AppRadius.inputRadius,
+              borderSide: BorderSide(
+                  color: c.brand, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: c.danger),
+              borderRadius: AppRadius.inputRadius,
+              borderSide:
+                  BorderSide(color: c.danger),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: c.danger, width: 1.5),
+              borderRadius: AppRadius.inputRadius,
+              borderSide: BorderSide(
+                  color: c.danger, width: 1.5),
             ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 14,
+            contentPadding:
+                const EdgeInsets.symmetric(
+              horizontal: AppSpacing.base,
+              vertical: AppSpacing.md,
             ),
           ),
         ),
@@ -636,19 +795,21 @@ class _SubmitButton extends StatelessWidget {
       onTap: isLoading ? null : onTap,
       child: Container(
         width: double.infinity,
-        height: 52,
+        height: 50,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [c.brand, c.brandHover],
           ),
-          borderRadius: BorderRadius.circular(14),
+          // Rounded rectangle — not a pill.
+          // More deliberate, less stock-template.
+          borderRadius: AppRadius.buttonRadius,
           boxShadow: [
             BoxShadow(
-              color: c.brand.withOpacity(0.35),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: c.brand.withOpacity(0.30),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
@@ -665,7 +826,9 @@ class _SubmitButton extends StatelessWidget {
               )
             : Center(
                 child: Text(
-                  isSignIn ? 'Sign In' : 'Create Account',
+                  isSignIn
+                      ? 'Sign In'
+                      : 'Create Account',
                   style: AppText.latin(
                     color: Colors.white,
                     size: 15,
