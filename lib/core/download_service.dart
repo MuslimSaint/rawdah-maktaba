@@ -1,62 +1,60 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Handles all file downloads — PDFs and audio files.
-///
-/// v6 features (all preserved):
-/// - Real cancel (kills the underlying HTTP stream)
-/// - HTTP Range resume on network drop / cancel-and-retry
-/// - HTTPS-only enforcement
-/// - MIME type check (rejects html/json)
-/// - Cover extraction hook
-///
-/// New in this version:
-/// - awaitingNetwork state: on network drop, download row
-///   stays visible and auto-retries every 3 seconds.
-/// - Byte-count verification: received bytes must match
-///   Content-Length before file is marked as downloaded.
-/// - cancelDownload works even in awaitingNetwork state.
+/// Handles all file downloads — PDFs, audio files,
+/// and teacher/reciter photos.
 class DownloadService extends ChangeNotifier {
   final Map<String, double> _progress = {};
   final Map<String, bool> _downloading = {};
   final Set<String> _downloaded = {};
   final Map<String, bool> _paused = {};
-
-  // True when a download lost network and is waiting to retry.
   final Map<String, bool> _awaitingNetwork = {};
-
-  // Stored retry info so auto-retry can re-call _executeDownload.
   final Map<String, _RetryParams> _retryParams = {};
-
-  // Retry timers — one per fileId waiting for network.
   final Map<String, Timer> _retryTimers = {};
-
-  final Map<String, Map<String, dynamic>> _activeDownloads = {};
-  final Map<String, StreamSubscription<List<int>>> _activeSubs = {};
+  final Map<String, Map<String, dynamic>>
+      _activeDownloads = {};
+  final Map<String, StreamSubscription<List<int>>>
+      _activeSubs = {};
   final Map<String, IOSink> _activeSinks = {};
-  final Map<String, http.Client> _activeClients = {};
+  final Map<String, http.Client>> _activeClients = {};
+
+  // ── Photo state ──────────────────────────────────
+  // Tracks which teacher/reciter photos have been
+  // downloaded. Keyed by person ID (teacher or reciter).
+  final Set<String> _downloadedPhotos = {};
+  final Set<String> _downloadingPhotos = {};
 
   static const _downloadedKey = 'downloaded_files';
+  static const _downloadedPhotosKey =
+      'downloaded_photos';
   static const _partialPrefix = 'partial_bytes_';
 
   // ─── Callbacks ─────────────────────────────────────
   Future<void> Function(String bookId, String pdfPath)?
       onPdfDownloadComplete;
-
-  /// Called when a PDF file is deleted so the caller can
-  /// clean up the extracted cover and cached metadata.
   Future<void> Function(String bookId)? onPdfFileDeleted;
+
+  /// Called when a teacher/reciter photo is downloaded.
+  /// Arg is the person ID (teacher or reciter id).
+  Future<void> Function(String personId, String photoPath)?
+      onPhotoDownloaded;
 
   // ─── Init ──────────────────────────────────────────
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList(_downloadedKey) ?? [];
+    final saved =
+        prefs.getStringList(_downloadedKey) ?? [];
     _downloaded.addAll(saved);
+
+    final savedPhotos =
+        prefs.getStringList(_downloadedPhotosKey) ?? [];
+    _downloadedPhotos.addAll(savedPhotos);
 
     final toRemove = <String>[];
     for (final id in _downloaded) {
@@ -70,28 +68,132 @@ class DownloadService extends ChangeNotifier {
       await _saveDownloaded();
       notifyListeners();
     }
+
+    // Verify photo files still exist on disk
+    final photosToRemove = <String>[];
+    for (final id in _downloadedPhotos) {
+      final file = await _photoFileFor(id);
+      if (!await file.exists()) {
+        photosToRemove.add(id);
+      }
+    }
+    if (photosToRemove.isNotEmpty) {
+      _downloadedPhotos.removeAll(photosToRemove);
+      await _saveDownloadedPhotos();
+    }
+  }
+
+  // ─── Photo getters ─────────────────────────────────
+
+  bool hasPhoto(String personId) =>
+      _downloadedPhotos.contains(personId);
+
+  Future<String?> photoPath(String personId) async {
+    if (!_downloadedPhotos.contains(personId)) {
+      return null;
+    }
+    final file = await _photoFileFor(personId);
+    if (await file.exists()) return file.path;
+    _downloadedPhotos.remove(personId);
+    await _saveDownloadedPhotos();
+    return null;
+  }
+
+  // ─── Photo download (background, silent) ───────────
+
+  /// Downloads a teacher or reciter photo in the
+  /// background. Silent — no progress tracking, no
+  /// UI entry. Skips if already downloaded.
+  /// Called automatically when audio download starts.
+  Future<void> downloadPhoto({
+    required String personId,
+    required String photoUrl,
+  }) async {
+    if (personId.isEmpty) return;
+    if (photoUrl.isEmpty) return;
+    if (_downloadedPhotos.contains(personId)) return;
+    if (_downloadingPhotos.contains(personId)) return;
+
+    final uri = Uri.tryParse(photoUrl.trim());
+    if (uri == null || uri.scheme != 'https') return;
+
+    _downloadingPhotos.add(personId);
+
+    try {
+      final client = http.Client();
+      final response = await client
+          .get(uri)
+          .timeout(const Duration(seconds: 20));
+      client.close();
+
+      if (response.statusCode != 200) {
+        _downloadingPhotos.remove(personId);
+        return;
+      }
+
+      final contentType =
+          (response.headers['content-type'] ?? '')
+              .toLowerCase();
+      // Accept any image content type
+      if (!contentType.startsWith('image/') &&
+          !contentType.contains('jpeg') &&
+          !contentType.contains('jpg') &&
+          !contentType.contains('png') &&
+          !contentType.contains('webp')) {
+        _downloadingPhotos.remove(personId);
+        return;
+      }
+
+      final file = await _photoFileFor(personId);
+      await file.writeAsBytes(response.bodyBytes);
+
+      _downloadedPhotos.add(personId);
+      _downloadingPhotos.remove(personId);
+      await _saveDownloadedPhotos();
+
+      if (onPhotoDownloaded != null) {
+        onPhotoDownloaded!(personId, file.path)
+            .catchError((_) {});
+      }
+
+      notifyListeners();
+      debugPrint(
+          'Photo downloaded for $personId → ${file.path}');
+    } catch (e) {
+      _downloadingPhotos.remove(personId);
+      debugPrint(
+          'Photo download failed for $personId: $e');
+    }
+  }
+
+  /// Deletes the photo for a person. Called when
+  /// all their audio is deleted (optional — photos
+  /// are small so we keep them by default).
+  Future<void> deletePhoto(String personId) async {
+    try {
+      final file = await _photoFileFor(personId);
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
+    _downloadedPhotos.remove(personId);
+    await _saveDownloadedPhotos();
+    notifyListeners();
   }
 
   // ─── Getters ───────────────────────────────────────
 
   bool isDownloaded(String fileId) =>
       _downloaded.contains(fileId);
-
   bool isDownloading(String fileId) =>
       _downloading[fileId] == true;
-
   bool isPaused(String fileId) =>
       _paused[fileId] == true;
-
   bool isAwaitingNetwork(String fileId) =>
       _awaitingNetwork[fileId] == true;
-
   double progress(String fileId) =>
       _progress[fileId] ?? 0;
-
   int get downloadedCount => _downloaded.length;
-  bool get hasActiveDownloads => _activeDownloads.isNotEmpty;
-
+  bool get hasActiveDownloads =>
+      _activeDownloads.isNotEmpty;
   List<Map<String, dynamic>> get activeDownloads =>
       _activeDownloads.values.toList();
 
@@ -104,6 +206,11 @@ class DownloadService extends ChangeNotifier {
     required VoidCallback onComplete,
     String? displayName,
     String? bookId,
+    // Photo download params — optional.
+    // When provided, the photo is downloaded in
+    // background as soon as this audio download starts.
+    String? personId,
+    String? personPhotoUrl,
   }) async {
     if (_downloading[fileId] == true) return;
     if (_downloaded.contains(fileId)) {
@@ -111,7 +218,6 @@ class DownloadService extends ChangeNotifier {
       return;
     }
 
-    // ── URL validation ──
     final trimmedUrl = url.trim();
     if (trimmedUrl.isEmpty) {
       onError('This file has no download URL yet.');
@@ -123,7 +229,8 @@ class DownloadService extends ChangeNotifier {
       return;
     }
     if (uri.scheme != 'https') {
-      onError('Only secure (https://) URLs are allowed.');
+      onError(
+          'Only secure (https://) URLs are allowed.');
       return;
     }
 
@@ -143,7 +250,6 @@ class DownloadService extends ChangeNotifier {
       'startedAt': DateTime.now(),
     };
 
-    // Store params for auto-retry.
     _retryParams[fileId] = _RetryParams(
       fileId: fileId,
       uri: uri,
@@ -153,6 +259,18 @@ class DownloadService extends ChangeNotifier {
     );
 
     notifyListeners();
+
+    // ── Trigger photo download immediately ──────────
+    // Small, background, silent. Does not block audio.
+    if (personId != null &&
+        personId.isNotEmpty &&
+        personPhotoUrl != null &&
+        personPhotoUrl.isNotEmpty) {
+      downloadPhoto(
+        personId: personId,
+        photoUrl: personPhotoUrl,
+      );
+    }
 
     await _executeDownload(
       fileId: fileId,
@@ -172,17 +290,17 @@ class DownloadService extends ChangeNotifier {
     required Function(String error) onError,
     required VoidCallback onComplete,
   }) async {
-    // ── Check for resumable partial file ──
     final file = await _fileFor(fileId);
     int startByte = 0;
     if (await file.exists()) {
       startByte = await file.length();
     }
-    final savedOffset = await _readPartialOffset(fileId);
-    if (savedOffset > 0 && savedOffset == startByte) {
-      // Saved offset matches file size — safe to resume.
+    final savedOffset =
+        await _readPartialOffset(fileId);
+    if (savedOffset > 0 &&
+        savedOffset == startByte) {
+      // Resume from saved offset.
     } else {
-      // Mismatch — start fresh.
       startByte = 0;
       if (await file.exists()) {
         try {
@@ -197,18 +315,18 @@ class DownloadService extends ChangeNotifier {
     try {
       final request = http.Request('GET', uri);
       if (startByte > 0) {
-        request.headers['Range'] = 'bytes=$startByte-';
+        request.headers['Range'] =
+            'bytes=$startByte-';
       }
       request.followRedirects = true;
       request.maxRedirects = 5;
 
       final response = await client.send(request);
 
-      // ── Status code check ──
       if (response.statusCode != 200 &&
           response.statusCode != 206) {
-        if (startByte > 0 && response.statusCode == 416) {
-          // 416 Range Not Satisfiable — restart fresh.
+        if (startByte > 0 &&
+            response.statusCode == 416) {
           client.close();
           _activeClients.remove(fileId);
           if (await file.exists()) await file.delete();
@@ -224,31 +342,32 @@ class DownloadService extends ChangeNotifier {
         client.close();
         _activeClients.remove(fileId);
         _failDownload(fileId);
-        onError('Server error: ${response.statusCode}');
+        onError(
+            'Server error: ${response.statusCode}');
         return;
       }
 
-      // ── MIME type check ──
       final contentType =
-          (response.headers['content-type'] ?? '').toLowerCase();
+          (response.headers['content-type'] ?? '')
+              .toLowerCase();
       if (contentType.contains('text/html') ||
           contentType.contains('application/json')) {
         client.close();
         _activeClients.remove(fileId);
         _failDownload(fileId);
         onError(
-            'This URL does not point to a downloadable file. '
-            'Use a direct link.');
+            'This URL does not point to a downloadable '
+            'file. Use a direct link.');
         return;
       }
 
-      // ── Open sink ──
       final sink = response.statusCode == 206
           ? file.openWrite(mode: FileMode.append)
           : file.openWrite();
       _activeSinks[fileId] = sink;
 
-      final contentLength = response.contentLength ?? 0;
+      final contentLength =
+          response.contentLength ?? 0;
       final total = response.statusCode == 206
           ? startByte + contentLength
           : contentLength;
@@ -257,10 +376,10 @@ class DownloadService extends ChangeNotifier {
       var lastTime = DateTime.now();
       var lastReceived = received;
 
-      // Clear awaiting-network state — we have a live connection.
       _awaitingNetwork[fileId] = false;
       if (_activeDownloads.containsKey(fileId)) {
-        _activeDownloads[fileId]!['awaitingNetwork'] = false;
+        _activeDownloads[fileId]![
+            'awaitingNetwork'] = false;
       }
       notifyListeners();
 
@@ -268,7 +387,6 @@ class DownloadService extends ChangeNotifier {
 
       final sub = response.stream.listen(
         (chunk) async {
-          // Handle pause.
           while (_paused[fileId] == true) {
             await Future.delayed(
                 const Duration(milliseconds: 200));
@@ -282,12 +400,10 @@ class DownloadService extends ChangeNotifier {
           }
           received += chunk.length;
 
-          // Persist byte offset every 256 KB.
           if (received % (256 * 1024) < chunk.length) {
             _writePartialOffset(fileId, received);
           }
 
-          // Speed calculation.
           final now = DateTime.now();
           final elapsed =
               now.difference(lastTime).inMilliseconds;
@@ -298,7 +414,8 @@ class DownloadService extends ChangeNotifier {
             lastTime = now;
             lastReceived = received;
             if (_activeDownloads.containsKey(fileId)) {
-              _activeDownloads[fileId]!['speedKbps'] = kbps;
+              _activeDownloads[fileId]![
+                  'speedKbps'] = kbps;
             }
           }
 
@@ -322,25 +439,21 @@ class DownloadService extends ChangeNotifier {
           _activeSubs.remove(fileId);
           await _clearPartialOffset(fileId);
 
-          // ── Byte-count verification ──────────────────
-          // If the server told us the total size and we
-          // received fewer bytes, the file is incomplete.
-          // Keep it as a partial so the next download call
-          // resumes from here rather than starting over.
           if (total > 0 && received < total) {
             debugPrint(
-              'Download incomplete for $fileId: '
-              'received $received of $total bytes.',
-            );
-            await _writePartialOffset(fileId, received);
+                'Download incomplete for $fileId: '
+                'received $received of $total bytes.');
+            await _writePartialOffset(
+                fileId, received);
             _failDownload(fileId);
             onError(
                 'Download incomplete. '
                 'Tap download again to resume.');
-            if (!completer.isCompleted) completer.complete();
+            if (!completer.isCompleted) {
+              completer.complete();
+            }
             return;
           }
-          // ─────────────────────────────────────────────
 
           _downloaded.add(fileId);
           await _saveDownloaded();
@@ -348,23 +461,23 @@ class DownloadService extends ChangeNotifier {
           _completeCleanup(fileId);
           notifyListeners();
 
-          // ── Cover extraction ──
           if (fileId.startsWith('pdf_') &&
               onPdfDownloadComplete != null) {
-            final pdfPath = (await _fileFor(fileId)).path;
+            final pdfPath =
+                (await _fileFor(fileId)).path;
             final extractBookId =
                 bookId ?? fileId.replaceFirst('pdf_', '');
-            onPdfDownloadComplete!(extractBookId, pdfPath)
+            onPdfDownloadComplete!(
+                    extractBookId, pdfPath)
                 .catchError((_) {});
           }
 
           onComplete();
-          if (!completer.isCompleted) completer.complete();
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
         },
         onError: (err) async {
-          // ── Network drop — keep partial, auto-retry ──
-          // Do NOT call _failDownload. The row stays in
-          // the Downloads tab with awaitingNetwork = true.
           try {
             await sink.flush();
             await sink.close();
@@ -374,7 +487,6 @@ class DownloadService extends ChangeNotifier {
           _activeClients.remove(fileId);
           _activeSubs.remove(fileId);
 
-          // Save current offset for resume.
           try {
             final f = await _fileFor(fileId);
             if (await f.exists()) {
@@ -383,18 +495,19 @@ class DownloadService extends ChangeNotifier {
             }
           } catch (_) {}
 
-          // Transition to awaiting-network.
           _awaitingNetwork[fileId] = true;
           if (_activeDownloads.containsKey(fileId)) {
-            _activeDownloads[fileId]!['awaitingNetwork'] =
-                true;
-            _activeDownloads[fileId]!['speedKbps'] = 0.0;
+            _activeDownloads[fileId]![
+                'awaitingNetwork'] = true;
+            _activeDownloads[fileId]![
+                'speedKbps'] = 0.0;
           }
           notifyListeners();
-
           _scheduleRetry(fileId);
 
-          if (!completer.isCompleted) completer.complete();
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
         },
         cancelOnError: true,
       );
@@ -418,20 +531,19 @@ class DownloadService extends ChangeNotifier {
         }
       } catch (_) {}
 
-      // If still marked as downloading, transition to
-      // awaiting-network and schedule a retry.
       if (_downloading[fileId] == true) {
         _awaitingNetwork[fileId] = true;
         if (_activeDownloads.containsKey(fileId)) {
-          _activeDownloads[fileId]!['awaitingNetwork'] = true;
-          _activeDownloads[fileId]!['speedKbps'] = 0.0;
+          _activeDownloads[fileId]![
+              'awaitingNetwork'] = true;
+          _activeDownloads[fileId]![
+              'speedKbps'] = 0.0;
         }
         notifyListeners();
         _scheduleRetry(fileId);
       } else {
         _failDownload(fileId);
-        onError(
-            'Download failed. '
+        onError('Download failed. '
             'Check your internet and try again.');
       }
     }
@@ -455,11 +567,10 @@ class DownloadService extends ChangeNotifier {
     final params = _retryParams[fileId];
     if (params == null) return;
 
-    debugPrint('Auto-retrying download for $fileId...');
-
     _awaitingNetwork[fileId] = false;
     if (_activeDownloads.containsKey(fileId)) {
-      _activeDownloads[fileId]!['awaitingNetwork'] = false;
+      _activeDownloads[fileId]![
+          'awaitingNetwork'] = false;
     }
     notifyListeners();
 
@@ -475,7 +586,6 @@ class DownloadService extends ChangeNotifier {
   // ─── Cancel ────────────────────────────────────────
 
   Future<void> cancelDownload(String fileId) async {
-    // Stop retry timer first.
     _retryTimers[fileId]?.cancel();
     _retryTimers.remove(fileId);
     _retryParams.remove(fileId);
@@ -575,12 +685,10 @@ class DownloadService extends ChangeNotifier {
     _awaitingNetwork.remove(fileId);
     await _saveDownloaded();
 
-    // ── Cover cleanup callback (Task 4) ──────────────
-    // If this was a PDF, notify the caller so it can
-    // delete the extracted cover and cached metadata.
     if (fileId.startsWith('pdf_') &&
         onPdfFileDeleted != null) {
-      final bookId = fileId.replaceFirst('pdf_', '');
+      final bookId =
+          fileId.replaceFirst('pdf_', '');
       onPdfFileDeleted!(bookId).catchError((_) {});
     }
 
@@ -641,13 +749,17 @@ class DownloadService extends ChangeNotifier {
     final dir = await _downloadsDir();
     if (!await dir.exists()) return 0;
     double total = 0;
-    await for (final entity in dir.list(recursive: true)) {
-      if (entity is File) total += await entity.length();
+    await for (final entity
+        in dir.list(recursive: true)) {
+      if (entity is File) {
+        total += await entity.length();
+      }
     }
     return total / (1024 * 1024);
   }
 
-  Future<List<Map<String, dynamic>>> downloadedFiles() async {
+  Future<List<Map<String, dynamic>>>
+      downloadedFiles() async {
     final result = <Map<String, dynamic>>[];
     for (final id in _downloaded.toList()) {
       final file = await _fileFor(id);
@@ -665,28 +777,46 @@ class DownloadService extends ChangeNotifier {
 
   // ─── Partial offset persistence ────────────────────
 
-  Future<int> _readPartialOffset(String fileId) async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<int> _readPartialOffset(
+      String fileId) async {
+    final prefs =
+        await SharedPreferences.getInstance();
     return prefs.getInt('$_partialPrefix$fileId') ?? 0;
   }
 
   Future<void> _writePartialOffset(
       String fileId, int bytes) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('$_partialPrefix$fileId', bytes);
+    final prefs =
+        await SharedPreferences.getInstance();
+    await prefs.setInt(
+        '$_partialPrefix$fileId', bytes);
   }
 
-  Future<void> _clearPartialOffset(String fileId) async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> _clearPartialOffset(
+      String fileId) async {
+    final prefs =
+        await SharedPreferences.getInstance();
     await prefs.remove('$_partialPrefix$fileId');
   }
 
   // ─── Helpers ───────────────────────────────────────
 
   Future<Directory> _downloadsDir() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final dir =
-        Directory('${appDir.path}/rawdah_downloads');
+    final appDir =
+        await getApplicationDocumentsDirectory();
+    final dir = Directory(
+        '${appDir.path}/rawdah_downloads');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return dir;
+  }
+
+  Future<Directory> _photosDir() async {
+    final appDir =
+        await getApplicationDocumentsDirectory();
+    final dir = Directory(
+        '${appDir.path}/teacher_photos');
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
@@ -700,26 +830,46 @@ class DownloadService extends ChangeNotifier {
     return File('${dir.path}/$fileId$ext');
   }
 
+  Future<File> _photoFileFor(
+      String personId) async {
+    final dir = await _photosDir();
+    return File('${dir.path}/$personId.jpg');
+  }
+
   Future<void> _saveDownloaded() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs =
+        await SharedPreferences.getInstance();
     await prefs.setStringList(
         _downloadedKey, _downloaded.toList());
   }
 
+  Future<void> _saveDownloadedPhotos() async {
+    final prefs =
+        await SharedPreferences.getInstance();
+    await prefs.setStringList(
+        _downloadedPhotosKey,
+        _downloadedPhotos.toList());
+  }
+
   // ─── ID Helpers ────────────────────────────────────
 
-  static String pdfId(String bookId) => 'pdf_$bookId';
+  static String pdfId(String bookId) =>
+      'pdf_$bookId';
 
   static String audioId(
           String bookId, String teacherId, int part) =>
       'audio_${bookId}_${teacherId}_$part';
 
   static String surahReciterAudioId(
-          int surahNumber, String reciterId, int part) =>
+          int surahNumber,
+          String reciterId,
+          int part) =>
       'saudio_r_${surahNumber}_${reciterId}_$part';
 
   static String surahTeacherAudioId(
-          int surahNumber, String teacherId, int part) =>
+          int surahNumber,
+          String teacherId,
+          int part) =>
       'saudio_t_${surahNumber}_${teacherId}_$part';
 
   static String formatSpeed(double kbps) {
