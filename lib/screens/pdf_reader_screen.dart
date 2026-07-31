@@ -6,7 +6,8 @@ import '../core/bookmark_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 
-/// PDF reader — horizontal default with toggle + universal bookmarks.
+/// PDF reader — horizontal default with toggle,
+/// universal bookmarks, and optional chapter index.
 class PdfReaderScreen extends StatefulWidget {
   final Book book;
   final String filePath;
@@ -18,10 +19,12 @@ class PdfReaderScreen extends StatefulWidget {
   });
 
   @override
-  State<PdfReaderScreen> createState() => _PdfReaderScreenState();
+  State<PdfReaderScreen> createState() =>
+      _PdfReaderScreenState();
 }
 
-class _PdfReaderScreenState extends State<PdfReaderScreen> {
+class _PdfReaderScreenState
+    extends State<PdfReaderScreen> {
   static const _modeKey = 'pdf_reader_mode';
 
   int _currentPage = 0;
@@ -35,7 +38,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   bool _horizontalMode = true;
   int _rebuildKey = 0;
 
-  final BookmarkService _bookmarkService = BookmarkService();
+  final BookmarkService _bookmarkService =
+      BookmarkService();
 
   @override
   void initState() {
@@ -44,7 +48,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     _bookmarkService.init().then((_) {
       _bookmarkService.setActivePdf(widget.book.id);
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) {
       if (!mounted) return;
       final state = AppState.of(context);
       if (state.lastBookId == widget.book.id &&
@@ -57,7 +62,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
 
   Future<void> _loadModePreference() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs =
+          await SharedPreferences.getInstance();
       final saved = prefs.getBool(_modeKey);
       if (saved != null && mounted) {
         setState(() => _horizontalMode = saved);
@@ -65,9 +71,11 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     } catch (_) {}
   }
 
-  Future<void> _saveModePreference(bool horizontal) async {
+  Future<void> _saveModePreference(
+      bool horizontal) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs =
+          await SharedPreferences.getInstance();
       await prefs.setBool(_modeKey, horizontal);
     } catch (_) {}
   }
@@ -84,14 +92,16 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   }
 
   void _hideLoadingOverlay() {
-    Future.delayed(const Duration(milliseconds: 400), () {
+    Future.delayed(
+        const Duration(milliseconds: 400), () {
       if (mounted) {
         setState(() => _showLoadingOverlay = false);
       }
     });
   }
 
-  Future<void> _onPageChanged(int page, int total) async {
+  Future<void> _onPageChanged(
+      int page, int total) async {
     setState(() {
       _currentPage = page;
       _totalPages = total;
@@ -111,9 +121,153 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
     _pdfController?.setPage(page);
   }
 
+  // ─── Content table sheet (Task 6) ──────────────
+
+  void _showContentTableSheet() {
+    final c =
+        AppColors(isDark: AppState.of(context).isDark);
+    final entries = widget.book.contentTable;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: c.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.55,
+          minChildSize: 0.35,
+          maxChildSize: 0.85,
+          builder: (ctx, scrollController) {
+            return Column(
+              children: [
+                // Handle + header (not scrollable)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      20, 16, 20, 0),
+                  child: Column(
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: c.divider,
+                            borderRadius:
+                                BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons
+                                .format_list_bulleted_rounded,
+                            color: c.goldText,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'فهرس المحتويات',
+                            textDirection:
+                                TextDirection.rtl,
+                            style: AppText.arabic(
+                              color: c.textPrimary,
+                              size: 16,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding:
+                                const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: c.goldLine,
+                              borderRadius:
+                                  BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${entries.length}',
+                              style: AppText.latin(
+                                color: c.goldText,
+                                size: 11,
+                                weight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Divider(color: c.divider),
+                    ],
+                  ),
+                ),
+
+                // Scrollable entries list
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(
+                        20, 4, 20, 24),
+                    itemCount: entries.length,
+                    itemBuilder: (ctx, index) {
+                      final entry = entries[index];
+                      // Convert 1-indexed catalog page
+                      // to 0-indexed PDFView page.
+                      final zeroPage = entry.page - 1;
+
+                      return _ContentTableRow(
+                        entry: entry,
+                        index: index,
+                        colors: c,
+                        isCurrentChapter:
+                            _isCurrentChapter(
+                                index, entries),
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          _jumpToPage(zeroPage
+                              .clamp(0, _totalPages - 1));
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Returns true if the chapter at [index] is the one
+  /// the reader is currently on.
+  bool _isCurrentChapter(
+      int index, List<ContentTableEntry> entries) {
+    final currentOneBased = _currentPage + 1;
+    final thisPage = entries[index].page;
+    final nextPage = index + 1 < entries.length
+        ? entries[index + 1].page
+        : _totalPages + 1;
+    return currentOneBased >= thisPage &&
+        currentOneBased < nextPage;
+  }
+
+  // ─── Bookmark dialogs (unchanged) ──────────────
+
   void _showAddBookmarkDialog() {
     if (_bookmarkService.isBookmarked(_currentPage)) {
-      final c = AppColors(isDark: AppState.of(context).isDark);
+      final c =
+          AppColors(isDark: AppState.of(context).isDark);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -131,7 +285,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       text: 'Page ${_currentPage + 1}',
     );
 
-    final c = AppColors(isDark: AppState.of(context).isDark);
+    final c =
+        AppColors(isDark: AppState.of(context).isDark);
 
     showDialog(
       context: context,
@@ -170,21 +325,27 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                 filled: true,
                 fillColor: c.surface2,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.divider),
+                  borderRadius:
+                      BorderRadius.circular(12),
+                  borderSide:
+                      BorderSide(color: c.divider),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.divider),
+                  borderRadius:
+                      BorderRadius.circular(12),
+                  borderSide:
+                      BorderSide(color: c.divider),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius:
+                      BorderRadius.circular(12),
                   borderSide: BorderSide(
                     color: c.brand,
                     width: 1.5,
                   ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
+                contentPadding:
+                    const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 12,
                 ),
@@ -210,11 +371,13 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                 name: controller.text.trim(),
               );
               Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(
                 SnackBar(
                   content: Text(
                     'Bookmark saved: ${controller.text.trim()}',
-                    style: const TextStyle(fontSize: 13),
+                    style:
+                        const TextStyle(fontSize: 13),
                   ),
                   backgroundColor: c.brand,
                   duration: const Duration(seconds: 2),
@@ -236,7 +399,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
   }
 
   void _showBookmarksSheet() {
-    final c = AppColors(isDark: AppState.of(context).isDark);
+    final c =
+        AppColors(isDark: AppState.of(context).isDark);
 
     showModalBottomSheet(
       context: context,
@@ -250,13 +414,16 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
         return ListenableBuilder(
           listenable: _bookmarkService,
           builder: (ctx, _) {
-            final bookmarks = _bookmarkService.bookmarks;
+            final bookmarks =
+                _bookmarkService.bookmarks;
 
             return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              padding: const EdgeInsets.fromLTRB(
+                  20, 16, 20, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   Center(
                     child: Container(
@@ -264,15 +431,18 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       height: 4,
                       decoration: BoxDecoration(
                         color: c.divider,
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius:
+                            BorderRadius.circular(2),
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Icon(Icons.bookmark_rounded,
-                          color: c.brand, size: 20),
+                      Icon(
+                          Icons.bookmark_rounded,
+                          color: c.brand,
+                          size: 20),
                       const SizedBox(width: 8),
                       Text(
                         'Bookmarks',
@@ -296,8 +466,9 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                   const SizedBox(height: 12),
                   if (bookmarks.isEmpty)
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 24),
+                      padding:
+                          const EdgeInsets.symmetric(
+                              vertical: 24),
                       child: Center(
                         child: Text(
                           'No bookmarks yet.\nTap the bookmark icon to save your position.',
@@ -314,7 +485,10 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                     ConstrainedBox(
                       constraints: BoxConstraints(
                         maxHeight:
-                            MediaQuery.of(ctx).size.height * 0.4,
+                            MediaQuery.of(ctx)
+                                    .size
+                                    .height *
+                                0.4,
                       ),
                       child: ListView.separated(
                         shrinkWrap: true,
@@ -322,7 +496,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: 8),
                         itemBuilder: (ctx, index) {
-                          final bm = bookmarks[index];
+                          final bm =
+                              bookmarks[index];
                           return _BookmarkRow(
                             bookmark: bm,
                             colors: c,
@@ -332,7 +507,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                             },
                             onDelete: () {
                               _bookmarkService
-                                  .removeBookmark(bm.page);
+                                  .removeBookmark(
+                                      bm.page);
                             },
                           );
                         },
@@ -359,25 +535,35 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
       _currentPage = state.lastBookPage;
     }
 
+    final hasContentTable =
+        widget.book.hasContentTable;
+    final showControls =
+        _isReady && !_showLoadingOverlay;
+
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top Bar ──
+            // ── Top Bar ──────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: const EdgeInsets.fromLTRB(
+                  20, 16, 20, 0),
               child: Row(
                 children: [
+                  // Back button
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
+                    onTap: () =>
+                        Navigator.of(context).pop(),
                     child: Container(
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius: BorderRadius.circular(11),
-                        border: Border.all(color: c.divider),
+                        borderRadius:
+                            BorderRadius.circular(11),
+                        border: Border.all(
+                            color: c.divider),
                       ),
                       child: Icon(
                         Icons.arrow_back_rounded,
@@ -387,6 +573,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
+
+                  // Title
                   Expanded(
                     child: Text(
                       widget.book.titleAr,
@@ -403,6 +591,36 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                   ),
                   const SizedBox(width: 6),
 
+                  // ── Content table button (Task 6) ──
+                  // Only shown when the book has a
+                  // contentTable AND the PDF is ready.
+                  if (hasContentTable && showControls)
+                    GestureDetector(
+                      onTap: _showContentTableSheet,
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: c.goldLine,
+                          borderRadius:
+                              BorderRadius.circular(9),
+                          border: Border.all(
+                            color: c.goldText
+                                .withOpacity(0.4),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons
+                              .format_list_bulleted_rounded,
+                          size: 16,
+                          color: c.goldText,
+                        ),
+                      ),
+                    ),
+
+                  if (hasContentTable && showControls)
+                    const SizedBox(width: 6),
+
                   // Mode toggle
                   GestureDetector(
                     onTap: _toggleMode,
@@ -411,12 +629,15 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       height: 34,
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(color: c.divider),
+                        borderRadius:
+                            BorderRadius.circular(9),
+                        border: Border.all(
+                            color: c.divider),
                       ),
                       child: Icon(
                         _horizontalMode
-                            ? Icons.view_carousel_rounded
+                            ? Icons
+                                .view_carousel_rounded
                             : Icons.view_day_rounded,
                         size: 16,
                         color: c.textPrimary,
@@ -427,33 +648,40 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                   const SizedBox(width: 6),
 
                   // Add bookmark
-                  if (_isReady && !_showLoadingOverlay)
+                  if (showControls)
                     GestureDetector(
                       onTap: _showAddBookmarkDialog,
                       child: ListenableBuilder(
                         listenable: _bookmarkService,
                         builder: (context, _) {
-                          final isMarked = _bookmarkService
-                              .isBookmarked(_currentPage);
+                          final isMarked =
+                              _bookmarkService
+                                  .isBookmarked(
+                                      _currentPage);
                           return Container(
                             width: 34,
                             height: 34,
                             decoration: BoxDecoration(
                               color: isMarked
-                                  ? c.brand.withOpacity(0.15)
+                                  ? c.brand
+                                      .withOpacity(0.15)
                                   : c.surface2,
                               borderRadius:
-                                  BorderRadius.circular(9),
+                                  BorderRadius.circular(
+                                      9),
                               border: Border.all(
                                 color: isMarked
-                                    ? c.brand.withOpacity(0.5)
+                                    ? c.brand
+                                        .withOpacity(0.5)
                                     : c.divider,
                               ),
                             ),
                             child: Icon(
                               isMarked
-                                  ? Icons.bookmark_rounded
-                                  : Icons.bookmark_border_rounded,
+                                  ? Icons
+                                      .bookmark_rounded
+                                  : Icons
+                                      .bookmark_border_rounded,
                               size: 16,
                               color: isMarked
                                   ? c.brand
@@ -467,7 +695,7 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                   const SizedBox(width: 6),
 
                   // Bookmarks list
-                  if (_isReady && !_showLoadingOverlay)
+                  if (showControls)
                     GestureDetector(
                       onTap: _showBookmarksSheet,
                       child: ListenableBuilder(
@@ -479,36 +707,48 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                             decoration: BoxDecoration(
                               color: c.surface2,
                               borderRadius:
-                                  BorderRadius.circular(9),
-                              border:
-                                  Border.all(color: c.divider),
+                                  BorderRadius.circular(
+                                      9),
+                              border: Border.all(
+                                  color: c.divider),
                             ),
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
                                 Icon(
-                                  Icons.bookmarks_outlined,
+                                  Icons
+                                      .bookmarks_outlined,
                                   size: 16,
                                   color: c.textPrimary,
                                 ),
-                                if (_bookmarkService.count > 0)
+                                if (_bookmarkService
+                                        .count >
+                                    0)
                                   Positioned(
                                     top: 2,
                                     right: 2,
                                     child: Container(
                                       width: 14,
                                       height: 14,
-                                      decoration: BoxDecoration(
+                                      decoration:
+                                          BoxDecoration(
                                         color: c.brand,
-                                        shape: BoxShape.circle,
+                                        shape: BoxShape
+                                            .circle,
                                       ),
-                                      alignment: Alignment.center,
+                                      alignment:
+                                          Alignment
+                                              .center,
                                       child: Text(
                                         '${_bookmarkService.count}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
+                                        style:
+                                            const TextStyle(
+                                          color: Colors
+                                              .white,
                                           fontSize: 8,
-                                          fontWeight: FontWeight.w700,
+                                          fontWeight:
+                                              FontWeight
+                                                  .w700,
                                         ),
                                       ),
                                     ),
@@ -523,16 +763,19 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                   const SizedBox(width: 6),
 
                   // Page counter
-                  if (_isReady && !_showLoadingOverlay)
+                  if (showControls)
                     Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding:
+                          const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: c.divider),
+                        borderRadius:
+                            BorderRadius.circular(10),
+                        border: Border.all(
+                            color: c.divider),
                       ),
                       child: Text(
                         '${_currentPage + 1}/$_totalPages',
@@ -547,22 +790,24 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
               ),
             ),
 
-            // Progress Bar
-            if (_isReady &&
-                !_showLoadingOverlay &&
-                _totalPages > 0) ...[
+            // ── Progress bar ─────────────────────────
+            if (showControls && _totalPages > 0) ...[
               const SizedBox(height: 8),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius:
+                      BorderRadius.circular(2),
                   child: LinearProgressIndicator(
                     value: _totalPages > 0
-                        ? (_currentPage + 1) / _totalPages
+                        ? (_currentPage + 1) /
+                            _totalPages
                         : 0,
                     backgroundColor: c.surface2,
                     valueColor:
-                        AlwaysStoppedAnimation<Color>(c.brand),
+                        AlwaysStoppedAnimation<Color>(
+                            c.brand),
                     minHeight: 3,
                   ),
                 ),
@@ -571,13 +816,13 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
 
             const SizedBox(height: 8),
 
-            // PDF Viewer
+            // ── PDF Viewer ───────────────────────────
             Expanded(
               child: Stack(
                 children: [
                   PDFView(
                     key: ValueKey(
-                        'pdf_${_rebuildKey}_${_horizontalMode}'),
+                        'pdf_${_rebuildKey}_$_horizontalMode'),
                     filePath: widget.filePath,
                     enableSwipe: true,
                     swipeHorizontal: _horizontalMode,
@@ -592,7 +837,8 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                         _isReady = true;
                         _currentPage = _defaultPage;
                       });
-                      AppState.of(context).setLastOpenedBook(
+                      AppState.of(context)
+                          .setLastOpenedBook(
                         bookId: widget.book.id,
                         bookTitle: widget.book.titleAr,
                         page: _defaultPage,
@@ -604,12 +850,14 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                       _pdfController = controller;
                     },
                     onPageChanged: (page, total) {
-                      _onPageChanged(page ?? 0, total ?? 0);
+                      _onPageChanged(
+                          page ?? 0, total ?? 0);
                     },
                     onError: (error) {
                       if (mounted) {
-                        setState(
-                            () => _showLoadingOverlay = false);
+                        setState(() =>
+                            _showLoadingOverlay =
+                                false);
                         ScaffoldMessenger.of(context)
                             .showSnackBar(
                           SnackBar(
@@ -657,10 +905,12 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
               ),
             ),
 
-            // Bottom indicator
-            if (_isReady && !_showLoadingOverlay)
+            // ── Bottom indicator ─────────────────────
+            if (showControls)
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(
+                        vertical: 10),
                 decoration: BoxDecoration(
                   color: c.card,
                   border: Border(
@@ -669,14 +919,17 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                 ),
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
+                    padding:
+                        const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
                       color: c.surface2,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: c.divider),
+                      borderRadius:
+                          BorderRadius.circular(20),
+                      border:
+                          Border.all(color: c.divider),
                     ),
                     child: Text(
                       _horizontalMode
@@ -691,6 +944,166 @@ class _PdfReaderScreenState extends State<PdfReaderScreen> {
                   ),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Content Table Row (Task 6) ──────────────────────────
+
+class _ContentTableRow extends StatelessWidget {
+  final ContentTableEntry entry;
+  final int index;
+  final AppColors colors;
+  final bool isCurrentChapter;
+  final VoidCallback onTap;
+
+  const _ContentTableRow({
+    required this.entry,
+    required this.index,
+    required this.colors,
+    required this.isCurrentChapter,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        decoration: BoxDecoration(
+          color: isCurrentChapter
+              ? c.goldLine
+              : c.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isCurrentChapter
+                ? c.goldText.withOpacity(0.5)
+                : c.divider,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Chapter number badge
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isCurrentChapter
+                    ? c.goldText.withOpacity(0.15)
+                    : c.brand.withOpacity(0.08),
+                border: Border.all(
+                  color: isCurrentChapter
+                      ? c.goldText.withOpacity(0.4)
+                      : c.brand.withOpacity(0.2),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                '${index + 1}',
+                style: AppText.latin(
+                  color: isCurrentChapter
+                      ? c.goldText
+                      : c.brand,
+                  size: 11,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Title
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    entry.titleAr,
+                    textDirection: TextDirection.rtl,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.arabic(
+                      color: isCurrentChapter
+                          ? c.goldText
+                          : c.textPrimary,
+                      size: 13,
+                      weight: isCurrentChapter
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
+                  if (entry.hasEnglish) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      entry.titleEn,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.latin(
+                        color: isCurrentChapter
+                            ? c.goldText
+                                .withOpacity(0.8)
+                            : c.textMuted,
+                        size: 10,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Page number badge
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: isCurrentChapter
+                    ? c.goldText.withOpacity(0.15)
+                    : c.card,
+                borderRadius:
+                    BorderRadius.circular(8),
+                border: Border.all(
+                  color: isCurrentChapter
+                      ? c.goldText.withOpacity(0.3)
+                      : c.divider,
+                ),
+              ),
+              child: Text(
+                'p. ${entry.page}',
+                style: AppText.latin(
+                  color: isCurrentChapter
+                      ? c.goldText
+                      : c.textFaint,
+                  size: 10,
+                  weight: FontWeight.w700,
+                ),
+              ),
+            ),
+
+            // Current chapter indicator arrow
+            if (isCurrentChapter) ...[
+              const SizedBox(width: 6),
+              Icon(
+                Icons.play_arrow_rounded,
+                size: 14,
+                color: c.goldText,
+              ),
+            ],
           ],
         ),
       ),
@@ -754,7 +1167,8 @@ class _BookmarkRow extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
                 children: [
                   Text(
                     bookmark.name,
