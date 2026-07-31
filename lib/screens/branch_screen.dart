@@ -9,7 +9,6 @@ import 'book_detail_screen.dart';
 import 'quran_screen.dart';
 
 /// Shows all books in a specific branch.
-/// Special-cases the Quran branch — auto-redirects to QuranScreen.
 class BranchScreen extends StatefulWidget {
   final Branch branch;
   final CatalogService catalogService;
@@ -21,17 +20,18 @@ class BranchScreen extends StatefulWidget {
   });
 
   @override
-  State<BranchScreen> createState() => _BranchScreenState();
+  State<BranchScreen> createState() =>
+      _BranchScreenState();
 }
 
-class _BranchScreenState extends State<BranchScreen> {
+class _BranchScreenState
+    extends State<BranchScreen> {
   @override
   void initState() {
     super.initState();
-    // If someone lands on BranchScreen for Quran (from
-    // any code path), redirect to the proper QuranScreen.
     if (widget.branch.id == 'quran') {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) {
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -47,7 +47,6 @@ class _BranchScreenState extends State<BranchScreen> {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
 
-    // While Quran redirect is happening, show a blank shell
     if (widget.branch.id == 'quran') {
       return Scaffold(
         backgroundColor: c.bg,
@@ -62,18 +61,26 @@ class _BranchScreenState extends State<BranchScreen> {
           children: [
             // ── Top Bar ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.base,
+                AppSpacing.base,
+                AppSpacing.base,
+                0,
+              ),
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
+                    onTap: () =>
+                        Navigator.of(context).pop(),
                     child: Container(
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius: BorderRadius.circular(11),
-                        border: Border.all(color: c.divider),
+                        borderRadius:
+                            AppRadius.buttonRadius,
+                        border: Border.all(
+                            color: c.divider),
                       ),
                       child: Icon(
                         Icons.arrow_back_rounded,
@@ -82,10 +89,12 @@ class _BranchScreenState extends State<BranchScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(
+                      width: AppSpacing.md),
                   Expanded(
                     child: Text(
-                      widget.branch.nameFor(state.language),
+                      widget.branch
+                          .nameFor(state.language),
                       style: AppText.latin(
                         color: c.textPrimary,
                         size: 20,
@@ -97,14 +106,15 @@ class _BranchScreenState extends State<BranchScreen> {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpacing.lg),
 
             Expanded(
               child: ListenableBuilder(
                 listenable: widget.catalogService,
                 builder: (context, _) {
                   final books = widget.catalogService
-                      .booksInBranch(widget.branch.id);
+                      .booksInBranch(
+                          widget.branch.id);
 
                   if (books.isEmpty) {
                     return _ComingSoon(
@@ -115,24 +125,32 @@ class _BranchScreenState extends State<BranchScreen> {
                   }
 
                   return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(
-                        20, 0, 20, 24),
+                    padding:
+                        const EdgeInsets.fromLTRB(
+                      AppSpacing.base,
+                      0,
+                      AppSpacing.base,
+                      AppSpacing.lg,
+                    ),
                     itemCount: books.length,
                     separatorBuilder: (_, __) =>
-                        const SizedBox(height: 12),
+                        const SizedBox(
+                            height: AppSpacing.md),
                     itemBuilder: (context, index) {
                       final book = books[index];
                       return _BranchBookCard(
                         book: book,
                         colors: c,
-                        coverService: state.coverService,
+                        coverService:
+                            state.coverService,
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => BookDetailScreen(
+                              builder: (_) =>
+                                  BookDetailScreen(
                                 book: book,
-                                catalogService:
-                                    widget.catalogService,
+                                catalogService: widget
+                                    .catalogService,
                               ),
                             ),
                           );
@@ -169,7 +187,7 @@ class _ComingSoon extends StatelessWidget {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40),
+        padding: const EdgeInsets.all(AppSpacing.xxl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -178,7 +196,7 @@ class _ComingSoon extends StatelessWidget {
               height: 88,
               decoration: BoxDecoration(
                 color: c.brand.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: AppRadius.cardRadius,
                 border: Border.all(
                   color: c.brand.withOpacity(0.18),
                   width: 1.5,
@@ -190,7 +208,7 @@ class _ComingSoon extends StatelessWidget {
                 color: c.brand.withOpacity(0.5),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.lg),
             Text(
               'Coming Soon',
               style: AppText.latin(
@@ -199,7 +217,7 @@ class _ComingSoon extends StatelessWidget {
                 weight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             Text(
               'Books for ${branch.nameFor(language)} are currently being prepared and verified by scholars.',
               textAlign: TextAlign.center,
@@ -209,15 +227,15 @@ class _ComingSoon extends StatelessWidget {
                 height: 1.6,
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.lg),
             Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 10,
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm + 2,
               ),
               decoration: BoxDecoration(
                 color: c.goldLine,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppRadius.listItemRadius,
                 border: Border.all(
                   color: c.goldText.withOpacity(0.3),
                 ),
@@ -239,7 +257,7 @@ class _ComingSoon extends StatelessWidget {
   }
 }
 
-// ─── Branch Book Card ────────────────────────────────────
+// ─── Branch Book Card ─────────────────────────────────────
 
 class _BranchBookCard extends StatelessWidget {
   final Book book;
@@ -265,17 +283,19 @@ class _BranchBookCard extends StatelessWidget {
     return ListenableBuilder(
       listenable: coverService,
       builder: (context, _) {
-        final realPages = coverService.pageCount(book.id);
-        final hasAudio =
-            book.hasAudio && book.teacherAudio.isNotEmpty;
+        final realPages =
+            coverService.pageCount(book.id);
+        final hasAudio = book.hasAudio &&
+            book.teacherAudio.isNotEmpty;
 
         return GestureDetector(
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding:
+                const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: c.card,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: AppRadius.cardRadius,
               border: Border.all(color: c.divider),
             ),
             child: Row(
@@ -284,40 +304,46 @@ class _BranchBookCard extends StatelessWidget {
                   book: book,
                   width: 58,
                   height: 78,
-                  borderRadius: 10,
+                  borderRadius: AppRadius.input,
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(
+                    width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
                         CrossAxisAlignment.start,
                     children: [
-                      if (book.isNew || book.isRecentlyAdded)
+                      if (book.isNew ||
+                          book.isRecentlyAdded)
                         Container(
                           margin: const EdgeInsets.only(
-                              bottom: 6),
+                            bottom: AppSpacing.sm - 2,
+                          ),
                           padding:
                               const EdgeInsets.symmetric(
-                            horizontal: 7,
+                            horizontal: AppSpacing.sm,
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: c.brand.withOpacity(0.12),
+                            color: c.brand
+                                .withOpacity(0.12),
                             borderRadius:
-                                BorderRadius.circular(5),
+                                AppRadius.pillRadius,
                             border: Border.all(
-                              color: c.brand.withOpacity(0.3),
+                              color: c.brand
+                                  .withOpacity(0.3),
                             ),
                           ),
                           child: Text(
                             'NEW',
-                            style:
-                                AppText.label(color: c.brand),
+                            style: AppText.label(
+                                color: c.brand),
                           ),
                         ),
                       Text(
                         book.titleAr,
-                        textDirection: TextDirection.rtl,
+                        textDirection:
+                            TextDirection.rtl,
                         textAlign: TextAlign.right,
                         style: AppText.arabic(
                           color: c.textPrimary,
@@ -325,26 +351,33 @@ class _BranchBookCard extends StatelessWidget {
                           weight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(
+                          height: AppSpacing.xs),
                       Text(
                         book.authorShort,
-                        textDirection: TextDirection.rtl,
+                        textDirection:
+                            TextDirection.rtl,
                         style: AppText.arabic(
                           color: c.goldText,
                           size: 12,
                         ),
                       ),
-                      if (realPages != null || hasAudio) ...[
-                        const SizedBox(height: 8),
+                      if (realPages != null ||
+                          hasAudio) ...[
+                        const SizedBox(
+                            height: AppSpacing.sm),
                         Row(
                           children: [
                             if (realPages != null) ...[
                               Icon(
-                                Icons.menu_book_outlined,
+                                Icons
+                                    .menu_book_outlined,
                                 size: 12,
                                 color: c.textFaint,
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(
+                                  width:
+                                      AppSpacing.xs),
                               Text(
                                 '$realPages pages',
                                 style: AppText.latin(
@@ -355,14 +388,19 @@ class _BranchBookCard extends StatelessWidget {
                             ],
                             if (realPages != null &&
                                 hasAudio)
-                              const SizedBox(width: 10),
+                              const SizedBox(
+                                  width:
+                                      AppSpacing.sm),
                             if (hasAudio) ...[
                               Icon(
-                                Icons.headphones_rounded,
+                                Icons
+                                    .headphones_rounded,
                                 size: 12,
                                 color: c.goldText,
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(
+                                  width:
+                                      AppSpacing.xs),
                               Flexible(
                                 child: Text(
                                   '$teacherCount ${teacherCount == 1 ? 'teacher' : 'teachers'} · $totalParts parts',
@@ -370,8 +408,8 @@ class _BranchBookCard extends StatelessWidget {
                                     color: c.goldText,
                                     size: 11,
                                   ),
-                                  overflow:
-                                      TextOverflow.ellipsis,
+                                  overflow: TextOverflow
+                                      .ellipsis,
                                 ),
                               ),
                             ],
@@ -381,7 +419,8 @@ class _BranchBookCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(
+                    width: AppSpacing.sm),
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 18,
