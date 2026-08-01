@@ -7,7 +7,8 @@ import '../core/cover_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
-import 'book_detail_screen.dart';
+// FIX: import the public TeacherAvatar wrapper
+import 'book_detail_screen.dart' show TeacherAvatar;
 import 'pdf_reader_screen.dart';
 
 class AudioPlayerScreen extends StatefulWidget {
@@ -91,7 +92,6 @@ class _AudioPlayerScreenState
     if (!_downloadService.isDownloaded(fileId)) {
       return null;
     }
-
     final path =
         await _downloadService.localPath(fileId);
     if (path == null) return null;
@@ -104,8 +104,7 @@ class _AudioPlayerScreenState
     return AudioResolution(
       filePath: path,
       fileId: fileId,
-      title:
-          '${widget.book.titleAr} — $lessonTitle',
+      title: '${widget.book.titleAr} — $lessonTitle',
       subtitle: widget.teacher.nameAr,
       artPath: coverPath,
     );
@@ -220,7 +219,6 @@ class _AudioPlayerScreenState
 
             return Column(
               children: [
-                // ── Top bar ──────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.base,
@@ -232,8 +230,7 @@ class _AudioPlayerScreenState
                     children: [
                       GestureDetector(
                         onTap: () =>
-                            Navigator.of(context)
-                                .pop(),
+                            Navigator.of(context).pop(),
                         child: Container(
                           width: 38,
                           height: 38,
@@ -255,11 +252,9 @@ class _AudioPlayerScreenState
                       Expanded(
                         child: Column(
                           children: [
-                            Text(
-                              'NOW PLAYING',
-                              style: AppText.label(
-                                  color: c.textFaint),
-                            ),
+                            Text('NOW PLAYING',
+                                style: AppText.label(
+                                    color: c.textFaint)),
                             const SizedBox(
                                 height: AppSpacing.xs),
                             Text(
@@ -301,7 +296,6 @@ class _AudioPlayerScreenState
 
                 const SizedBox(height: AppSpacing.lg),
 
-                // ── Big cover ─────────────────────
                 GestureDetector(
                   onTap: _onCoverTap,
                   child: _BigCover(
@@ -316,7 +310,6 @@ class _AudioPlayerScreenState
 
                 const SizedBox(height: AppSpacing.lg),
 
-                // ── Book + Teacher info ───────────
                 Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.xl),
@@ -338,7 +331,8 @@ class _AudioPlayerScreenState
                       const SizedBox(
                           height: AppSpacing.sm),
 
-                      // Teacher row with avatar
+                      // FIX: was _TeacherAvatar (private)
+                      // now TeacherAvatar (public wrapper)
                       Row(
                         mainAxisAlignment:
                             MainAxisAlignment.center,
@@ -347,7 +341,7 @@ class _AudioPlayerScreenState
                             listenable:
                                 state.downloadService,
                             builder: (context, _) {
-                              return _TeacherAvatar(
+                              return TeacherAvatar(
                                 teacher: widget.teacher,
                                 downloadService:
                                     state.downloadService,
@@ -376,9 +370,7 @@ class _AudioPlayerScreenState
                         'تأليف: ${widget.book.authorShort}',
                         textDirection: TextDirection.rtl,
                         style: AppText.arabic(
-                          color: c.textMuted,
-                          size: 12,
-                        ),
+                            color: c.textMuted, size: 12),
                       ),
                     ],
                   ),
@@ -397,26 +389,22 @@ class _AudioPlayerScreenState
                         color: c.surface2,
                         borderRadius:
                             AppRadius.listItemRadius,
-                        border: Border.all(
-                            color: c.divider),
+                        border:
+                            Border.all(color: c.divider),
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.download_rounded,
-                            color: c.brand,
-                            size: 20,
-                          ),
+                          Icon(Icons.download_rounded,
+                              color: c.brand, size: 20),
                           const SizedBox(
                               width: AppSpacing.sm),
                           Expanded(
                             child: Text(
                               'Download this lesson from the Lessons screen to play it.',
                               style: AppText.latin(
-                                color: c.textMuted,
-                                size: 12,
-                                height: 1.5,
-                              ),
+                                  color: c.textMuted,
+                                  size: 12,
+                                  height: 1.5),
                             ),
                           ),
                         ],
@@ -439,27 +427,22 @@ class _AudioPlayerScreenState
                         borderRadius:
                             AppRadius.listItemRadius,
                         border: Border.all(
-                          color:
-                              c.danger.withOpacity(0.3),
-                        ),
+                            color:
+                                c.danger.withOpacity(0.3)),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            Icons.error_outline_rounded,
-                            color: c.danger,
-                            size: 16,
-                          ),
+                              Icons.error_outline_rounded,
+                              color: c.danger,
+                              size: 16),
                           const SizedBox(
                               width: AppSpacing.sm),
                           Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: AppText.latin(
-                                color: c.danger,
-                                size: 12,
-                              ),
-                            ),
+                            child: Text(_errorMessage!,
+                                style: AppText.latin(
+                                    color: c.danger,
+                                    size: 12)),
                           ),
                         ],
                       ),
@@ -469,7 +452,6 @@ class _AudioPlayerScreenState
                       height: AppSpacing.md),
                 ],
 
-                // ── Seek slider ───────────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.lg),
@@ -496,10 +478,8 @@ class _AudioPlayerScreenState
                                   .toDouble()
                                   .clamp(
                                     0,
-                                    duration.inSeconds >
-                                            0
-                                        ? duration
-                                            .inSeconds
+                                    duration.inSeconds > 0
+                                        ? duration.inSeconds
                                             .toDouble()
                                         : 1,
                                   )
@@ -513,8 +493,7 @@ class _AudioPlayerScreenState
                               ? (v) {
                                   _audioService.seekTo(
                                     Duration(
-                                        seconds:
-                                            v.toInt()),
+                                        seconds: v.toInt()),
                                   );
                                 }
                               : null,
@@ -523,8 +502,7 @@ class _AudioPlayerScreenState
                       Padding(
                         padding:
                             const EdgeInsets.symmetric(
-                                horizontal:
-                                    AppSpacing.sm),
+                                horizontal: AppSpacing.sm),
                         child: Row(
                           mainAxisAlignment:
                               MainAxisAlignment
@@ -537,9 +515,8 @@ class _AudioPlayerScreenState
                                           position)
                                   : '00:00',
                               style: AppText.latin(
-                                color: c.textFaint,
-                                size: 11,
-                              ),
+                                  color: c.textFaint,
+                                  size: 11),
                             ),
                             Text(
                               isActive &&
@@ -550,9 +527,8 @@ class _AudioPlayerScreenState
                                           duration)
                                   : '--:--',
                               style: AppText.latin(
-                                color: c.textFaint,
-                                size: 11,
-                              ),
+                                  color: c.textFaint,
+                                  size: 11),
                             ),
                           ],
                         ),
@@ -563,7 +539,6 @@ class _AudioPlayerScreenState
 
                 const SizedBox(height: AppSpacing.md),
 
-                // ── Playback controls ─────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.lg),
@@ -607,31 +582,24 @@ class _AudioPlayerScreenState
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors:
-                                  _isCurrentDownloaded
-                                      ? [
-                                          c.brand,
-                                          c.brandHover
-                                        ]
-                                      : [
-                                          c.textFaint,
-                                          c.textFaint
-                                        ],
+                              colors: _isCurrentDownloaded
+                                  ? [c.brand, c.brandHover]
+                                  : [
+                                      c.textFaint,
+                                      c.textFaint
+                                    ],
                             ),
-                            boxShadow:
-                                _isCurrentDownloaded
-                                    ? [
-                                        BoxShadow(
-                                          color: c.brand
-                                              .withOpacity(
-                                                  0.4),
-                                          blurRadius: 20,
-                                          offset:
-                                              const Offset(
-                                                  0, 6),
-                                        ),
-                                      ]
-                                    : null,
+                            boxShadow: _isCurrentDownloaded
+                                ? [
+                                    BoxShadow(
+                                      color: c.brand
+                                          .withOpacity(0.4),
+                                      blurRadius: 20,
+                                      offset:
+                                          const Offset(0, 6),
+                                    ),
+                                  ]
+                                : null,
                           ),
                           child: isLoading
                               ? const Padding(
@@ -674,7 +642,6 @@ class _AudioPlayerScreenState
 
                 const SizedBox(height: AppSpacing.base),
 
-                // ── Speed button ──────────────────
                 GestureDetector(
                   onTap: isActive
                       ? () => _audioService.cycleSpeed()
@@ -694,9 +661,8 @@ class _AudioPlayerScreenState
                     child: Text(
                       'Speed: ${speed}x',
                       style: AppText.latin(
-                        color: isActive
-                            ? c.brand
-                            : c.textFaint,
+                        color:
+                            isActive ? c.brand : c.textFaint,
                         size: 13,
                         weight: FontWeight.w700,
                       ),
@@ -706,7 +672,6 @@ class _AudioPlayerScreenState
 
                 const Spacer(),
 
-                // ── Info bar ──────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.lg,
@@ -724,17 +689,13 @@ class _AudioPlayerScreenState
                       borderRadius:
                           AppRadius.listItemRadius,
                       border: Border.all(
-                        color:
-                            c.goldText.withOpacity(0.3),
-                      ),
+                          color: c.goldText
+                              .withOpacity(0.3)),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.info_outline_rounded,
-                          size: 16,
-                          color: c.goldText,
-                        ),
+                        Icon(Icons.info_outline_rounded,
+                            size: 16, color: c.goldText),
                         const SizedBox(
                             width: AppSpacing.sm),
                         Expanded(
@@ -788,8 +749,7 @@ class _BigCover extends StatelessWidget {
       decoration: BoxDecoration(
         color: c.brand.withOpacity(0.12),
         borderRadius: AppRadius.cardRadius,
-        border: Border.all(
-            color: c.goldLine, width: 1.5),
+        border: Border.all(color: c.goldLine, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: c.brand.withOpacity(0.15),
@@ -837,8 +797,7 @@ class _BigCover extends StatelessWidget {
                     vertical: AppSpacing.xs,
                   ),
                   decoration: BoxDecoration(
-                    color:
-                        Colors.black.withOpacity(0.55),
+                    color: Colors.black.withOpacity(0.55),
                     borderRadius: AppRadius.pillRadius,
                   ),
                   child: Row(
@@ -854,9 +813,7 @@ class _BigCover extends StatelessWidget {
                       const SizedBox(
                           width: AppSpacing.xs),
                       Text(
-                        isPdfDownloaded
-                            ? 'Open'
-                            : 'Download',
+                        isPdfDownloaded ? 'Open' : 'Download',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -903,9 +860,8 @@ class _SeekButton extends StatelessWidget {
               ? Icons.forward_10_rounded
               : Icons.replay_10_rounded,
           size: 28,
-          color: onTap != null
-              ? c.textPrimary
-              : c.textFaint,
+          color:
+              onTap != null ? c.textPrimary : c.textFaint,
         ),
       ),
     );
