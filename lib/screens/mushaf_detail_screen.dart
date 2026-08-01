@@ -9,8 +9,6 @@ import 'book_detail_screen.dart';
 import 'mushaf_reader_screen.dart';
 
 /// Detail screen for the Full Mus'haf sub-branch.
-/// Shows the Quran facts hero + a list of downloadable
-/// Mus'haf editions + any bonus books.
 class MushafDetailScreen extends StatelessWidget {
   final QuranSubBranch sub;
 
@@ -34,18 +32,26 @@ class MushafDetailScreen extends StatelessWidget {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.base,
+                AppSpacing.base,
+                AppSpacing.base,
+                0,
+              ),
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
+                    onTap: () =>
+                        Navigator.of(context).pop(),
                     child: Container(
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
                         color: c.surface2,
-                        borderRadius: BorderRadius.circular(11),
-                        border: Border.all(color: c.divider),
+                        borderRadius:
+                            AppRadius.buttonRadius,
+                        border: Border.all(
+                            color: c.divider),
                       ),
                       child: Icon(
                         Icons.arrow_back_rounded,
@@ -54,11 +60,13 @@ class MushafDetailScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(
+                      width: AppSpacing.md),
                   Expanded(
                     child: Text(
                       sub.titleAr,
-                      textDirection: TextDirection.rtl,
+                      textDirection:
+                          TextDirection.rtl,
                       textAlign: TextAlign.right,
                       style: AppText.arabic(
                         color: c.goldText,
@@ -70,18 +78,27 @@ class MushafDetailScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+
+            const SizedBox(height: AppSpacing.base),
+
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.base,
+                  0,
+                  AppSpacing.base,
+                  AppSpacing.xl,
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
                     _QuranHeroCard(
                       colors: c,
                       language: lang,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(
+                        height: AppSpacing.lg),
 
                     // ── Editions section ──
                     if (editions.isNotEmpty) ...[
@@ -95,10 +112,13 @@ class MushafDetailScreen extends StatelessWidget {
                         colors: c,
                         language: lang,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(
+                          height: AppSpacing.sm),
                       ...editions.map((ed) => Padding(
                             padding:
-                                const EdgeInsets.only(bottom: 12),
+                                const EdgeInsets.only(
+                                    bottom:
+                                        AppSpacing.md),
                             child: _EditionCard(
                               edition: ed,
                               colors: c,
@@ -111,19 +131,23 @@ class MushafDetailScreen extends StatelessWidget {
                       _NoEditions(colors: c),
                     ],
 
-                    // ── Bonus books section ──
+                    // ── Bonus books ──
                     if (books.isNotEmpty) ...[
-                      const SizedBox(height: 24),
+                      const SizedBox(
+                          height: AppSpacing.lg),
                       _SectionHeader(
                         titleEn: 'Books',
                         titleAr: 'كتب',
                         colors: c,
                         language: lang,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(
+                          height: AppSpacing.sm),
                       ...books.map((b) => Padding(
                             padding:
-                                const EdgeInsets.only(bottom: 12),
+                                const EdgeInsets.only(
+                                    bottom:
+                                        AppSpacing.md),
                             child: _BookCard(
                               book: b,
                               colors: c,
@@ -133,33 +157,38 @@ class MushafDetailScreen extends StatelessWidget {
 
                     // ── File size warning ──
                     if (editions.isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(
+                          height: AppSpacing.sm),
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(
+                            AppSpacing.md),
                         decoration: BoxDecoration(
                           color: c.goldLine,
                           borderRadius:
-                              BorderRadius.circular(12),
+                              AppRadius.listItemRadius,
                           border: Border.all(
-                            color:
-                                c.goldText.withOpacity(0.3),
+                            color: c.goldText
+                                .withOpacity(0.3),
                           ),
                         ),
                         child: Row(
                           children: [
                             Icon(
-                              Icons.info_outline_rounded,
+                              Icons
+                                  .info_outline_rounded,
                               color: c.goldText,
                               size: 16,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(
+                                width: AppSpacing.sm),
                             Expanded(
                               child: Text(
                                 'A full Mus\'haf PDF can be between 100–300 MB depending on the edition. Make sure you have enough storage and a stable internet connection.',
                                 style: AppText.latin(
                                   color: c.goldText,
                                   size: 11,
-                                  weight: FontWeight.w600,
+                                  weight:
+                                      FontWeight.w600,
                                   height: 1.5,
                                 ),
                               ),
@@ -179,7 +208,7 @@ class MushafDetailScreen extends StatelessWidget {
   }
 }
 
-// ─── Quran Hero Card with Facts ──────────────────────────
+// ─── Quran Hero Card ─────────────────────────────────────
 
 class _QuranHeroCard extends StatelessWidget {
   final AppColors colors;
@@ -196,9 +225,9 @@ class _QuranHeroCard extends StatelessWidget {
     final isAr = language == 'ar';
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: AppRadius.cardRadius,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -235,8 +264,10 @@ class _QuranHeroCard extends StatelessWidget {
               child: Image.asset(
                 'assets/mushaf.png',
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: c.goldText.withOpacity(0.15),
+                errorBuilder: (_, __, ___) =>
+                    Container(
+                  color:
+                      c.goldText.withOpacity(0.15),
                   child: Icon(
                     Icons.import_contacts_rounded,
                     size: 36,
@@ -247,7 +278,7 @@ class _QuranHeroCard extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.md),
 
           Text(
             'القرآن الكريم',
@@ -260,7 +291,7 @@ class _QuranHeroCard extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.xs),
 
           Text(
             'The Noble Quran',
@@ -271,16 +302,19 @@ class _QuranHeroCard extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.base),
           Divider(
-              color: c.goldText.withOpacity(0.2), height: 1),
-          const SizedBox(height: 16),
+              color: c.goldText.withOpacity(0.2),
+              height: 1),
+          const SizedBox(height: AppSpacing.base),
 
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment:
+                MainAxisAlignment.spaceEvenly,
             children: [
               _FactChip(
-                icon: Icons.format_list_numbered_rounded,
+                icon: Icons
+                    .format_list_numbered_rounded,
                 value: '114',
                 label: isAr ? 'سورة' : 'Surahs',
                 colors: c,
@@ -300,10 +334,11 @@ class _QuranHeroCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.md),
 
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment:
+                MainAxisAlignment.spaceEvenly,
             children: [
               _FactChip(
                 icon: Icons.location_on_outlined,
@@ -319,8 +354,11 @@ class _QuranHeroCard extends StatelessWidget {
               ),
               _FactChip(
                 icon: Icons.person_outline_rounded,
-                value: isAr ? 'محمد ﷺ' : 'Muhammad ﷺ',
-                label: isAr ? 'أُنزل على' : 'Revealed to',
+                value: isAr
+                    ? 'محمد ﷺ'
+                    : 'Muhammad ﷺ',
+                label:
+                    isAr ? 'أُنزل على' : 'Revealed to',
                 colors: c,
                 small: true,
               ),
@@ -353,7 +391,7 @@ class _FactChip extends StatelessWidget {
     return Column(
       children: [
         Icon(icon, size: 16, color: c.goldText),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           value,
           textDirection: TextDirection.rtl,
@@ -377,7 +415,7 @@ class _FactChip extends StatelessWidget {
   }
 }
 
-// ─── Section Header ──────────────────────────────────────
+// ─── Section Header ───────────────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
   final String titleEn;
@@ -396,7 +434,6 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     final isAr = language == 'ar';
-
     return Text(
       isAr ? titleAr : titleEn,
       textDirection:
@@ -416,7 +453,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ─── No Editions Placeholder ─────────────────────────────
+// ─── No Editions ─────────────────────────────────────────
 
 class _NoEditions extends StatelessWidget {
   final AppColors colors;
@@ -426,17 +463,17 @@ class _NoEditions extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: c.surface2,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.listItemRadius,
         border: Border.all(color: c.divider),
       ),
       child: Row(
         children: [
           Icon(Icons.hourglass_empty_rounded,
               color: c.textFaint, size: 20),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               'No Mus\'haf editions available yet. Check back soon.',
@@ -453,7 +490,7 @@ class _NoEditions extends StatelessWidget {
   }
 }
 
-// ─── Edition Card ────────────────────────────────────────
+// ─── Edition Card ─────────────────────────────────────────
 
 class _EditionCard extends StatefulWidget {
   final MushafEdition edition;
@@ -469,17 +506,20 @@ class _EditionCard extends StatefulWidget {
   });
 
   @override
-  State<_EditionCard> createState() => _EditionCardState();
+  State<_EditionCard> createState() =>
+      _EditionCardState();
 }
 
 class _EditionCardState extends State<_EditionCard> {
   String? _errorMessage;
 
-  String get _fileId => widget.edition.id == 'mushaf'
-      ? 'pdf_mushaf'
-      : 'pdf_mushaf_${widget.edition.id}';
+  String get _fileId =>
+      widget.edition.id == 'mushaf'
+          ? 'pdf_mushaf'
+          : 'pdf_mushaf_${widget.edition.id}';
 
-  Future<void> _openReader(BuildContext context) async {
+  Future<void> _openReader(
+      BuildContext context) async {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => MushafReaderScreen(
@@ -521,12 +561,15 @@ class _EditionCardState extends State<_EditionCard> {
       listenable: widget.downloadService,
       builder: (context, _) {
         final isDownloaded =
-            widget.downloadService.isDownloaded(_fileId);
+            widget.downloadService
+                .isDownloaded(_fileId);
         final isDownloading =
-            widget.downloadService.isDownloading(_fileId);
+            widget.downloadService
+                .isDownloading(_fileId);
         final progress =
             widget.downloadService.progress(_fileId);
-        final hasUrl = widget.edition.pdfUrl.isNotEmpty;
+        final hasUrl =
+            widget.edition.pdfUrl.isNotEmpty;
 
         return GestureDetector(
           onTap: () {
@@ -537,10 +580,11 @@ class _EditionCardState extends State<_EditionCard> {
             }
           },
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding:
+                const EdgeInsets.all(AppSpacing.base),
             decoration: BoxDecoration(
               color: c.card,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: AppRadius.cardRadius,
               border: Border.all(
                 color: isDownloaded
                     ? c.brand.withOpacity(0.4)
@@ -561,20 +605,23 @@ class _EditionCardState extends State<_EditionCard> {
                             ? c.brand
                             : !hasUrl
                                 ? c.surface2
-                                : c.brand.withOpacity(0.12),
+                                : c.brand
+                                    .withOpacity(0.12),
                         border: Border.all(
                           color: isDownloaded
                               ? c.brand
                               : !hasUrl
                                   ? c.divider
-                                  : c.brand.withOpacity(0.3),
+                                  : c.brand
+                                      .withOpacity(0.3),
                           width: 1.5,
                         ),
                       ),
                       child: isDownloading
                           ? Padding(
                               padding:
-                                  const EdgeInsets.all(14),
+                                  const EdgeInsets.all(
+                                      14),
                               child:
                                   CircularProgressIndicator(
                                 value: progress > 0
@@ -586,11 +633,13 @@ class _EditionCardState extends State<_EditionCard> {
                             )
                           : Icon(
                               isDownloaded
-                                  ? Icons.menu_book_rounded
+                                  ? Icons
+                                      .menu_book_rounded
                                   : !hasUrl
                                       ? Icons
                                           .hourglass_empty_rounded
-                                      : Icons.download_rounded,
+                                      : Icons
+                                          .download_rounded,
                               size: 22,
                               color: isDownloaded
                                   ? Colors.white
@@ -599,7 +648,8 @@ class _EditionCardState extends State<_EditionCard> {
                                       : c.brand,
                             ),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(
+                        width: AppSpacing.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: isAr
@@ -611,14 +661,16 @@ class _EditionCardState extends State<_EditionCard> {
                             textDirection:
                                 TextDirection.rtl,
                             maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            overflow:
+                                TextOverflow.ellipsis,
                             style: AppText.arabic(
                               color: c.textPrimary,
                               size: 15,
                               weight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(
+                              height: AppSpacing.xs),
                           Text(
                             isDownloaded
                                 ? 'Tap to Open'
@@ -639,16 +691,18 @@ class _EditionCardState extends State<_EditionCard> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.xs,
                       ),
                       decoration: BoxDecoration(
                         color: c.brand.withOpacity(0.1),
                         borderRadius:
-                            BorderRadius.circular(8),
+                            AppRadius.pillRadius,
                         border: Border.all(
-                          color: c.brand.withOpacity(0.25),
+                          color: c.brand
+                              .withOpacity(0.25),
                         ),
                       ),
                       child: Text(
@@ -664,11 +718,12 @@ class _EditionCardState extends State<_EditionCard> {
                 ),
 
                 if (isDownloading) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.md),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: AppRadius.pillRadius,
                     child: LinearProgressIndicator(
-                      value: progress > 0 ? progress : null,
+                      value:
+                          progress > 0 ? progress : null,
                       backgroundColor: c.surface2,
                       valueColor:
                           AlwaysStoppedAnimation<Color>(
@@ -676,7 +731,8 @@ class _EditionCardState extends State<_EditionCard> {
                       minHeight: 4,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(
+                      height: AppSpacing.sm - 2),
                   Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,
@@ -692,7 +748,8 @@ class _EditionCardState extends State<_EditionCard> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => widget.downloadService
+                        onTap: () => widget
+                            .downloadService
                             .cancelDownload(_fileId),
                         child: Text(
                           'Cancel',
@@ -708,21 +765,27 @@ class _EditionCardState extends State<_EditionCard> {
                 ],
 
                 if (_errorMessage != null) ...[
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppSpacing.sm),
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(
+                        AppSpacing.sm),
                     decoration: BoxDecoration(
                       color: c.dangerBg,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius:
+                          AppRadius.listItemRadius,
                       border: Border.all(
-                        color: c.danger.withOpacity(0.3),
+                        color:
+                            c.danger.withOpacity(0.3),
                       ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.error_outline_rounded,
-                            color: c.danger, size: 14),
-                        const SizedBox(width: 8),
+                        Icon(
+                            Icons.error_outline_rounded,
+                            color: c.danger,
+                            size: 14),
+                        const SizedBox(
+                            width: AppSpacing.sm),
                         Expanded(
                           child: Text(
                             _errorMessage!,
@@ -745,7 +808,7 @@ class _EditionCardState extends State<_EditionCard> {
   }
 }
 
-// ─── Book Card (regular books inside the Quran sub-branch) ──
+// ─── Book Card ────────────────────────────────────────────
 
 class _BookCard extends StatelessWidget {
   final Book book;
@@ -773,10 +836,10 @@ class _BookCard extends StatelessWidget {
         );
       },
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: c.card,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: AppRadius.cardRadius,
           border: Border.all(color: c.divider),
         ),
         child: Row(
@@ -785,11 +848,13 @@ class _BookCard extends StatelessWidget {
               book: book,
               width: 58,
               height: 78,
+              borderRadius: AppRadius.input,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment:
+                    CrossAxisAlignment.end,
                 children: [
                   Text(
                     book.titleAr,
@@ -802,7 +867,7 @@ class _BookCard extends StatelessWidget {
                       weight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     book.authorShort,
                     textDirection: TextDirection.rtl,
@@ -814,19 +879,20 @@ class _BookCard extends StatelessWidget {
                     ),
                   ),
                   if (book.teacherAudio.isNotEmpty) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: AppSpacing.sm),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
                         color: c.goldLine,
                         borderRadius:
-                            BorderRadius.circular(6),
+                            AppRadius.pillRadius,
                         border: Border.all(
-                          color:
-                              c.goldText.withOpacity(0.3),
+                          color: c.goldText
+                              .withOpacity(0.3),
                         ),
                       ),
                       child: Row(
@@ -837,7 +903,8 @@ class _BookCard extends StatelessWidget {
                             size: 10,
                             color: c.goldText,
                           ),
-                          const SizedBox(width: 3),
+                          const SizedBox(
+                              width: AppSpacing.xs),
                           Text(
                             '${book.teacherAudio.length} teachers',
                             style: AppText.latin(
