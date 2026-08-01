@@ -7,9 +7,7 @@ import '../core/models.dart';
 import '../core/quran_data.dart';
 import '../core/theme.dart';
 
-/// Dedicated Mus'haf reader — horizontal swipe + Surah index + bookmarks.
-/// Now edition-aware: each edition has its own PDF, page mapping,
-/// bookmarks, and last-read page.
+/// Dedicated Mus'haf reader.
 class MushafReaderScreen extends StatefulWidget {
   final MushafEdition edition;
 
@@ -38,20 +36,17 @@ class _MushafReaderScreenState
   PDFViewController? _pdfController;
   int _defaultPage = 0;
 
-  final BookmarkService _bookmarkService = BookmarkService();
+  final BookmarkService _bookmarkService =
+      BookmarkService();
 
   @override
   void initState() {
     super.initState();
 
-    // File ID: `pdf_mushaf` for the default edition ("mushaf"),
-    // `pdf_mushaf_<editionId>` for any other edition.
     _fileId = widget.edition.id == 'mushaf'
         ? 'pdf_mushaf'
         : 'pdf_mushaf_${widget.edition.id}';
 
-    // PDF key for bookmarks: `mushaf` for default,
-    // `mushaf_<editionId>` for others.
     _pdfKey = widget.edition.id == 'mushaf'
         ? 'mushaf'
         : 'mushaf_${widget.edition.id}';
@@ -59,7 +54,8 @@ class _MushafReaderScreenState
     _bookmarkService.init().then((_) {
       _bookmarkService.setActivePdf(_pdfKey);
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) {
       _init();
     });
   }
@@ -67,13 +63,15 @@ class _MushafReaderScreenState
   Future<void> _init() async {
     final state = AppState.of(context);
 
-    _defaultPage = state.mushafLastPageFor(widget.edition.id);
+    _defaultPage =
+        state.mushafLastPageFor(widget.edition.id);
     _currentPage = _defaultPage;
 
     final downloadService = state.downloadService;
 
     if (downloadService.isDownloaded(_fileId)) {
-      final path = await downloadService.localPath(_fileId);
+      final path =
+          await downloadService.localPath(_fileId);
       if (path != null && mounted) {
         setState(() => _localPath = path);
       }
@@ -115,14 +113,16 @@ class _MushafReaderScreenState
   }
 
   void _hideLoadingOverlay() {
-    Future.delayed(const Duration(milliseconds: 400), () {
+    Future.delayed(
+        const Duration(milliseconds: 400), () {
       if (mounted) {
         setState(() => _showLoadingOverlay = false);
       }
     });
   }
 
-  Future<void> _onPageChanged(int page, int total) async {
+  Future<void> _onPageChanged(
+      int page, int total) async {
     setState(() {
       _currentPage = page;
       _totalPages = total;
@@ -136,10 +136,9 @@ class _MushafReaderScreenState
     _pdfController?.setPage(page);
   }
 
-  // ─── Surah Index Drawer ───────────────────────────
-
   void _showSurahIndex() {
-    final c = AppColors(isDark: AppState.of(context).isDark);
+    final c =
+        AppColors(isDark: AppState.of(context).isDark);
     final lang = AppState.of(context).language;
 
     showModalBottomSheet(
@@ -148,7 +147,7 @@ class _MushafReaderScreenState
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20),
+          top: Radius.circular(AppRadius.card),
         ),
       ),
       builder: (ctx) {
@@ -165,8 +164,6 @@ class _MushafReaderScreenState
               scrollController: scrollController,
               onSurahTap: (page) {
                 Navigator.of(ctx).pop();
-                // Catalog pages are 1-indexed,
-                // PDFView uses 0-indexed
                 _jumpToPage(page - 1);
               },
             );
@@ -176,17 +173,17 @@ class _MushafReaderScreenState
     );
   }
 
-  // ─── Bookmark dialog ──────────────────────────────
-
   void _showAddBookmarkDialog() {
     if (_bookmarkService.isBookmarked(_currentPage)) {
+      final c = AppColors(
+          isDark: AppState.of(context).isDark);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             'Page ${_currentPage + 1} is already bookmarked.',
             style: const TextStyle(fontSize: 13),
           ),
-          backgroundColor: AppColors(isDark: false).brand,
+          backgroundColor: c.brand,
           duration: const Duration(seconds: 2),
         ),
       );
@@ -197,15 +194,15 @@ class _MushafReaderScreenState
       text: 'Page ${_currentPage + 1}',
     );
 
-    final c = AppColors(
-        isDark: AppState.of(context).isDark);
+    final c =
+        AppColors(isDark: AppState.of(context).isDark);
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: c.card,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: AppRadius.cardRadius,
         ),
         title: Text(
           'Save Bookmark',
@@ -225,7 +222,7 @@ class _MushafReaderScreenState
                 size: 13,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             TextField(
               controller: controller,
               autofocus: true,
@@ -237,23 +234,26 @@ class _MushafReaderScreenState
                 filled: true,
                 fillColor: c.surface2,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.divider),
+                  borderRadius: AppRadius.inputRadius,
+                  borderSide:
+                      BorderSide(color: c.divider),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.divider),
+                  borderRadius: AppRadius.inputRadius,
+                  borderSide:
+                      BorderSide(color: c.divider),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: AppRadius.inputRadius,
                   borderSide: BorderSide(
                     color: c.goldText,
                     width: 1.5,
                   ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
+                contentPadding:
+                    const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.base,
+                  vertical: AppSpacing.md,
                 ),
               ),
             ),
@@ -261,7 +261,8 @@ class _MushafReaderScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () =>
+                Navigator.of(ctx).pop(),
             child: Text(
               'Cancel',
               style: AppText.latin(
@@ -277,14 +278,17 @@ class _MushafReaderScreenState
                 name: controller.text.trim(),
               );
               Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(
                 SnackBar(
                   content: Text(
                     'Bookmark saved: ${controller.text.trim()}',
-                    style: const TextStyle(fontSize: 13),
+                    style: const TextStyle(
+                        fontSize: 13),
                   ),
                   backgroundColor: c.brand,
-                  duration: const Duration(seconds: 2),
+                  duration:
+                      const Duration(seconds: 2),
                 ),
               );
             },
@@ -303,25 +307,31 @@ class _MushafReaderScreenState
   }
 
   void _showBookmarksSheet() {
-    final c = AppColors(isDark: AppState.of(context).isDark);
+    final c =
+        AppColors(isDark: AppState.of(context).isDark);
 
     showModalBottomSheet(
       context: context,
       backgroundColor: c.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20),
+          top: Radius.circular(AppRadius.card),
         ),
       ),
       builder: (ctx) {
         return ListenableBuilder(
           listenable: _bookmarkService,
           builder: (ctx, _) {
-            final bookmarks = _bookmarkService.bookmarks;
+            final bookmarks =
+                _bookmarkService.bookmarks;
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(
-                  20, 16, 20, 24),
+                AppSpacing.base,
+                AppSpacing.base,
+                AppSpacing.base,
+                AppSpacing.lg,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment:
@@ -334,16 +344,20 @@ class _MushafReaderScreenState
                       decoration: BoxDecoration(
                         color: c.divider,
                         borderRadius:
-                            BorderRadius.circular(2),
+                            AppRadius.pillRadius,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(
+                      height: AppSpacing.base),
                   Row(
                     children: [
-                      Icon(Icons.bookmark_rounded,
-                          color: c.goldText, size: 20),
-                      const SizedBox(width: 8),
+                      Icon(
+                          Icons.bookmark_rounded,
+                          color: c.goldText,
+                          size: 20),
+                      const SizedBox(
+                          width: AppSpacing.sm),
                       Text(
                         'Bookmarks',
                         style: AppText.latin(
@@ -363,11 +377,12 @@ class _MushafReaderScreenState
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.md),
                   if (bookmarks.isEmpty)
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 24),
+                      padding:
+                          const EdgeInsets.symmetric(
+                              vertical: AppSpacing.lg),
                       child: Center(
                         child: Text(
                           'No bookmarks yet.\nTap the bookmark icon to save your position.',
@@ -384,14 +399,17 @@ class _MushafReaderScreenState
                     ConstrainedBox(
                       constraints: BoxConstraints(
                         maxHeight:
-                            MediaQuery.of(ctx).size.height *
+                            MediaQuery.of(ctx)
+                                    .size
+                                    .height *
                                 0.4,
                       ),
                       child: ListView.separated(
                         shrinkWrap: true,
                         itemCount: bookmarks.length,
                         separatorBuilder: (_, __) =>
-                            const SizedBox(height: 8),
+                            const SizedBox(
+                                height: AppSpacing.sm),
                         itemBuilder: (ctx, index) {
                           final bm = bookmarks[index];
                           return _BookmarkRow(
@@ -403,7 +421,8 @@ class _MushafReaderScreenState
                             },
                             onDelete: () {
                               _bookmarkService
-                                  .removeBookmark(bm.page);
+                                  .removeBookmark(
+                                      bm.page);
                             },
                           );
                         },
@@ -431,8 +450,12 @@ class _MushafReaderScreenState
           children: [
             // ── Top Bar ──
             Padding(
-              padding:
-                  const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.base,
+                AppSpacing.base,
+                AppSpacing.base,
+                0,
+              ),
               child: Row(
                 children: [
                   GestureDetector(
@@ -444,8 +467,9 @@ class _MushafReaderScreenState
                       decoration: BoxDecoration(
                         color: c.surface2,
                         borderRadius:
-                            BorderRadius.circular(11),
-                        border: Border.all(color: c.divider),
+                            AppRadius.buttonRadius,
+                        border: Border.all(
+                            color: c.divider),
                       ),
                       child: Icon(
                         Icons.arrow_back_rounded,
@@ -455,7 +479,8 @@ class _MushafReaderScreenState
                     ),
                   ),
 
-                  const SizedBox(width: 8),
+                  const SizedBox(
+                      width: AppSpacing.sm),
 
                   Expanded(
                     child: Text(
@@ -472,7 +497,7 @@ class _MushafReaderScreenState
                     ),
                   ),
 
-                  const SizedBox(width: 6),
+                  const SizedBox(width: AppSpacing.sm),
 
                   // Surah index button
                   if (_isReady &&
@@ -486,10 +511,10 @@ class _MushafReaderScreenState
                         decoration: BoxDecoration(
                           color: c.goldLine,
                           borderRadius:
-                              BorderRadius.circular(9),
+                              AppRadius.buttonRadius,
                           border: Border.all(
-                            color:
-                                c.goldText.withOpacity(0.5),
+                            color: c.goldText
+                                .withOpacity(0.5),
                           ),
                         ),
                         child: Icon(
@@ -500,7 +525,7 @@ class _MushafReaderScreenState
                       ),
                     ),
 
-                  const SizedBox(width: 6),
+                  const SizedBox(width: AppSpacing.sm),
 
                   // Add bookmark
                   if (_isReady && !_showLoadingOverlay)
@@ -521,7 +546,7 @@ class _MushafReaderScreenState
                                   ? c.goldLine
                                   : c.surface2,
                               borderRadius:
-                                  BorderRadius.circular(9),
+                                  AppRadius.buttonRadius,
                               border: Border.all(
                                 color: isMarked
                                     ? c.goldText
@@ -531,7 +556,8 @@ class _MushafReaderScreenState
                             ),
                             child: Icon(
                               isMarked
-                                  ? Icons.bookmark_rounded
+                                  ? Icons
+                                      .bookmark_rounded
                                   : Icons
                                       .bookmark_border_rounded,
                               size: 16,
@@ -544,7 +570,7 @@ class _MushafReaderScreenState
                       ),
                     ),
 
-                  const SizedBox(width: 6),
+                  const SizedBox(width: AppSpacing.sm),
 
                   // Bookmarks list
                   if (_isReady && !_showLoadingOverlay)
@@ -559,7 +585,7 @@ class _MushafReaderScreenState
                             decoration: BoxDecoration(
                               color: c.surface2,
                               borderRadius:
-                                  BorderRadius.circular(9),
+                                  AppRadius.buttonRadius,
                               border: Border.all(
                                   color: c.divider),
                             ),
@@ -610,21 +636,22 @@ class _MushafReaderScreenState
                       ),
                     ),
 
-                  const SizedBox(width: 6),
+                  const SizedBox(width: AppSpacing.sm),
 
                   // Page counter
                   if (_isReady && !_showLoadingOverlay)
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 6,
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.sm - 1,
                       ),
                       decoration: BoxDecoration(
                         color: c.surface2,
                         borderRadius:
-                            BorderRadius.circular(10),
-                        border:
-                            Border.all(color: c.divider),
+                            AppRadius.buttonRadius,
+                        border: Border.all(
+                            color: c.divider),
                       ),
                       child: Text(
                         '${_currentPage + 1}/$_totalPages',
@@ -643,15 +670,16 @@ class _MushafReaderScreenState
             if (_isReady &&
                 !_showLoadingOverlay &&
                 _totalPages > 0) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 20),
+                    horizontal: AppSpacing.base),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: AppRadius.pillRadius,
                   child: LinearProgressIndicator(
                     value: _totalPages > 0
-                        ? (_currentPage + 1) / _totalPages
+                        ? (_currentPage + 1) /
+                            _totalPages
                         : 0,
                     backgroundColor: c.surface2,
                     valueColor:
@@ -663,7 +691,7 @@ class _MushafReaderScreenState
               ),
             ],
 
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
 
             // PDF viewer
             Expanded(
@@ -724,7 +752,7 @@ class _MushafReaderScreenState
             if (_isReady && !_showLoadingOverlay)
               Container(
                 padding: const EdgeInsets.symmetric(
-                    vertical: 10),
+                    vertical: AppSpacing.sm),
                 decoration: BoxDecoration(
                   color: c.card,
                   border: Border(
@@ -734,16 +762,15 @@ class _MushafReaderScreenState
                 child: Center(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
+                      horizontal: AppSpacing.base,
+                      vertical: AppSpacing.sm - 1,
                     ),
                     decoration: BoxDecoration(
                       color: c.goldLine,
-                      borderRadius:
-                          BorderRadius.circular(20),
+                      borderRadius: AppRadius.pillRadius,
                       border: Border.all(
-                        color:
-                            c.goldText.withOpacity(0.35),
+                        color: c.goldText
+                            .withOpacity(0.35),
                       ),
                     ),
                     child: Text(
@@ -765,7 +792,7 @@ class _MushafReaderScreenState
   }
 }
 
-// ─── Surah Index Content ─────────────────────────────────
+// ─── Surah Index Content ──────────────────────────────────
 
 class _SurahIndexContent extends StatelessWidget {
   final MushafEdition edition;
@@ -804,7 +831,8 @@ class _SurahIndexContent extends StatelessWidget {
     }
 
     for (final extra in edition.extras) {
-      if (extra.page > 0 && extra.titleAr.isNotEmpty) {
+      if (extra.page > 0 &&
+          extra.titleAr.isNotEmpty) {
         items.add(_IndexItem(
           number: null,
           titleAr: extra.titleAr,
@@ -816,7 +844,12 @@ class _SurahIndexContent extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.base,
+        AppSpacing.base,
+        AppSpacing.base,
+        0,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -826,17 +859,17 @@ class _SurahIndexContent extends StatelessWidget {
               height: 4,
               decoration: BoxDecoration(
                 color: c.divider,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: AppRadius.pillRadius,
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.md),
 
           Row(
             children: [
               Icon(Icons.list_rounded,
                   color: c.goldText, size: 20),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               Text(
                 'فهرس السور',
                 textDirection: TextDirection.rtl,
@@ -858,14 +891,14 @@ class _SurahIndexContent extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
 
           Expanded(
             child: ListView.separated(
               controller: scrollController,
               itemCount: items.length,
               separatorBuilder: (_, __) =>
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpacing.sm - 2),
               itemBuilder: (ctx, index) {
                 final item = items[index];
                 return _IndexRow(
@@ -917,14 +950,13 @@ class _IndexRow extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 10,
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
         ),
         decoration: BoxDecoration(
-          color: item.isExtra
-              ? c.goldLine
-              : c.surface2,
-          borderRadius: BorderRadius.circular(10),
+          color: item.isExtra ? c.goldLine : c.surface2,
+          // listItem radius for list rows
+          borderRadius: AppRadius.listItemRadius,
           border: Border.all(
             color: item.isExtra
                 ? c.goldText.withOpacity(0.35)
@@ -962,7 +994,7 @@ class _IndexRow extends StatelessWidget {
                     ),
             ),
 
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpacing.sm),
 
             Expanded(
               child: Column(
@@ -979,8 +1011,10 @@ class _IndexRow extends StatelessWidget {
                       weight: FontWeight.w700,
                     ),
                   ),
-                  if (item.transliteration != null) ...[
-                    const SizedBox(height: 1),
+                  if (item.transliteration !=
+                      null) ...[
+                    const SizedBox(
+                        height: AppSpacing.xs),
                     Text(
                       item.transliteration!,
                       style: AppText.latin(
@@ -993,16 +1027,17 @@ class _IndexRow extends StatelessWidget {
               ),
             ),
 
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.sm),
 
             Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
               ),
               decoration: BoxDecoration(
                 color: c.goldLine,
-                borderRadius: BorderRadius.circular(8),
+                // pill radius for page number badge
+                borderRadius: AppRadius.pillRadius,
                 border: Border.all(
                   color: c.goldText.withOpacity(0.3),
                 ),
@@ -1023,7 +1058,7 @@ class _IndexRow extends StatelessWidget {
   }
 }
 
-// ─── Bookmark Row ────────────────────────────────────────
+// ─── Bookmark Row ─────────────────────────────────────────
 
 class _BookmarkRow extends StatelessWidget {
   final PdfBookmark bookmark;
@@ -1046,12 +1081,12 @@ class _BookmarkRow extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 12,
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
         ),
         decoration: BoxDecoration(
           color: c.surface2,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppRadius.listItemRadius,
           border: Border.all(color: c.divider),
         ),
         child: Row(
@@ -1076,7 +1111,7 @@ class _BookmarkRow extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment:
@@ -1092,7 +1127,7 @@ class _BookmarkRow extends StatelessWidget {
                       weight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     'Page ${bookmark.page + 1}',
                     style: AppText.latin(
@@ -1126,7 +1161,7 @@ class _BookmarkRow extends StatelessWidget {
   }
 }
 
-// ─── Loading Overlay ─────────────────────────────────────
+// ─── Loading Overlay ──────────────────────────────────────
 
 class _LoadingOverlay extends StatelessWidget {
   final AppColors colors;
@@ -1162,7 +1197,8 @@ class _LoadingOverlay extends StatelessWidget {
           color: c.bg,
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.all(32),
+              padding: const EdgeInsets.all(
+                  AppSpacing.xl),
               child: Column(
                 mainAxisAlignment:
                     MainAxisAlignment.center,
@@ -1173,7 +1209,8 @@ class _LoadingOverlay extends StatelessWidget {
                       color: c.danger,
                       size: 48,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(
+                        height: AppSpacing.base),
                     Text(
                       errorMessage!,
                       textAlign: TextAlign.center,
@@ -1187,7 +1224,8 @@ class _LoadingOverlay extends StatelessWidget {
                     SizedBox(
                       width: 60,
                       height: 60,
-                      child: CircularProgressIndicator(
+                      child:
+                          CircularProgressIndicator(
                         value: progress > 0
                             ? progress
                             : null,
@@ -1196,18 +1234,21 @@ class _LoadingOverlay extends StatelessWidget {
                         backgroundColor: c.surface2,
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(
+                        height: AppSpacing.lg),
                     Text(
                       'Downloading $title...',
                       textAlign: TextAlign.center,
-                      textDirection: TextDirection.rtl,
+                      textDirection:
+                          TextDirection.rtl,
                       style: AppText.arabic(
                         color: c.textPrimary,
                         size: 15,
                         weight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(
+                        height: AppSpacing.sm - 2),
                     Text(
                       progress > 0
                           ? '$percent%'
@@ -1218,7 +1259,8 @@ class _LoadingOverlay extends StatelessWidget {
                         weight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(
+                        height: AppSpacing.md),
                     Text(
                       'This is a one-time download.',
                       textAlign: TextAlign.center,
@@ -1233,7 +1275,8 @@ class _LoadingOverlay extends StatelessWidget {
                       color: c.goldText,
                       strokeWidth: 2,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(
+                        height: AppSpacing.base),
                     Text(
                       defaultPage > 0
                           ? 'Opening to page ${defaultPage + 1}...'
