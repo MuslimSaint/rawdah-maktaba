@@ -6,9 +6,12 @@ import '../core/catalog_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
+// FIX: import public TeacherAvatar
 import 'book_detail_screen.dart' show TeacherAvatar;
 import 'surah_audio_player_screen.dart';
-import 'surah_detail_screen.dart' show _ReciterAvatar;
+// FIX: was show _ReciterAvatar — private, not exportable
+// now show ReciterAvatar — public
+import 'surah_detail_screen.dart' show ReciterAvatar;
 
 enum SurahNarratorType { reciter, teacher }
 
@@ -84,7 +87,6 @@ class _SurahLessonsScreenState
   Widget build(BuildContext context) {
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
-
     final accent = _isReciter ? c.goldText : c.brand;
 
     if (_totalParts == 0) {
@@ -110,11 +112,9 @@ class _SurahLessonsScreenState
                       mainAxisAlignment:
                           MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.headphones_rounded,
-                          size: 48,
-                          color: c.textFaint,
-                        ),
+                        Icon(Icons.headphones_rounded,
+                            size: 48,
+                            color: c.textFaint),
                         const SizedBox(
                             height: AppSpacing.base),
                         Text(
@@ -133,9 +133,8 @@ class _SurahLessonsScreenState
                               : 'Tafseer by this teacher is coming soon.',
                           textAlign: TextAlign.center,
                           style: AppText.latin(
-                            color: c.textMuted,
-                            size: 13,
-                          ),
+                              color: c.textMuted,
+                              size: 13),
                         ),
                       ],
                     ),
@@ -156,8 +155,9 @@ class _SurahLessonsScreenState
             _TopBar(
               meta: widget.meta,
               narratorNameEn: _narratorNameEn,
-              label:
-                  _isReciter ? 'Recited by' : 'Taught by',
+              label: _isReciter
+                  ? 'Recited by'
+                  : 'Taught by',
               colors: c,
             ),
 
@@ -167,8 +167,8 @@ class _SurahLessonsScreenState
               padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.base),
               child: Container(
-                padding: const EdgeInsets.all(
-                    AppSpacing.base),
+                padding:
+                    const EdgeInsets.all(AppSpacing.base),
                 decoration: BoxDecoration(
                   color: c.card,
                   borderRadius: AppRadius.cardRadius,
@@ -179,15 +179,14 @@ class _SurahLessonsScreenState
                   children: [
                     Row(
                       children: [
-                        // ── Narrator avatar ──────
-                        // Teacher → photo or initials
-                        // Reciter → photo or mic icon
                         ListenableBuilder(
                           listenable:
                               state.downloadService,
                           builder: (context, _) {
                             if (_isReciter) {
-                              return _ReciterAvatar(
+                              // FIX: was _ReciterAvatar
+                              // now ReciterAvatar (public)
+                              return ReciterAvatar(
                                 reciter: widget.reciter!,
                                 downloadService:
                                     state.downloadService,
@@ -212,8 +211,7 @@ class _SurahLessonsScreenState
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
+                                CrossAxisAlignment.start,
                             children: [
                               Text(
                                 _narratorNameAr,
@@ -222,19 +220,15 @@ class _SurahLessonsScreenState
                                 style: AppText.arabic(
                                   color: c.textPrimary,
                                   size: 15,
-                                  weight:
-                                      FontWeight.w700,
+                                  weight: FontWeight.w700,
                                 ),
                               ),
                               const SizedBox(
                                   height: AppSpacing.xs),
-                              Text(
-                                _narratorNameEn,
-                                style: AppText.latin(
-                                  color: c.textMuted,
-                                  size: 12,
-                                ),
-                              ),
+                              Text(_narratorNameEn,
+                                  style: AppText.latin(
+                                      color: c.textMuted,
+                                      size: 12)),
                             ],
                           ),
                         ),
@@ -246,41 +240,32 @@ class _SurahLessonsScreenState
                             vertical: AppSpacing.sm,
                           ),
                           decoration: BoxDecoration(
-                            color:
-                                accent.withOpacity(0.1),
+                            color: accent.withOpacity(0.1),
                             borderRadius:
                                 AppRadius.listItemRadius,
                             border: Border.all(
-                              color: accent
-                                  .withOpacity(0.25),
-                            ),
+                                color: accent
+                                    .withOpacity(0.25)),
                           ),
                           child: Column(
                             children: [
-                              Text(
-                                '$_totalParts',
-                                style: AppText.latin(
-                                  color: accent,
-                                  size: 18,
-                                  weight:
-                                      FontWeight.w700,
-                                ),
-                              ),
-                              Text(
-                                'parts',
-                                style: AppText.latin(
-                                  color: accent,
-                                  size: 10,
-                                ),
-                              ),
+                              Text('$_totalParts',
+                                  style: AppText.latin(
+                                    color: accent,
+                                    size: 18,
+                                    weight: FontWeight.w700,
+                                  )),
+                              Text('parts',
+                                  style: AppText.latin(
+                                      color: accent,
+                                      size: 10)),
                             ],
                           ),
                         ),
                       ],
                     ),
 
-                    const SizedBox(
-                        height: AppSpacing.md),
+                    const SizedBox(height: AppSpacing.md),
 
                     Column(
                       crossAxisAlignment:
@@ -288,23 +273,18 @@ class _SurahLessonsScreenState
                       children: [
                         Row(
                           mainAxisAlignment:
-                              MainAxisAlignment
-                                  .spaceBetween,
+                              MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Progress',
-                              style: AppText.latin(
-                                color: c.textMuted,
-                                size: 11,
-                              ),
-                            ),
+                            Text('Progress',
+                                style: AppText.latin(
+                                    color: c.textMuted,
+                                    size: 11)),
                             Text(
                               '$_completedCount / $_totalParts',
                               style: AppText.latin(
-                                color: accent,
-                                size: 11,
-                                weight: FontWeight.w700,
-                              ),
+                                  color: accent,
+                                  size: 11,
+                                  weight: FontWeight.w700),
                             ),
                           ],
                         ),
@@ -341,8 +321,7 @@ class _SurahLessonsScreenState
                 ),
                 itemCount: _parts.length,
                 separatorBuilder: (_, __) =>
-                    const SizedBox(
-                        height: AppSpacing.sm),
+                    const SizedBox(height: AppSpacing.sm),
                 itemBuilder: (context, index) {
                   final partNumber = _parts[index];
                   final isDone =
@@ -361,8 +340,7 @@ class _SurahLessonsScreenState
                     teacherAudio: widget.teacherAudio,
                     reciter: widget.reciter,
                     teacher: widget.teacher,
-                    downloadService:
-                        state.downloadService,
+                    downloadService: state.downloadService,
                     catalogService: state.catalogService,
                     onTap: () {
                       Navigator.of(context).push(
@@ -371,8 +349,7 @@ class _SurahLessonsScreenState
                               ? SurahAudioPlayerScreen
                                   .reciter(
                                   meta: widget.meta,
-                                  reciter:
-                                      widget.reciter!,
+                                  reciter: widget.reciter!,
                                   reciterAudio:
                                       widget.reciterAudio!,
                                   initialPartIndex: index,
@@ -380,8 +357,7 @@ class _SurahLessonsScreenState
                               : SurahAudioPlayerScreen
                                   .teacher(
                                   meta: widget.meta,
-                                  teacher:
-                                      widget.teacher!,
+                                  teacher: widget.teacher!,
                                   teacherAudio:
                                       widget.teacherAudio!,
                                   initialPartIndex: index,
@@ -442,11 +418,8 @@ class _TopBar extends StatelessWidget {
                 borderRadius: AppRadius.buttonRadius,
                 border: Border.all(color: c.divider),
               ),
-              child: Icon(
-                Icons.arrow_back_rounded,
-                size: 18,
-                color: c.textPrimary,
-              ),
+              child: Icon(Icons.arrow_back_rounded,
+                  size: 18, color: c.textPrimary),
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -469,9 +442,7 @@ class _TopBar extends StatelessWidget {
                 Text(
                   '$label: $narratorNameEn',
                   style: AppText.latin(
-                    color: c.goldText,
-                    size: 11,
-                  ),
+                      color: c.goldText, size: 11),
                 ),
               ],
             ),
@@ -568,8 +539,7 @@ class _SurahLessonRow extends StatelessWidget {
         return GestureDetector(
           onTap: isDownloaded ? onTap : null,
           child: Container(
-            padding:
-                const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: c.card,
               borderRadius: AppRadius.cardRadius,
@@ -592,13 +562,10 @@ class _SurahLessonRow extends StatelessWidget {
                         height: 36,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: isDone
-                              ? accent
-                              : c.surface2,
+                          color:
+                              isDone ? accent : c.surface2,
                           border: Border.all(
-                            color: isDone
-                                ? accent
-                                : c.divider,
+                            color: isDone ? accent : c.divider,
                           ),
                         ),
                         alignment: Alignment.center,
@@ -606,22 +573,19 @@ class _SurahLessonRow extends StatelessWidget {
                             ? const Icon(
                                 Icons.check_rounded,
                                 size: 18,
-                                color: Colors.white,
-                              )
+                                color: Colors.white)
                             : Text(
                                 '$displayIndex',
                                 style: AppText.latin(
                                   color: c.textMuted,
                                   size: 13,
-                                  weight:
-                                      FontWeight.w700,
+                                  weight: FontWeight.w700,
                                 ),
                               ),
                       ),
                     ),
 
-                    const SizedBox(
-                        width: AppSpacing.md),
+                    const SizedBox(width: AppSpacing.md),
 
                     Expanded(
                       child: Column(
@@ -645,16 +609,14 @@ class _SurahLessonRow extends StatelessWidget {
                           Text(
                             '$displayIndex of $totalParts',
                             style: AppText.latin(
-                              color: c.textFaint,
-                              size: 11,
-                            ),
+                                color: c.textFaint,
+                                size: 11),
                           ),
                         ],
                       ),
                     ),
 
-                    const SizedBox(
-                        width: AppSpacing.md),
+                    const SizedBox(width: AppSpacing.md),
 
                     GestureDetector(
                       onTap: () {
@@ -664,18 +626,14 @@ class _SurahLessonRow extends StatelessWidget {
                         } else if (isDownloaded) {
                           onTap();
                         } else {
-                          // Pass photo params so photo
-                          // downloads with audio
                           downloadService.download(
                             fileId: _fileId,
                             url: _audioUrl,
                             displayName:
                                 '${meta.nameAr} - $lessonTitle',
-                            bookId:
-                                'surah_${meta.number}',
+                            bookId: 'surah_${meta.number}',
                             personId: _personId,
-                            personPhotoUrl:
-                                _personPhotoUrl,
+                            personPhotoUrl: _personPhotoUrl,
                             onError: (_) {},
                             onComplete: () {},
                           );
@@ -692,31 +650,22 @@ class _SurahLessonRow extends StatelessWidget {
                               ? c.dangerBg
                               : isDownloaded
                                   ? accent
-                                  : accent
-                                      .withOpacity(0.1),
+                                  : accent.withOpacity(0.1),
                           border: Border.all(
                             color: isDownloading
-                                ? c.danger
-                                    .withOpacity(0.3)
+                                ? c.danger.withOpacity(0.3)
                                 : isDownloaded
                                     ? accent
-                                    : accent
-                                        .withOpacity(
-                                            0.3),
+                                    : accent.withOpacity(0.3),
                           ),
                         ),
                         child: isDownloading
-                            ? Icon(
-                                Icons.close_rounded,
-                                size: 18,
-                                color: c.danger,
-                              )
+                            ? Icon(Icons.close_rounded,
+                                size: 18, color: c.danger)
                             : Icon(
                                 isDownloaded
-                                    ? Icons
-                                        .play_arrow_rounded
-                                    : Icons
-                                        .download_rounded,
+                                    ? Icons.play_arrow_rounded
+                                    : Icons.download_rounded,
                                 size: 20,
                                 color: isDownloaded
                                     ? Colors.white
