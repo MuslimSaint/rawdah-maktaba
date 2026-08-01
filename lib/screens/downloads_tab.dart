@@ -123,7 +123,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
     }
   }
 
-  // ─── Name resolution ──────────────────────────
+  // ─── Name resolution ──────────────────────────────
 
   String _displayName(String fileId, AppState state) {
     if (fileId == 'pdf_mushaf') {
@@ -312,7 +312,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top Bar ──
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.base,
@@ -390,14 +389,15 @@ class _DownloadsTabState extends State<DownloadsTab> {
                       listenable:
                           state.downloadService,
                       builder: (context, _) {
-                        final activeDownloads = state
-                            .downloadService
-                            .activeDownloads;
+                        // FIX: explicitly typed to
+                        // avoid Object? inference
+                        final activeDownloads =
+                            state.downloadService
+                                .activeDownloads;
                         final hasActive =
                             activeDownloads.isNotEmpty;
                         final hasCompleted =
-                            _downloadedFiles
-                                .isNotEmpty;
+                            _downloadedFiles.isNotEmpty;
 
                         if (!hasActive &&
                             !hasCompleted) {
@@ -414,7 +414,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
                             AppSpacing.lg,
                           ),
                           children: [
-                            // ── Active Downloads ──
                             if (hasActive) ...[
                               Text(
                                 'Downloading Now',
@@ -428,8 +427,15 @@ class _DownloadsTabState extends State<DownloadsTab> {
                               const SizedBox(
                                   height:
                                       AppSpacing.sm),
-                              ...activeDownloads
-                                  .map((active) {
+                              // FIX: cast each entry
+                              // explicitly to
+                              // Map<String, dynamic>
+                              ...activeDownloads.map(
+                                  (activeRaw) {
+                                final active =
+                                    activeRaw as Map<
+                                        String,
+                                        dynamic>;
                                 final fileId =
                                     active['fileId']
                                         as String;
@@ -446,8 +452,8 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                     active['paused']
                                         as bool? ??
                                     false;
-                                final awaiting = active[
-                                            'awaitingNetwork']
+                                final awaiting =
+                                    active['awaitingNetwork']
                                         as bool? ??
                                     false;
 
@@ -510,7 +516,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                       AppSpacing.lg),
                             ],
 
-                            // ── Completed ──
                             if (hasCompleted) ...[
                               _StorageCard(
                                 totalMb:
@@ -720,16 +725,12 @@ class _ActiveDownloadCard extends StatelessWidget {
                   ),
                   child: Icon(
                     isQuran
-                        ? Icons
-                            .import_contacts_rounded
+                        ? Icons.import_contacts_rounded
                         : isPdf
-                            ? Icons
-                                .picture_as_pdf_rounded
+                            ? Icons.picture_as_pdf_rounded
                             : Icons.headphones_rounded,
                     size: 22,
-                    color: isQuran
-                        ? c.goldText
-                        : c.brand,
+                    color: isQuran ? c.goldText : c.brand,
                   ),
                 ),
 
@@ -767,8 +768,7 @@ class _ActiveDownloadCard extends StatelessWidget {
                                 : isQuran
                                     ? c.goldLine
                                     : c.brand
-                                        .withOpacity(
-                                            0.1),
+                                        .withOpacity(0.1),
                             borderRadius:
                                 AppRadius.pillRadius,
                           ),
@@ -796,11 +796,9 @@ class _ActiveDownloadCard extends StatelessWidget {
                             !isAwaitingNetwork) ...[
                           const SizedBox(
                               width: AppSpacing.sm),
-                          Icon(
-                            Icons.speed_rounded,
-                            size: 11,
-                            color: c.textFaint,
-                          ),
+                          Icon(Icons.speed_rounded,
+                              size: 11,
+                              color: c.textFaint),
                           const SizedBox(
                               width: AppSpacing.xs),
                           Text(
@@ -841,8 +839,8 @@ class _ActiveDownloadCard extends StatelessWidget {
                       color: c.surface2,
                       borderRadius:
                           AppRadius.buttonRadius,
-                      border: Border.all(
-                          color: c.divider),
+                      border:
+                          Border.all(color: c.divider),
                     ),
                     child: Icon(
                       isPaused
@@ -866,14 +864,10 @@ class _ActiveDownloadCard extends StatelessWidget {
                     borderRadius:
                         AppRadius.buttonRadius,
                     border: Border.all(
-                      color: c.danger.withOpacity(0.3),
-                    ),
+                        color: c.danger.withOpacity(0.3)),
                   ),
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 16,
-                    color: c.danger,
-                  ),
+                  child: Icon(Icons.close_rounded,
+                      size: 16, color: c.danger),
                 ),
               ),
             ],
@@ -918,9 +912,7 @@ class _ActiveDownloadCard extends StatelessWidget {
               Text(
                 hintLabel,
                 style: AppText.latin(
-                  color: c.textFaint,
-                  size: 10,
-                ),
+                    color: c.textFaint, size: 10),
               ),
             ],
           ),
@@ -952,15 +944,12 @@ class _EmptyState extends StatelessWidget {
                 color: c.brand.withOpacity(0.08),
                 borderRadius: AppRadius.cardRadius,
                 border: Border.all(
-                  color: c.brand.withOpacity(0.18),
-                  width: 1.5,
-                ),
+                    color: c.brand.withOpacity(0.18),
+                    width: 1.5),
               ),
-              child: Icon(
-                Icons.download_rounded,
-                size: 40,
-                color: c.brand.withOpacity(0.4),
-              ),
+              child: Icon(Icons.download_rounded,
+                  size: 40,
+                  color: c.brand.withOpacity(0.4)),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
@@ -976,10 +965,9 @@ class _EmptyState extends StatelessWidget {
               'Books and audio you download will appear here.',
               textAlign: TextAlign.center,
               style: AppText.latin(
-                color: c.textMuted,
-                size: 13,
-                height: 1.6,
-              ),
+                  color: c.textMuted,
+                  size: 13,
+                  height: 1.6),
             ),
           ],
         ),
@@ -1014,8 +1002,7 @@ class _StorageCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: c.card,
         borderRadius: AppRadius.cardRadius,
-        border: Border.all(
-            color: c.goldLine, width: 1.5),
+        border: Border.all(color: c.goldLine, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1037,10 +1024,9 @@ class _StorageCard extends StatelessWidget {
               Text(
                 display,
                 style: AppText.latin(
-                  color: c.brand,
-                  size: 14,
-                  weight: FontWeight.w700,
-                ),
+                    color: c.brand,
+                    size: 14,
+                    weight: FontWeight.w700),
               ),
             ],
           ),
@@ -1108,8 +1094,6 @@ class _DownloadedFileCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: c.card,
-          // List items use listItem radius —
-          // smaller than content cards.
           borderRadius: AppRadius.listItemRadius,
           border: Border.all(color: c.divider),
         ),
@@ -1145,9 +1129,8 @@ class _DownloadedFileCard extends StatelessWidget {
                           ? Icons.picture_as_pdf_rounded
                           : Icons.headphones_rounded,
                   size: 22,
-                  color: isQuranFile
-                      ? c.goldText
-                      : c.brand,
+                  color:
+                      isQuranFile ? c.goldText : c.brand,
                 ),
               ),
 
@@ -1162,10 +1145,9 @@ class _DownloadedFileCard extends StatelessWidget {
                     displayName,
                     textDirection: TextDirection.rtl,
                     style: AppText.arabic(
-                      color: c.textPrimary,
-                      size: 13,
-                      weight: FontWeight.w700,
-                    ),
+                        color: c.textPrimary,
+                        size: 13,
+                        weight: FontWeight.w700),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1175,9 +1157,7 @@ class _DownloadedFileCard extends StatelessWidget {
                     Text(
                       subtitle!,
                       style: AppText.latin(
-                        color: c.textMuted,
-                        size: 10,
-                      ),
+                          color: c.textMuted, size: 10),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1194,8 +1174,7 @@ class _DownloadedFileCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: isQuranFile
                               ? c.goldLine
-                              : c.brand.withOpacity(
-                                  0.08),
+                              : c.brand.withOpacity(0.08),
                           borderRadius:
                               AppRadius.pillRadius,
                         ),
@@ -1212,25 +1191,20 @@ class _DownloadedFileCard extends StatelessWidget {
                       ),
                       const SizedBox(
                           width: AppSpacing.sm),
-                      Text(
-                        sizeDisplay,
-                        style: AppText.latin(
-                            color: c.textFaint,
-                            size: 11),
-                      ),
+                      Text(sizeDisplay,
+                          style: AppText.latin(
+                              color: c.textFaint,
+                              size: 11)),
                       const SizedBox(
                           width: AppSpacing.sm - 2),
-                      Icon(
-                          Icons.check_circle_rounded,
-                          size: 12,
-                          color: c.brand),
+                      Icon(Icons.check_circle_rounded,
+                          size: 12, color: c.brand),
                       const SizedBox(
                           width: AppSpacing.xs),
-                      Text(
-                        'On device',
-                        style: AppText.latin(
-                            color: c.brand, size: 10),
-                      ),
+                      Text('On device',
+                          style: AppText.latin(
+                              color: c.brand,
+                              size: 10)),
                     ],
                   ),
                 ],
@@ -1246,17 +1220,14 @@ class _DownloadedFileCard extends StatelessWidget {
                 height: 34,
                 decoration: BoxDecoration(
                   color: c.dangerBg,
-                  borderRadius:
-                      AppRadius.buttonRadius,
+                  borderRadius: AppRadius.buttonRadius,
                   border: Border.all(
-                      color:
-                          c.danger.withOpacity(0.3)),
+                      color: c.danger.withOpacity(0.3)),
                 ),
                 child: Icon(
-                  Icons.delete_outline_rounded,
-                  size: 16,
-                  color: c.danger,
-                ),
+                    Icons.delete_outline_rounded,
+                    size: 16,
+                    color: c.danger),
               ),
             ),
           ],
