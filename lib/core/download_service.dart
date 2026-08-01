@@ -21,11 +21,9 @@ class DownloadService extends ChangeNotifier {
   final Map<String, StreamSubscription<List<int>>>
       _activeSubs = {};
   final Map<String, IOSink> _activeSinks = {};
-  final Map<String, http.Client>> _activeClients = {};
+  // FIX: was Map<String, http.Client>> — extra >
+  final Map<String, http.Client> _activeClients = {};
 
-  // ── Photo state ──────────────────────────────────
-  // Tracks which teacher/reciter photos have been
-  // downloaded. Keyed by person ID (teacher or reciter).
   final Set<String> _downloadedPhotos = {};
   final Set<String> _downloadingPhotos = {};
 
@@ -34,13 +32,9 @@ class DownloadService extends ChangeNotifier {
       'downloaded_photos';
   static const _partialPrefix = 'partial_bytes_';
 
-  // ─── Callbacks ─────────────────────────────────────
   Future<void> Function(String bookId, String pdfPath)?
       onPdfDownloadComplete;
   Future<void> Function(String bookId)? onPdfFileDeleted;
-
-  /// Called when a teacher/reciter photo is downloaded.
-  /// Arg is the person ID (teacher or reciter id).
   Future<void> Function(String personId, String photoPath)?
       onPhotoDownloaded;
 
@@ -69,7 +63,6 @@ class DownloadService extends ChangeNotifier {
       notifyListeners();
     }
 
-    // Verify photo files still exist on disk
     final photosToRemove = <String>[];
     for (final id in _downloadedPhotos) {
       final file = await _photoFileFor(id);
@@ -99,12 +92,8 @@ class DownloadService extends ChangeNotifier {
     return null;
   }
 
-  // ─── Photo download (background, silent) ───────────
+  // ─── Photo download ────────────────────────────────
 
-  /// Downloads a teacher or reciter photo in the
-  /// background. Silent — no progress tracking, no
-  /// UI entry. Skips if already downloaded.
-  /// Called automatically when audio download starts.
   Future<void> downloadPhoto({
     required String personId,
     required String photoUrl,
@@ -134,7 +123,6 @@ class DownloadService extends ChangeNotifier {
       final contentType =
           (response.headers['content-type'] ?? '')
               .toLowerCase();
-      // Accept any image content type
       if (!contentType.startsWith('image/') &&
           !contentType.contains('jpeg') &&
           !contentType.contains('jpg') &&
@@ -166,9 +154,6 @@ class DownloadService extends ChangeNotifier {
     }
   }
 
-  /// Deletes the photo for a person. Called when
-  /// all their audio is deleted (optional — photos
-  /// are small so we keep them by default).
   Future<void> deletePhoto(String personId) async {
     try {
       final file = await _photoFileFor(personId);
@@ -195,9 +180,10 @@ class DownloadService extends ChangeNotifier {
   bool get hasActiveDownloads =>
       _activeDownloads.isNotEmpty;
   List<Map<String, dynamic>> get activeDownloads =>
-      _activeDownloads.values.toList();
+      List<Map<String, dynamic>>.from(
+          _activeDownloads.values);
 
-  // ─── Download (public entry point) ─────────────────
+  // ─── Download ──────────────────────────────────────
 
   Future<void> download({
     required String fileId,
@@ -206,9 +192,6 @@ class DownloadService extends ChangeNotifier {
     required VoidCallback onComplete,
     String? displayName,
     String? bookId,
-    // Photo download params — optional.
-    // When provided, the photo is downloaded in
-    // background as soon as this audio download starts.
     String? personId,
     String? personPhotoUrl,
   }) async {
@@ -260,8 +243,6 @@ class DownloadService extends ChangeNotifier {
 
     notifyListeners();
 
-    // ── Trigger photo download immediately ──────────
-    // Small, background, silent. Does not block audio.
     if (personId != null &&
         personId.isNotEmpty &&
         personPhotoUrl != null &&
@@ -281,7 +262,7 @@ class DownloadService extends ChangeNotifier {
     );
   }
 
-  // ─── Execute (internal) ────────────────────────────
+  // ─── Execute ───────────────────────────────────────
 
   Future<void> _executeDownload({
     required String fileId,
@@ -696,7 +677,10 @@ class DownloadService extends ChangeNotifier {
   }
 
   Future<void> deleteAll() async {
-    final activeIds = {
+    // FIX: was {..._downloading.keys, ..._awaitingNetwork.keys}
+    // which Dart inferred as a Set literal with spread,
+    // but the type was ambiguous. Use explicit Set<String>.
+    final activeIds = <String>{
       ..._downloading.keys,
       ..._awaitingNetwork.keys,
     }.toList();
@@ -775,7 +759,7 @@ class DownloadService extends ChangeNotifier {
     return result;
   }
 
-  // ─── Partial offset persistence ────────────────────
+  // ─── Partial offset ────────────────────────────────
 
   Future<int> _readPartialOffset(
       String fileId) async {
