@@ -159,8 +159,6 @@ class SurahDetailScreen extends StatelessWidget {
   }
 }
 
-// ─── Hero Card ───────────────────────────────────────────
-
 class _HeroCard extends StatelessWidget {
   final SurahMeta meta;
   final AppColors colors;
@@ -227,8 +225,7 @@ class _HeroCard extends StatelessWidget {
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) =>
                     Container(
-                  color:
-                      c.goldText.withOpacity(0.15),
+                  color: c.goldText.withOpacity(0.15),
                   alignment: Alignment.center,
                   child: Icon(
                     Icons.import_contacts_rounded,
@@ -239,9 +236,7 @@ class _HeroCard extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: AppSpacing.md),
-
           Text(
             meta.nameAr,
             textDirection: TextDirection.rtl,
@@ -252,7 +247,6 @@ class _HeroCard extends StatelessWidget {
               height: 1.4,
             ),
           ),
-
           if (trans != null) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(
@@ -264,22 +258,18 @@ class _HeroCard extends StatelessWidget {
               ),
             ),
           ],
-
           const SizedBox(height: AppSpacing.md),
           Divider(
               color: c.goldText.withOpacity(0.2),
               height: 1),
           const SizedBox(height: AppSpacing.md),
-
           Row(
             mainAxisAlignment:
                 MainAxisAlignment.spaceEvenly,
             children: [
               _MetaChip(
-                icon: Icons
-                    .format_list_numbered_rounded,
-                labelLatin:
-                    '${meta.ayahCount} Ayat',
+                icon: Icons.format_list_numbered_rounded,
+                labelLatin: '${meta.ayahCount} Ayat',
                 labelAr: '${meta.ayahCount} آية',
                 colors: c,
                 language: language,
@@ -293,8 +283,7 @@ class _HeroCard extends StatelessWidget {
               ),
               _MetaChip(
                 icon: Icons.numbers_rounded,
-                labelLatin:
-                    '#${meta.revelationOrder}',
+                labelLatin: '#${meta.revelationOrder}',
                 labelAr: '#${meta.revelationOrder}',
                 colors: c,
                 language: language,
@@ -347,8 +336,6 @@ class _MetaChip extends StatelessWidget {
   }
 }
 
-// ─── PDF Section ─────────────────────────────────────────
-
 class _PdfSection extends StatefulWidget {
   final SurahMeta meta;
   final Surah surah;
@@ -398,7 +385,6 @@ class _PdfSectionState extends State<_PdfSection> {
     setState(() => _errorMessage = null);
     final url = widget.catalogService
         .surahPdfUrlFor(widget.surah);
-
     await widget.downloadService.download(
       fileId: _fileId,
       url: url,
@@ -469,15 +455,13 @@ class _PdfSectionState extends State<_PdfSection> {
                         color: isDownloaded
                             ? c.brand
                             : widget.surah.hasPdf
-                                ? c.brand
-                                    .withOpacity(0.12)
+                                ? c.brand.withOpacity(0.12)
                                 : c.surface2,
                         border: Border.all(
                           color: isDownloaded
                               ? c.brand
                               : widget.surah.hasPdf
-                                  ? c.brand
-                                      .withOpacity(0.3)
+                                  ? c.brand.withOpacity(0.3)
                                   : c.divider,
                           width: 1.5,
                         ),
@@ -485,8 +469,7 @@ class _PdfSectionState extends State<_PdfSection> {
                       child: isDownloading
                           ? Padding(
                               padding:
-                                  const EdgeInsets.all(
-                                      14),
+                                  const EdgeInsets.all(14),
                               child:
                                   CircularProgressIndicator(
                                 value: progress > 0
@@ -498,11 +481,9 @@ class _PdfSectionState extends State<_PdfSection> {
                             )
                           : Icon(
                               isDownloaded
-                                  ? Icons
-                                      .menu_book_rounded
+                                  ? Icons.menu_book_rounded
                                   : widget.surah.hasPdf
-                                      ? Icons
-                                          .download_rounded
+                                      ? Icons.download_rounded
                                       : Icons
                                           .hourglass_empty_rounded,
                               size: 22,
@@ -513,8 +494,7 @@ class _PdfSectionState extends State<_PdfSection> {
                                       : c.textFaint,
                             ),
                     ),
-                    const SizedBox(
-                        width: AppSpacing.md),
+                    const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment:
@@ -543,9 +523,8 @@ class _PdfSectionState extends State<_PdfSection> {
                                 ? 'PDF of Surah ${widget.meta.number}'
                                 : 'Not uploaded yet',
                             style: AppText.latin(
-                              color: c.textMuted,
-                              size: 12,
-                            ),
+                                color: c.textMuted,
+                                size: 12),
                           ),
                         ],
                       ),
@@ -558,22 +537,19 @@ class _PdfSectionState extends State<_PdfSection> {
                           vertical: AppSpacing.xs,
                         ),
                         decoration: BoxDecoration(
-                          color:
-                              c.brand.withOpacity(0.1),
+                          color: c.brand.withOpacity(0.1),
                           borderRadius:
                               AppRadius.pillRadius,
                           border: Border.all(
-                            color: c.brand
-                                .withOpacity(0.25),
-                          ),
+                              color: c.brand
+                                  .withOpacity(0.25)),
                         ),
                         child: Text(
                           'Free',
                           style: AppText.latin(
-                            color: c.brand,
-                            size: 12,
-                            weight: FontWeight.w700,
-                          ),
+                              color: c.brand,
+                              size: 12,
+                              weight: FontWeight.w700),
                         ),
                       ),
                     if (isDownloading)
@@ -590,15 +566,11 @@ class _PdfSectionState extends State<_PdfSection> {
                             borderRadius:
                                 AppRadius.buttonRadius,
                             border: Border.all(
-                              color: c.danger
-                                  .withOpacity(0.3),
-                            ),
+                                color: c.danger
+                                    .withOpacity(0.3)),
                           ),
-                          child: Icon(
-                            Icons.close_rounded,
-                            size: 16,
-                            color: c.danger,
-                          ),
+                          child: Icon(Icons.close_rounded,
+                              size: 16, color: c.danger),
                         ),
                       ),
                   ],
@@ -608,8 +580,7 @@ class _PdfSectionState extends State<_PdfSection> {
                   ClipRRect(
                     borderRadius: AppRadius.pillRadius,
                     child: LinearProgressIndicator(
-                      value:
-                          progress > 0 ? progress : null,
+                      value: progress > 0 ? progress : null,
                       backgroundColor: c.surface2,
                       valueColor:
                           AlwaysStoppedAnimation<Color>(
@@ -621,43 +592,32 @@ class _PdfSectionState extends State<_PdfSection> {
                 if (_errorMessage != null) ...[
                   const SizedBox(height: AppSpacing.sm),
                   Container(
-                    padding: const EdgeInsets.all(
-                        AppSpacing.sm),
+                    padding:
+                        const EdgeInsets.all(AppSpacing.sm),
                     decoration: BoxDecoration(
                       color: c.dangerBg,
                       borderRadius:
                           AppRadius.listItemRadius,
                       border: Border.all(
-                        color:
-                            c.danger.withOpacity(0.3),
-                      ),
+                          color: c.danger.withOpacity(0.3)),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.error_outline_rounded,
-                          color: c.danger,
-                          size: 14,
-                        ),
+                        Icon(Icons.error_outline_rounded,
+                            color: c.danger, size: 14),
                         const SizedBox(
                             width: AppSpacing.sm),
                         Expanded(
-                          child: Text(
-                            _errorMessage!,
-                            style: AppText.latin(
-                              color: c.danger,
-                              size: 12,
-                            ),
-                          ),
+                          child: Text(_errorMessage!,
+                              style: AppText.latin(
+                                  color: c.danger,
+                                  size: 12)),
                         ),
                         GestureDetector(
-                          onTap: () => setState(() =>
-                              _errorMessage = null),
-                          child: Icon(
-                            Icons.close_rounded,
-                            color: c.danger,
-                            size: 14,
-                          ),
+                          onTap: () => setState(
+                              () => _errorMessage = null),
+                          child: Icon(Icons.close_rounded,
+                              color: c.danger, size: 14),
                         ),
                       ],
                     ),
@@ -689,8 +649,6 @@ Book fakeBookForSurah(SurahMeta m) {
     addedAt: DateTime.now(),
   );
 }
-
-// ─── Reciters Section ─────────────────────────────────────
 
 class _RecitersSection extends StatelessWidget {
   final Surah surah;
@@ -736,21 +694,15 @@ class _RecitersSection extends StatelessWidget {
             Icon(Icons.mic_rounded,
                 size: 14, color: c.goldText),
             const SizedBox(width: AppSpacing.sm - 2),
-            Text(
-              'RECITERS',
-              style:
-                  AppText.label(color: c.textFaint),
-            ),
+            Text('RECITERS',
+                style: AppText.label(color: c.textFaint)),
           ],
         ),
         const SizedBox(height: AppSpacing.xs + 2),
         Text(
           'Beautiful recitations of this Surah.',
           style: AppText.latin(
-            color: c.textMuted,
-            size: 12,
-            height: 1.5,
-          ),
+              color: c.textMuted, size: 12, height: 1.5),
         ),
         const SizedBox(height: AppSpacing.sm),
         ...reciterPairs.map((pair) {
@@ -797,8 +749,7 @@ class _ReciterCard extends StatefulWidget {
       _ReciterCardState();
 }
 
-class _ReciterCardState
-    extends State<_ReciterCard> {
+class _ReciterCardState extends State<_ReciterCard> {
   int get _partNumber =>
       widget.audio.parts.isNotEmpty
           ? widget.audio.parts.first
@@ -821,8 +772,7 @@ class _ReciterCardState
   void _openPlayer() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            SurahAudioPlayerScreen.reciter(
+        builder: (_) => SurahAudioPlayerScreen.reciter(
           meta: widget.meta,
           reciter: widget.reciter,
           reciterAudio: widget.audio,
@@ -841,7 +791,6 @@ class _ReciterCardState
       displayName:
           '${widget.meta.nameAr} - $lessonTitle',
       bookId: 'surah_${widget.meta.number}',
-      // Pass reciter photo params
       personId: widget.reciter.id,
       personPhotoUrl: widget.reciter.photoUrl,
       onError: (_) {},
@@ -857,19 +806,16 @@ class _ReciterCardState
       listenable: widget.downloadService,
       builder: (context, _) {
         final isDownloaded =
-            widget.downloadService
-                .isDownloaded(_fileId);
+            widget.downloadService.isDownloaded(_fileId);
         final isDownloading =
-            widget.downloadService
-                .isDownloading(_fileId);
+            widget.downloadService.isDownloading(_fileId);
         final progress =
             widget.downloadService.progress(_fileId);
 
         return GestureDetector(
           onTap: isDownloaded ? _openPlayer : null,
           child: Container(
-            padding:
-                const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: c.card,
               borderRadius: AppRadius.cardRadius,
@@ -879,20 +825,16 @@ class _ReciterCardState
               children: [
                 Row(
                   children: [
-                    // ── Reciter avatar ──────────
-                    // Shows photo if downloaded,
-                    // otherwise mic icon in gold circle.
-                    _ReciterAvatar(
+                    // FIX: was _ReciterAvatar (private)
+                    // now ReciterAvatar (public)
+                    ReciterAvatar(
                       reciter: widget.reciter,
                       downloadService:
                           widget.downloadService,
                       colors: c,
                       size: 44,
                     ),
-
-                    const SizedBox(
-                        width: AppSpacing.md),
-
+                    const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment:
@@ -900,8 +842,7 @@ class _ReciterCardState
                         children: [
                           Text(
                             widget.reciter.nameAr,
-                            textDirection:
-                                TextDirection.rtl,
+                            textDirection: TextDirection.rtl,
                             style: AppText.arabic(
                               color: c.textPrimary,
                               size: 14,
@@ -911,20 +852,16 @@ class _ReciterCardState
                           const SizedBox(
                               height: AppSpacing.xs),
                           Text(
-                            widget.reciter.nameFor(
-                                widget.language),
+                            widget.reciter
+                                .nameFor(widget.language),
                             style: AppText.latin(
-                              color: c.textMuted,
-                              size: 12,
-                            ),
+                                color: c.textMuted,
+                                size: 12),
                           ),
                         ],
                       ),
                     ),
-
-                    const SizedBox(
-                        width: AppSpacing.sm),
-
+                    const SizedBox(width: AppSpacing.sm),
                     GestureDetector(
                       onTap: () {
                         if (isDownloading) {
@@ -951,27 +888,20 @@ class _ReciterCardState
                                       .withOpacity(0.12),
                           border: Border.all(
                             color: isDownloading
-                                ? c.danger
-                                    .withOpacity(0.3)
+                                ? c.danger.withOpacity(0.3)
                                 : isDownloaded
                                     ? c.goldText
                                     : c.goldText
-                                        .withOpacity(
-                                            0.3),
+                                        .withOpacity(0.3),
                           ),
                         ),
                         child: isDownloading
-                            ? Icon(
-                                Icons.close_rounded,
-                                size: 18,
-                                color: c.danger,
-                              )
+                            ? Icon(Icons.close_rounded,
+                                size: 18, color: c.danger)
                             : Icon(
                                 isDownloaded
-                                    ? Icons
-                                        .play_arrow_rounded
-                                    : Icons
-                                        .download_rounded,
+                                    ? Icons.play_arrow_rounded
+                                    : Icons.download_rounded,
                                 size: 20,
                                 color: isDownloaded
                                     ? Colors.white
@@ -981,16 +911,13 @@ class _ReciterCardState
                     ),
                   ],
                 ),
-
                 if (isDownloading) ...[
-                  const SizedBox(
-                      height: AppSpacing.sm),
+                  const SizedBox(height: AppSpacing.sm),
                   ClipRRect(
                     borderRadius: AppRadius.pillRadius,
                     child: LinearProgressIndicator(
-                      value: progress > 0
-                          ? progress
-                          : null,
+                      value:
+                          progress > 0 ? progress : null,
                       backgroundColor: c.surface2,
                       valueColor:
                           AlwaysStoppedAnimation<Color>(
@@ -1008,17 +935,17 @@ class _ReciterCardState
   }
 }
 
-// ─── Reciter Avatar ───────────────────────────────────────
-// Shows downloaded photo in circle if available.
-// Falls back to mic icon in gold circle.
+// ─── Reciter Avatar (PUBLIC — used by lessons + player) ──
+// FIX: was _ReciterAvatar (private) — renamed to public
 
-class _ReciterAvatar extends StatelessWidget {
+class ReciterAvatar extends StatelessWidget {
   final Reciter reciter;
   final DownloadService downloadService;
   final AppColors colors;
   final double size;
 
-  const _ReciterAvatar({
+  const ReciterAvatar({
+    super.key,
     required this.reciter,
     required this.downloadService,
     required this.colors,
@@ -1052,26 +979,29 @@ class _ReciterAvatar extends StatelessWidget {
                   File(path),
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) =>
-                      _MicCircle(colors: c, size: size),
+                      MicCircle(colors: c, size: size),
                 ),
               ),
             );
           }
-          return _MicCircle(colors: c, size: size);
+          return MicCircle(colors: c, size: size);
         },
       );
     }
 
-    return _MicCircle(colors: c, size: size);
+    return MicCircle(colors: c, size: size);
   }
 }
 
-class _MicCircle extends StatelessWidget {
+// ─── Mic Circle (PUBLIC) ─────────────────────────────────
+// FIX: was _MicCircle (private) — renamed to public
+
+class MicCircle extends StatelessWidget {
   final AppColors colors;
   final double size;
 
-  const _MicCircle(
-      {required this.colors, required this.size});
+  const MicCircle(
+      {super.key, required this.colors, required this.size});
 
   @override
   Widget build(BuildContext context) {
@@ -1082,9 +1012,8 @@ class _MicCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: c.goldLine,
-        border: Border.all(
-          color: c.goldText.withOpacity(0.35),
-        ),
+        border:
+            Border.all(color: c.goldText.withOpacity(0.35)),
       ),
       alignment: Alignment.center,
       child: Icon(
@@ -1095,8 +1024,6 @@ class _MicCircle extends StatelessWidget {
     );
   }
 }
-
-// ─── Teachers Section ─────────────────────────────────────
 
 class _TeachersSection extends StatelessWidget {
   final Surah surah;
@@ -1142,21 +1069,15 @@ class _TeachersSection extends StatelessWidget {
             Icon(Icons.school_rounded,
                 size: 14, color: c.brand),
             const SizedBox(width: AppSpacing.sm - 2),
-            Text(
-              'TEACHERS · TAFSEER',
-              style:
-                  AppText.label(color: c.textFaint),
-            ),
+            Text('TEACHERS · TAFSEER',
+                style: AppText.label(color: c.textFaint)),
           ],
         ),
         const SizedBox(height: AppSpacing.xs + 2),
         Text(
           'Scholars who explain and teach this Surah.',
           style: AppText.latin(
-            color: c.textMuted,
-            size: 12,
-            height: 1.5,
-          ),
+              color: c.textMuted, size: 12, height: 1.5),
         ),
         const SizedBox(height: AppSpacing.sm),
         ...teacherPairs.map((pair) {
@@ -1246,14 +1167,11 @@ class _SurahTeacherCard extends StatelessWidget {
                       weight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(
-                      height: AppSpacing.xs),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     teacher.nameFor(language),
                     style: AppText.latin(
-                      color: c.textMuted,
-                      size: 12,
-                    ),
+                        color: c.textMuted, size: 12),
                   ),
                 ],
               ),
@@ -1267,16 +1185,14 @@ class _SurahTeacherCard extends StatelessWidget {
                 color: c.brand.withOpacity(0.1),
                 borderRadius: AppRadius.pillRadius,
                 border: Border.all(
-                  color: c.brand.withOpacity(0.25),
-                ),
+                    color: c.brand.withOpacity(0.25)),
               ),
               child: Text(
                 '${audio.totalParts} parts',
                 style: AppText.latin(
-                  color: c.brand,
-                  size: 10,
-                  weight: FontWeight.w700,
-                ),
+                    color: c.brand,
+                    size: 10,
+                    weight: FontWeight.w700),
               ),
             ),
           ],
@@ -1285,8 +1201,6 @@ class _SurahTeacherCard extends StatelessWidget {
     );
   }
 }
-
-// ─── Nothing Yet ─────────────────────────────────────────
 
 class _NothingYet extends StatelessWidget {
   final AppColors colors;
@@ -1304,20 +1218,16 @@ class _NothingYet extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.hourglass_empty_rounded,
-            color: c.textFaint,
-            size: 24,
-          ),
+          Icon(Icons.hourglass_empty_rounded,
+              color: c.textFaint, size: 24),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
               'Content for this Surah is being prepared. Please check back soon.',
               style: AppText.latin(
-                color: c.textMuted,
-                size: 13,
-                height: 1.5,
-              ),
+                  color: c.textMuted,
+                  size: 13,
+                  height: 1.5),
             ),
           ),
         ],
