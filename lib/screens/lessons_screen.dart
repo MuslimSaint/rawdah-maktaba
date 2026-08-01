@@ -6,7 +6,8 @@ import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import 'audio_player_screen.dart';
-import 'book_detail_screen.dart';
+// FIX: import public TeacherAvatar
+import 'book_detail_screen.dart' show TeacherAvatar;
 
 class LessonsScreen extends StatefulWidget {
   final Book book;
@@ -31,8 +32,8 @@ class _LessonsScreenState
   @override
   void initState() {
     super.initState();
-    _teacherAudio = widget.book
-        .audioForTeacher(widget.teacher.id);
+    _teacherAudio =
+        widget.book.audioForTeacher(widget.teacher.id);
     _completed = {};
     if (_teacherAudio != null) {
       for (final part in _teacherAudio!.parts) {
@@ -75,11 +76,9 @@ class _LessonsScreenState
                       mainAxisAlignment:
                           MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.headphones_rounded,
-                          size: 48,
-                          color: c.textFaint,
-                        ),
+                        Icon(Icons.headphones_rounded,
+                            size: 48,
+                            color: c.textFaint),
                         const SizedBox(
                             height: AppSpacing.base),
                         Text(
@@ -96,9 +95,8 @@ class _LessonsScreenState
                           'Audio lessons from this teacher are coming soon.',
                           textAlign: TextAlign.center,
                           style: AppText.latin(
-                            color: c.textMuted,
-                            size: 13,
-                          ),
+                              color: c.textMuted,
+                              size: 13),
                         ),
                       ],
                     ),
@@ -129,8 +127,8 @@ class _LessonsScreenState
               padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.base),
               child: Container(
-                padding: const EdgeInsets.all(
-                    AppSpacing.base),
+                padding:
+                    const EdgeInsets.all(AppSpacing.base),
                 decoration: BoxDecoration(
                   color: c.card,
                   borderRadius: AppRadius.cardRadius,
@@ -141,12 +139,13 @@ class _LessonsScreenState
                   children: [
                     Row(
                       children: [
-                        // Teacher avatar with photo
+                        // FIX: was _TeacherAvatar (private)
+                        // now TeacherAvatar (public wrapper)
                         ListenableBuilder(
                           listenable:
                               state.downloadService,
                           builder: (context, _) {
-                            return _TeacherAvatar(
+                            return TeacherAvatar(
                               teacher: widget.teacher,
                               downloadService:
                                   state.downloadService,
@@ -162,8 +161,7 @@ class _LessonsScreenState
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
+                                CrossAxisAlignment.start,
                             children: [
                               Text(
                                 widget.teacher.nameAr,
@@ -172,8 +170,7 @@ class _LessonsScreenState
                                 style: AppText.arabic(
                                   color: c.textPrimary,
                                   size: 15,
-                                  weight:
-                                      FontWeight.w700,
+                                  weight: FontWeight.w700,
                                 ),
                               ),
                               const SizedBox(
@@ -181,9 +178,8 @@ class _LessonsScreenState
                               Text(
                                 widget.teacher.nameEn,
                                 style: AppText.latin(
-                                  color: c.textMuted,
-                                  size: 12,
-                                ),
+                                    color: c.textMuted,
+                                    size: 12),
                               ),
                             ],
                           ),
@@ -201,9 +197,8 @@ class _LessonsScreenState
                             borderRadius:
                                 AppRadius.listItemRadius,
                             border: Border.all(
-                              color: c.brand
-                                  .withOpacity(0.25),
-                            ),
+                                color: c.brand
+                                    .withOpacity(0.25)),
                           ),
                           child: Column(
                             children: [
@@ -212,25 +207,20 @@ class _LessonsScreenState
                                 style: AppText.latin(
                                   color: c.brand,
                                   size: 18,
-                                  weight:
-                                      FontWeight.w700,
+                                  weight: FontWeight.w700,
                                 ),
                               ),
-                              Text(
-                                'parts',
-                                style: AppText.latin(
-                                  color: c.brand,
-                                  size: 10,
-                                ),
-                              ),
+                              Text('parts',
+                                  style: AppText.latin(
+                                      color: c.brand,
+                                      size: 10)),
                             ],
                           ),
                         ),
                       ],
                     ),
 
-                    const SizedBox(
-                        height: AppSpacing.md),
+                    const SizedBox(height: AppSpacing.md),
 
                     Column(
                       crossAxisAlignment:
@@ -238,23 +228,18 @@ class _LessonsScreenState
                       children: [
                         Row(
                           mainAxisAlignment:
-                              MainAxisAlignment
-                                  .spaceBetween,
+                              MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Progress',
-                              style: AppText.latin(
-                                color: c.textMuted,
-                                size: 11,
-                              ),
-                            ),
+                            Text('Progress',
+                                style: AppText.latin(
+                                    color: c.textMuted,
+                                    size: 11)),
                             Text(
                               '$_completedCount / $_totalParts',
                               style: AppText.latin(
-                                color: c.brand,
-                                size: 11,
-                                weight: FontWeight.w700,
-                              ),
+                                  color: c.brand,
+                                  size: 11,
+                                  weight: FontWeight.w700),
                             ),
                           ],
                         ),
@@ -291,8 +276,7 @@ class _LessonsScreenState
                 ),
                 itemCount: _teacherAudio!.parts.length,
                 separatorBuilder: (_, __) =>
-                    const SizedBox(
-                        height: AppSpacing.sm),
+                    const SizedBox(height: AppSpacing.sm),
                 itemBuilder: (context, index) {
                   final partNumber =
                       _teacherAudio!.parts[index];
@@ -308,14 +292,12 @@ class _LessonsScreenState
                     book: widget.book,
                     teacher: widget.teacher,
                     teacherAudio: _teacherAudio!,
-                    downloadService:
-                        state.downloadService,
+                    downloadService: state.downloadService,
                     catalogService: state.catalogService,
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) =>
-                              AudioPlayerScreen(
+                          builder: (_) => AudioPlayerScreen(
                             book: widget.book,
                             teacher: widget.teacher,
                             teacherAudio: _teacherAudio!,
@@ -377,11 +359,8 @@ class _TopBar extends StatelessWidget {
                 borderRadius: AppRadius.buttonRadius,
                 border: Border.all(color: c.divider),
               ),
-              child: Icon(
-                Icons.arrow_back_rounded,
-                size: 18,
-                color: c.textPrimary,
-              ),
+              child: Icon(Icons.arrow_back_rounded,
+                  size: 18, color: c.textPrimary),
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -404,9 +383,7 @@ class _TopBar extends StatelessWidget {
                 Text(
                   'Taught by: ${teacher.nameEn}',
                   style: AppText.latin(
-                    color: c.goldText,
-                    size: 11,
-                  ),
+                      color: c.goldText, size: 11),
                 ),
               ],
             ),
@@ -476,16 +453,14 @@ class _LessonRowState extends State<_LessonRow> {
         final isDownloaded =
             widget.downloadService.isDownloaded(_fileId);
         final isDownloading =
-            widget.downloadService
-                .isDownloading(_fileId);
+            widget.downloadService.isDownloading(_fileId);
         final progress =
             widget.downloadService.progress(_fileId);
 
         return GestureDetector(
           onTap: isDownloaded ? widget.onTap : null,
           child: Container(
-            padding:
-                const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
               color: c.card,
               borderRadius: AppRadius.cardRadius,
@@ -522,22 +497,19 @@ class _LessonRowState extends State<_LessonRow> {
                             ? const Icon(
                                 Icons.check_rounded,
                                 size: 18,
-                                color: Colors.white,
-                              )
+                                color: Colors.white)
                             : Text(
                                 '${widget.displayIndex}',
                                 style: AppText.latin(
                                   color: c.textMuted,
                                   size: 13,
-                                  weight:
-                                      FontWeight.w700,
+                                  weight: FontWeight.w700,
                                 ),
                               ),
                       ),
                     ),
 
-                    const SizedBox(
-                        width: AppSpacing.md),
+                    const SizedBox(width: AppSpacing.md),
 
                     Expanded(
                       child: Column(
@@ -561,16 +533,14 @@ class _LessonRowState extends State<_LessonRow> {
                           Text(
                             '${widget.displayIndex} of ${widget.totalParts}',
                             style: AppText.latin(
-                              color: c.textFaint,
-                              size: 11,
-                            ),
+                                color: c.textFaint,
+                                size: 11),
                           ),
                         ],
                       ),
                     ),
 
-                    const SizedBox(
-                        width: AppSpacing.md),
+                    const SizedBox(width: AppSpacing.md),
 
                     GestureDetector(
                       onTap: () {
@@ -580,10 +550,7 @@ class _LessonRowState extends State<_LessonRow> {
                         } else if (isDownloaded) {
                           widget.onTap();
                         } else {
-                          // Pass teacher photo params
-                          // so photo downloads with audio
-                          widget.downloadService
-                              .download(
+                          widget.downloadService.download(
                             fileId: _fileId,
                             url: _audioUrl,
                             displayName:
@@ -608,30 +575,22 @@ class _LessonRowState extends State<_LessonRow> {
                               ? c.dangerBg
                               : isDownloaded
                                   ? c.brand
-                                  : c.brand
-                                      .withOpacity(0.1),
+                                  : c.brand.withOpacity(0.1),
                           border: Border.all(
                             color: isDownloading
-                                ? c.danger
-                                    .withOpacity(0.3)
+                                ? c.danger.withOpacity(0.3)
                                 : isDownloaded
                                     ? c.brand
-                                    : c.brand
-                                        .withOpacity(0.3),
+                                    : c.brand.withOpacity(0.3),
                           ),
                         ),
                         child: isDownloading
-                            ? Icon(
-                                Icons.close_rounded,
-                                size: 18,
-                                color: c.danger,
-                              )
+                            ? Icon(Icons.close_rounded,
+                                size: 18, color: c.danger)
                             : Icon(
                                 isDownloaded
-                                    ? Icons
-                                        .play_arrow_rounded
-                                    : Icons
-                                        .download_rounded,
+                                    ? Icons.play_arrow_rounded
+                                    : Icons.download_rounded,
                                 size: 20,
                                 color: isDownloaded
                                     ? Colors.white
