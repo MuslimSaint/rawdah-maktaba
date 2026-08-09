@@ -24,8 +24,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
       AppState.of(context)
           .downloadService
@@ -88,30 +87,22 @@ class _DownloadsTabState extends State<DownloadsTab> {
         ),
         content: Text(
           'All downloaded PDFs and audio files will be removed.',
-          style:
-              AppText.latin(color: c.textMuted, size: 13),
+          style: AppText.latin(color: c.textMuted, size: 13),
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.of(ctx).pop(false),
-            child: Text(
-              'Cancel',
-              style: AppText.latin(
-                  color: c.textMuted, size: 14),
-            ),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel',
+                style: AppText.latin(
+                    color: c.textMuted, size: 14)),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.of(ctx).pop(true),
-            child: Text(
-              'Delete All',
-              style: AppText.latin(
-                color: c.danger,
-                size: 14,
-                weight: FontWeight.w700,
-              ),
-            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Delete All',
+                style: AppText.latin(
+                    color: c.danger,
+                    size: 14,
+                    weight: FontWeight.w700)),
           ),
         ],
       ),
@@ -126,9 +117,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
   // ─── Name resolution ──────────────────────────────
 
   String _displayName(String fileId, AppState state) {
-    if (fileId == 'pdf_mushaf') {
-      return 'المصحف الشريف';
-    }
+    if (fileId == 'pdf_mushaf') return 'المصحف الشريف';
     if (fileId.startsWith('pdf_mushaf_')) {
       final editionId =
           fileId.replaceFirst('pdf_mushaf_', '');
@@ -151,8 +140,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
       return 'سورة $numStr';
     }
     if (fileId.startsWith('saudio_r_')) {
-      final rest =
-          fileId.replaceFirst('saudio_r_', '');
+      final rest = fileId.replaceFirst('saudio_r_', '');
       final parts = rest.split('_');
       if (parts.length >= 3) {
         final n = int.tryParse(parts[0]);
@@ -169,8 +157,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
       }
     }
     if (fileId.startsWith('saudio_t_')) {
-      final rest =
-          fileId.replaceFirst('saudio_t_', '');
+      final rest = fileId.replaceFirst('saudio_t_', '');
       final parts = rest.split('_');
       if (parts.length >= 3) {
         final n = int.tryParse(parts[0]);
@@ -196,9 +183,8 @@ class _DownloadsTabState extends State<DownloadsTab> {
               tokens[tokens.length - 2];
           final teacher = state.catalogService
               .teacherById(possibleTeacherId);
-          final bookId = tokens
-              .sublist(0, tokens.length - 2)
-              .join('_');
+          final bookId =
+              tokens.sublist(0, tokens.length - 2).join('_');
           Book? book;
           try {
             book = state.catalogService.books
@@ -227,9 +213,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
         fileId.startsWith('pdf_mushaf_') ||
         fileId.startsWith('pdf_surah_') ||
         fileId.startsWith('saudio_r_') ||
-        fileId.startsWith('saudio_t_')) {
-      return 'Quran';
-    }
+        fileId.startsWith('saudio_t_')) return 'Quran';
     if (fileId.startsWith('pdf_')) return 'PDF';
     if (fileId.startsWith('audio_')) return 'Audio';
     return 'File';
@@ -244,9 +228,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
   }
 
   String? _subtitle(String fileId, AppState state) {
-    if (fileId == 'pdf_mushaf') {
-      return 'The Noble Mus\'haf';
-    }
+    if (fileId == 'pdf_mushaf') return 'The Noble Mus\'haf';
     if (fileId.startsWith('pdf_mushaf_')) {
       final editionId =
           fileId.replaceFirst('pdf_mushaf_', '');
@@ -270,8 +252,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
     return null;
   }
 
-  Book? _bookForFileId(
-      String fileId, List<Book> books) {
+  Book? _bookForFileId(String fileId, List<Book> books) {
     if (!fileId.startsWith('pdf_')) return null;
     if (fileId == 'pdf_mushaf' ||
         fileId.startsWith('pdf_mushaf_') ||
@@ -344,28 +325,24 @@ class _DownloadsTabState extends State<DownloadsTab> {
                           borderRadius:
                               AppRadius.buttonRadius,
                           border: Border.all(
-                            color: c.danger
-                                .withOpacity(0.3),
-                          ),
+                              color: c.danger
+                                  .withOpacity(0.3)),
                         ),
                         child: Row(
                           children: [
                             Icon(
-                              Icons
-                                  .delete_outline_rounded,
-                              size: 14,
-                              color: c.danger,
-                            ),
+                                Icons
+                                    .delete_outline_rounded,
+                                size: 14,
+                                color: c.danger),
                             const SizedBox(
                                 width: AppSpacing.xs),
-                            Text(
-                              'Delete All',
-                              style: AppText.latin(
-                                color: c.danger,
-                                size: 12,
-                                weight: FontWeight.w700,
-                              ),
-                            ),
+                            Text('Delete All',
+                                style: AppText.latin(
+                                    color: c.danger,
+                                    size: 12,
+                                    weight:
+                                        FontWeight.w700)),
                           ],
                         ),
                       ),
@@ -379,30 +356,20 @@ class _DownloadsTabState extends State<DownloadsTab> {
             Expanded(
               child: _isLoading
                   ? Center(
-                      child:
-                          CircularProgressIndicator(
-                        color: c.brand,
-                        strokeWidth: 2,
-                      ),
-                    )
+                      child: CircularProgressIndicator(
+                          color: c.brand, strokeWidth: 2))
                   : ListenableBuilder(
-                      listenable:
-                          state.downloadService,
+                      listenable: state.downloadService,
                       builder: (context, _) {
-                        // FIX: explicitly typed to
-                        // avoid Object? inference
                         final activeDownloads =
-                            state.downloadService
-                                .activeDownloads;
+                            state.downloadService.activeDownloads;
                         final hasActive =
                             activeDownloads.isNotEmpty;
                         final hasCompleted =
                             _downloadedFiles.isNotEmpty;
 
-                        if (!hasActive &&
-                            !hasCompleted) {
-                          return _EmptyState(
-                              colors: c);
+                        if (!hasActive && !hasCompleted) {
+                          return _EmptyState(colors: c);
                         }
 
                         return ListView(
@@ -420,22 +387,15 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                 style: AppText.latin(
                                   color: c.textPrimary,
                                   size: 15,
-                                  weight:
-                                      FontWeight.w700,
+                                  weight: FontWeight.w700,
                                 ),
                               ),
                               const SizedBox(
-                                  height:
-                                      AppSpacing.sm),
-                              // FIX: cast each entry
-                              // explicitly to
-                              // Map<String, dynamic>
-                              ...activeDownloads.map(
-                                  (activeRaw) {
-                                final active =
-                                    activeRaw as Map<
-                                        String,
-                                        dynamic>;
+                                  height: AppSpacing.sm),
+                              ...activeDownloads
+                                  .map((activeRaw) {
+                                final active = activeRaw
+                                    as Map<String, dynamic>;
                                 final fileId =
                                     active['fileId']
                                         as String;
@@ -456,155 +416,131 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                     active['awaitingNetwork']
                                         as bool? ??
                                     false;
+                                // Task 2: read size fields
+                                final downloadedMb =
+                                    active['downloadedMb']
+                                        as double? ??
+                                    0.0;
+                                final totalMb =
+                                    active['totalMb']
+                                        as double?;
 
-                                final name =
-                                    _displayName(
-                                        fileId, state);
+                                final name = _displayName(
+                                    fileId, state);
 
                                 Book? book;
-                                if (bookId
-                                    .isNotEmpty) {
+                                if (bookId.isNotEmpty) {
                                   try {
                                     book = state
                                         .catalogService
                                         .books
-                                        .firstWhere(
-                                            (b) =>
-                                                b.id ==
-                                                bookId);
+                                        .firstWhere((b) =>
+                                            b.id == bookId);
                                   } catch (_) {}
                                 }
 
                                 return Padding(
                                   padding:
-                                      const EdgeInsets
-                                          .only(
-                                    bottom:
-                                        AppSpacing.sm,
-                                  ),
-                                  child:
-                                      _ActiveDownloadCard(
+                                      const EdgeInsets.only(
+                                          bottom:
+                                              AppSpacing.sm),
+                                  child: _ActiveDownloadCard(
                                     fileId: fileId,
                                     book: book,
                                     displayName: name,
                                     progress: prog,
                                     speedKbps: speed,
                                     isPaused: paused,
-                                    isAwaitingNetwork:
-                                        awaiting,
+                                    isAwaitingNetwork: awaiting,
+                                    downloadedMb: downloadedMb,
+                                    totalMb: totalMb,
                                     colors: c,
-                                    onCancel: () =>
-                                        state
-                                            .downloadService
-                                            .cancelDownload(
-                                                fileId),
-                                    onPause: () =>
-                                        state
-                                            .downloadService
-                                            .pauseDownload(
-                                                fileId),
-                                    onResume: () =>
-                                        state
-                                            .downloadService
-                                            .resumeDownload(
-                                                fileId),
+                                    onCancel: () => state
+                                        .downloadService
+                                        .cancelDownload(fileId),
+                                    onPause: () => state
+                                        .downloadService
+                                        .pauseDownload(fileId),
+                                    onResume: () => state
+                                        .downloadService
+                                        .resumeDownload(fileId),
                                   ),
                                 );
                               }),
                               const SizedBox(
-                                  height:
-                                      AppSpacing.lg),
+                                  height: AppSpacing.lg),
                             ],
 
                             if (hasCompleted) ...[
                               _StorageCard(
-                                totalMb:
-                                    _totalStorageMb,
+                                totalMb: _totalStorageMb,
                                 fileCount:
-                                    _downloadedFiles
-                                        .length,
+                                    _downloadedFiles.length,
                                 colors: c,
                               ),
                               const SizedBox(
-                                  height:
-                                      AppSpacing.lg),
+                                  height: AppSpacing.lg),
                               Text(
                                 'Downloaded Files',
                                 style: AppText.latin(
                                   color: c.textPrimary,
                                   size: 15,
-                                  weight:
-                                      FontWeight.w700,
+                                  weight: FontWeight.w700,
                                 ),
                               ),
                               const SizedBox(
-                                  height:
-                                      AppSpacing.sm),
+                                  height: AppSpacing.sm),
                               ..._downloadedFiles
                                   .map((file) {
                                 final fileId =
-                                    file['id']
-                                        as String;
+                                    file['id'] as String;
                                 final sizeMb =
-                                    file['sizeMb']
-                                        as double;
-                                final book =
-                                    _bookForFileId(
-                                  fileId,
-                                  state.catalogService
-                                      .books,
-                                );
+                                    file['sizeMb'] as double;
+                                final book = _bookForFileId(
+                                    fileId,
+                                    state.catalogService
+                                        .books);
                                 final name =
                                     _displayName(
                                         fileId, state);
-                                final sub = _subtitle(
-                                    fileId, state);
+                                final sub =
+                                    _subtitle(fileId, state);
                                 final isQuran =
-                                    _isQuranFile(
-                                        fileId);
+                                    _isQuranFile(fileId);
                                 final badge =
-                                    _badgeLabel(
-                                        fileId);
+                                    _badgeLabel(fileId);
 
                                 return Padding(
                                   padding:
-                                      const EdgeInsets
-                                          .only(
-                                    bottom:
-                                        AppSpacing.sm,
-                                  ),
-                                  child:
-                                      _DownloadedFileCard(
+                                      const EdgeInsets.only(
+                                          bottom:
+                                              AppSpacing.sm),
+                                  child: _DownloadedFileCard(
                                     fileId: fileId,
                                     book: book,
                                     displayName: name,
                                     subtitle: sub,
                                     badgeLabel: badge,
-                                    isQuranFile:
-                                        isQuran,
+                                    isQuranFile: isQuran,
                                     sizeMb: sizeMb,
                                     colors: c,
                                     onDelete: () =>
-                                        _deleteFile(
-                                            fileId),
+                                        _deleteFile(fileId),
                                     onTap: book != null
-                                        ? () {
+                                        ? () =>
                                             Navigator.of(
                                                     context)
                                                 .push(
                                               MaterialPageRoute(
-                                                builder:
-                                                    (_) =>
-                                                        BookDetailScreen(
-                                                  book:
-                                                      book,
+                                                builder: (_) =>
+                                                    BookDetailScreen(
+                                                  book: book,
                                                   catalogService:
                                                       state
                                                           .catalogService,
                                                 ),
                                               ),
-                                            );
-                                          }
+                                            )
                                         : null,
                                   ),
                                 );
@@ -632,6 +568,8 @@ class _ActiveDownloadCard extends StatelessWidget {
   final double speedKbps;
   final bool isPaused;
   final bool isAwaitingNetwork;
+  final double downloadedMb;
+  final double? totalMb;
   final AppColors colors;
   final VoidCallback onCancel;
   final VoidCallback onPause;
@@ -645,6 +583,8 @@ class _ActiveDownloadCard extends StatelessWidget {
     required this.speedKbps,
     required this.isPaused,
     required this.isAwaitingNetwork,
+    required this.downloadedMb,
+    required this.totalMb,
     required this.colors,
     required this.onCancel,
     required this.onPause,
@@ -682,6 +622,9 @@ class _ActiveDownloadCard extends StatelessWidget {
             ? 'Tap ▶ to resume'
             : 'Tap ∥ to pause · × to cancel';
 
+    // Task 2: build size string
+    final String sizeLabel = _buildSizeLabel();
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -702,11 +645,10 @@ class _ActiveDownloadCard extends StatelessWidget {
             children: [
               if (book != null)
                 BookCoverWidget(
-                  book: book!,
-                  width: 46,
-                  height: 46,
-                  borderRadius: AppRadius.input,
-                )
+                    book: book!,
+                    width: 46,
+                    height: 46,
+                    borderRadius: AppRadius.input)
               else
                 Container(
                   width: 46,
@@ -715,8 +657,7 @@ class _ActiveDownloadCard extends StatelessWidget {
                     color: isQuran
                         ? c.goldLine
                         : c.brand.withOpacity(0.12),
-                    borderRadius:
-                        AppRadius.listItemRadius,
+                    borderRadius: AppRadius.listItemRadius,
                     border: Border.all(
                       color: isQuran
                           ? c.goldText.withOpacity(0.35)
@@ -752,8 +693,7 @@ class _ActiveDownloadCard extends StatelessWidget {
                         weight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(
-                        height: AppSpacing.xs),
+                    const SizedBox(height: AppSpacing.xs),
                     Row(
                       children: [
                         Container(
@@ -805,9 +745,8 @@ class _ActiveDownloadCard extends StatelessWidget {
                             DownloadService.formatSpeed(
                                 speedKbps),
                             style: AppText.latin(
-                              color: c.textFaint,
-                              size: 11,
-                            ),
+                                color: c.textFaint,
+                                size: 11),
                           ),
                         ],
                         if (isAwaitingNetwork) ...[
@@ -837,8 +776,7 @@ class _ActiveDownloadCard extends StatelessWidget {
                     height: 34,
                     decoration: BoxDecoration(
                       color: c.surface2,
-                      borderRadius:
-                          AppRadius.buttonRadius,
+                      borderRadius: AppRadius.buttonRadius,
                       border:
                           Border.all(color: c.divider),
                     ),
@@ -861,8 +799,7 @@ class _ActiveDownloadCard extends StatelessWidget {
                   height: 34,
                   decoration: BoxDecoration(
                     color: c.dangerBg,
-                    borderRadius:
-                        AppRadius.buttonRadius,
+                    borderRadius: AppRadius.buttonRadius,
                     border: Border.all(
                         color: c.danger.withOpacity(0.3)),
                   ),
@@ -898,8 +835,7 @@ class _ActiveDownloadCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm - 2),
 
           Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 statusLabel,
@@ -909,16 +845,39 @@ class _ActiveDownloadCard extends StatelessWidget {
                   weight: FontWeight.w600,
                 ),
               ),
-              Text(
-                hintLabel,
-                style: AppText.latin(
-                    color: c.textFaint, size: 10),
-              ),
+              // Task 2: show size label on the right
+              if (sizeLabel.isNotEmpty && !isAwaitingNetwork)
+                Text(
+                  sizeLabel,
+                  style: AppText.latin(
+                    color: c.textFaint,
+                    size: 10,
+                  ),
+                )
+              else
+                Text(
+                  hintLabel,
+                  style: AppText.latin(
+                      color: c.textFaint, size: 10),
+                ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  /// Builds the size display string.
+  /// Examples:
+  ///   "51.2 MB / 200.0 MB"   — when total is known
+  ///   "51.2 MB"              — when total is unknown
+  ///   ""                     — when nothing downloaded yet
+  String _buildSizeLabel() {
+    if (downloadedMb <= 0) return '';
+    if (totalMb != null && totalMb! > 0) {
+      return '${DownloadService.formatMb(downloadedMb)} / ${DownloadService.formatMb(totalMb!)}';
+    }
+    return DownloadService.formatMb(downloadedMb);
   }
 }
 
@@ -952,14 +911,11 @@ class _EmptyState extends StatelessWidget {
                   color: c.brand.withOpacity(0.4)),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text(
-              'No downloads yet',
-              style: AppText.latin(
-                color: c.textPrimary,
-                size: 20,
-                weight: FontWeight.w700,
-              ),
-            ),
+            Text('No downloads yet',
+                style: AppText.latin(
+                    color: c.textPrimary,
+                    size: 20,
+                    weight: FontWeight.w700)),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Books and audio you download will appear here.',
@@ -1012,30 +968,24 @@ class _StorageCard extends StatelessWidget {
               Icon(Icons.storage_rounded,
                   size: 18, color: c.brand),
               const SizedBox(width: AppSpacing.sm),
-              Text(
-                'Storage Used',
-                style: AppText.latin(
-                  color: c.textPrimary,
-                  size: 14,
-                  weight: FontWeight.w700,
-                ),
-              ),
+              Text('Storage Used',
+                  style: AppText.latin(
+                      color: c.textPrimary,
+                      size: 14,
+                      weight: FontWeight.w700)),
               const Spacer(),
-              Text(
-                display,
-                style: AppText.latin(
-                    color: c.brand,
-                    size: 14,
-                    weight: FontWeight.w700),
-              ),
+              Text(display,
+                  style: AppText.latin(
+                      color: c.brand,
+                      size: 14,
+                      weight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            '$fileCount file${fileCount == 1 ? '' : 's'} downloaded',
-            style: AppText.latin(
-                color: c.textMuted, size: 11),
-          ),
+              '$fileCount file${fileCount == 1 ? '' : 's'} downloaded',
+              style: AppText.latin(
+                  color: c.textMuted, size: 11)),
           const SizedBox(height: AppSpacing.sm),
           ClipRRect(
             borderRadius: AppRadius.pillRadius,
@@ -1101,11 +1051,10 @@ class _DownloadedFileCard extends StatelessWidget {
           children: [
             if (book != null && isPdf)
               BookCoverWidget(
-                book: book!,
-                width: 46,
-                height: 58,
-                borderRadius: AppRadius.input,
-              )
+                  book: book!,
+                  width: 46,
+                  height: 58,
+                  borderRadius: AppRadius.input)
             else
               Container(
                 width: 46,
@@ -1152,15 +1101,12 @@ class _DownloadedFileCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (subtitle != null) ...[
-                    const SizedBox(
-                        height: AppSpacing.xs),
-                    Text(
-                      subtitle!,
-                      style: AppText.latin(
-                          color: c.textMuted, size: 10),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(subtitle!,
+                        style: AppText.latin(
+                            color: c.textMuted, size: 10),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
                   ],
                   const SizedBox(height: AppSpacing.xs),
                   Row(
@@ -1189,8 +1135,7 @@ class _DownloadedFileCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(
-                          width: AppSpacing.sm),
+                      const SizedBox(width: AppSpacing.sm),
                       Text(sizeDisplay,
                           style: AppText.latin(
                               color: c.textFaint,
@@ -1199,12 +1144,10 @@ class _DownloadedFileCard extends StatelessWidget {
                           width: AppSpacing.sm - 2),
                       Icon(Icons.check_circle_rounded,
                           size: 12, color: c.brand),
-                      const SizedBox(
-                          width: AppSpacing.xs),
+                      const SizedBox(width: AppSpacing.xs),
                       Text('On device',
                           style: AppText.latin(
-                              color: c.brand,
-                              size: 10)),
+                              color: c.brand, size: 10)),
                     ],
                   ),
                 ],
@@ -1224,10 +1167,8 @@ class _DownloadedFileCard extends StatelessWidget {
                   border: Border.all(
                       color: c.danger.withOpacity(0.3)),
                 ),
-                child: Icon(
-                    Icons.delete_outline_rounded,
-                    size: 16,
-                    color: c.danger),
+                child: Icon(Icons.delete_outline_rounded,
+                    size: 16, color: c.danger),
               ),
             ),
           ],
