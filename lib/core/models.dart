@@ -7,10 +7,27 @@ class Announcement {
   final String message;
   final String type;
 
+  /// Optional direct URL to an APK file.
+  /// Only meaningful when type == 'update'.
+  final String downloadUrl;
+
+  /// If set, only show this announcement to app versions
+  /// >= minVersionToShow (inclusive).
+  /// Format: "1.0.0"
+  final String minVersionToShow;
+
+  /// If set, only show this announcement to app versions
+  /// <= maxVersionToShow (inclusive).
+  /// Format: "1.0.9"
+  final String maxVersionToShow;
+
   const Announcement({
     required this.active,
     required this.message,
     required this.type,
+    this.downloadUrl = '',
+    this.minVersionToShow = '',
+    this.maxVersionToShow = '',
   });
 
   factory Announcement.fromJson(
@@ -19,8 +36,17 @@ class Announcement {
       active: json['active'] as bool? ?? false,
       message: json['message'] as String? ?? '',
       type: json['type'] as String? ?? 'info',
+      downloadUrl:
+          json['downloadUrl'] as String? ?? '',
+      minVersionToShow:
+          json['minVersionToShow'] as String? ?? '',
+      maxVersionToShow:
+          json['maxVersionToShow'] as String? ?? '',
     );
   }
+
+  bool get isUpdate => type == 'update';
+  bool get hasDownloadUrl => downloadUrl.isNotEmpty;
 }
 
 // ─── Teacher ─────────────────────────────────────────────
@@ -42,17 +68,20 @@ class Teacher {
     this.photoUrl = '',
   });
 
-  factory Teacher.fromJson(Map<String, dynamic> json) {
+  factory Teacher.fromJson(
+      Map<String, dynamic> json) {
     return Teacher(
       id: json['id'] as String,
       nameAr: json['nameAr'] as String,
       nameEn: json['nameEn'] as String,
       nameAm:
-          (json['nameAm'] as String?)?.isNotEmpty == true
+          (json['nameAm'] as String?)?.isNotEmpty ==
+                  true
               ? json['nameAm'] as String
               : json['nameEn'] as String,
       initials: json['initials'] as String,
-      photoUrl: json['photoUrl'] as String? ?? '',
+      photoUrl:
+          json['photoUrl'] as String? ?? '',
     );
   }
 
@@ -89,17 +118,20 @@ class Reciter {
     this.photoUrl = '',
   });
 
-  factory Reciter.fromJson(Map<String, dynamic> json) {
+  factory Reciter.fromJson(
+      Map<String, dynamic> json) {
     return Reciter(
       id: json['id'] as String,
       nameAr: json['nameAr'] as String,
       nameEn: json['nameEn'] as String,
       nameAm:
-          (json['nameAm'] as String?)?.isNotEmpty == true
+          (json['nameAm'] as String?)?.isNotEmpty ==
+                  true
               ? json['nameAm'] as String
               : json['nameEn'] as String,
       initials: json['initials'] as String,
-      photoUrl: json['photoUrl'] as String? ?? '',
+      photoUrl:
+          json['photoUrl'] as String? ?? '',
     );
   }
 
@@ -122,13 +154,7 @@ class Reciter {
 class TeacherAudio {
   final String teacherId;
   final List<int> parts;
-
-  /// Per-part direct URL overrides.
   final Map<int, String> urls;
-
-  /// Optional custom Arabic name per part number.
-  /// If a part has no entry here, the default Arabic
-  /// ordinal (الجزء الأول...) is used as fallback.
   final Map<int, String> partNames;
 
   const TeacherAudio({
@@ -141,7 +167,8 @@ class TeacherAudio {
   factory TeacherAudio.fromJson(
       Map<String, dynamic> json) {
     final urlsRaw =
-        json['urls'] as Map<String, dynamic>? ?? {};
+        json['urls'] as Map<String, dynamic>? ??
+            {};
     final urls = <int, String>{};
     urlsRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -152,10 +179,9 @@ class TeacherAudio {
       }
     });
 
-    // Parse optional partNames map.
-    // Catalog format: {"1": "مقدمة", "2": "الحديث الأول"}
     final partNamesRaw =
-        json['partNames'] as Map<String, dynamic>? ?? {};
+        json['partNames'] as Map<String, dynamic>? ??
+            {};
     final partNames = <int, String>{};
     partNamesRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -184,9 +210,6 @@ class TeacherAudio {
   String? urlForPart(int partNumber) =>
       urls[partNumber];
 
-  /// Returns the custom Arabic name for this part if one
-  /// was provided in the catalog, otherwise falls back to
-  /// the standard Arabic ordinal from ArabicUtils.
   String nameForPart(int partNumber) {
     final custom = partNames[partNumber];
     if (custom != null && custom.isNotEmpty) {
@@ -195,9 +218,6 @@ class TeacherAudio {
     return _arabicOrdinal(partNumber);
   }
 
-  /// Standard Arabic lesson ordinal fallback.
-  /// Mirrors ArabicUtils.lessonTitle() so this model
-  /// is self-contained without needing an import.
   static String _arabicOrdinal(int n) {
     const ordinals = [
       '',
@@ -234,12 +254,7 @@ class TeacherAudio {
 class ReciterAudio {
   final String reciterId;
   final List<int> parts;
-
-  /// Per-part direct URL overrides.
   final Map<int, String> urls;
-
-  /// Optional custom Arabic name per part number.
-  /// Same semantics as TeacherAudio.partNames.
   final Map<int, String> partNames;
 
   const ReciterAudio({
@@ -252,7 +267,8 @@ class ReciterAudio {
   factory ReciterAudio.fromJson(
       Map<String, dynamic> json) {
     final urlsRaw =
-        json['urls'] as Map<String, dynamic>? ?? {};
+        json['urls'] as Map<String, dynamic>? ??
+            {};
     final urls = <int, String>{};
     urlsRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -264,7 +280,8 @@ class ReciterAudio {
     });
 
     final partNamesRaw =
-        json['partNames'] as Map<String, dynamic>? ?? {};
+        json['partNames'] as Map<String, dynamic>? ??
+            {};
     final partNames = <int, String>{};
     partNamesRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -293,9 +310,6 @@ class ReciterAudio {
   String? urlForPart(int partNumber) =>
       urls[partNumber];
 
-  /// Returns the custom Arabic name for this part if one
-  /// was provided in the catalog, otherwise falls back to
-  /// the standard Arabic ordinal.
   String nameForPart(int partNumber) {
     final custom = partNames[partNumber];
     if (custom != null && custom.isNotEmpty) {
@@ -383,8 +397,8 @@ class Book {
       authorAr: json['authorAr'] as String,
       authorEn: json['authorEn'] as String,
       authorShort: json['authorShort'] as String,
-      branches:
-          List<String>.from(json['branches'] as List),
+      branches: List<String>.from(
+          json['branches'] as List),
       pages: json['pages'] as int? ?? 0,
       pdfSizeMb:
           (json['pdfSizeMb'] as num?)?.toDouble() ??
@@ -418,8 +432,8 @@ class Book {
 
   TeacherAudio? audioForTeacher(String teacherId) {
     try {
-      return teacherAudio
-          .firstWhere((t) => t.teacherId == teacherId);
+      return teacherAudio.firstWhere(
+          (t) => t.teacherId == teacherId);
     } catch (_) {
       return null;
     }
@@ -592,9 +606,12 @@ class MushafEdition {
         .map((m) => MushafExtra.fromJson(m))
         .toList();
 
-    final titleAr = json['titleAr'] as String? ?? '';
-    final titleEn = json['titleEn'] as String? ?? '';
-    final titleAm = json['titleAm'] as String? ?? '';
+    final titleAr =
+        json['titleAr'] as String? ?? '';
+    final titleEn =
+        json['titleEn'] as String? ?? '';
+    final titleAm =
+        json['titleAm'] as String? ?? '';
 
     return MushafEdition(
       id: json['id'] as String,
@@ -673,8 +690,10 @@ class QuranSubBranch {
         type = QuranSubBranchType.unknown;
     }
 
-    final titleAr = json['titleAr'] as String? ?? '';
-    final titleEn = json['titleEn'] as String? ?? '';
+    final titleAr =
+        json['titleAr'] as String? ?? '';
+    final titleEn =
+        json['titleEn'] as String? ?? '';
     final titleAmRaw =
         json['titleAm'] as String? ?? '';
 
@@ -782,7 +801,8 @@ class QuranData {
   factory QuranData.fromJson(
       Map<String, dynamic> json) {
     final surahsRaw =
-        json['surahs'] as Map<String, dynamic>? ?? {};
+        json['surahs'] as Map<String, dynamic>? ??
+            {};
     final surahs = <int, Surah>{};
     surahsRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -861,7 +881,8 @@ class FaqEntry {
   final String answer;
 
   const FaqEntry(
-      {required this.question, required this.answer});
+      {required this.question,
+      required this.answer});
 
   factory FaqEntry.fromJson(
       Map<String, dynamic> json) {
@@ -877,7 +898,8 @@ class PrivacyEntry {
   final String content;
 
   const PrivacyEntry(
-      {required this.title, required this.content});
+      {required this.title,
+      required this.content});
 
   factory PrivacyEntry.fromJson(
       Map<String, dynamic> json) {
@@ -1012,7 +1034,8 @@ class Catalog {
               credits: [],
             );
 
-  factory Catalog.fromJson(Map<String, dynamic> json) {
+  factory Catalog.fromJson(
+      Map<String, dynamic> json) {
     return Catalog(
       books: (json['books'] as List)
           .map((b) => Book.fromJson(
@@ -1034,20 +1057,24 @@ class Catalog {
           : QuranData.empty(),
       version: json['version'] as String? ?? '1',
       minAppVersion:
-          json['minAppVersion'] as String? ?? '1.0.0',
-      audioBaseUrl: json['audioBaseUrl'] as String? ??
-          'https://github.com/MuslimSaint/rawdah-catalog/'
-              'releases/download/v1.0-books',
-      quranBaseUrl: json['quranBaseUrl'] as String? ??
-          'https://github.com/MuslimSaint/rawdah-catalog/'
-              'releases/download/v1.0-quran',
+          json['minAppVersion'] as String? ??
+              '1.0.0',
+      audioBaseUrl:
+          json['audioBaseUrl'] as String? ??
+              'https://github.com/MuslimSaint/rawdah-catalog/'
+                  'releases/download/v1.0-books',
+      quranBaseUrl:
+          json['quranBaseUrl'] as String? ??
+              'https://github.com/MuslimSaint/rawdah-catalog/'
+                  'releases/download/v1.0-quran',
       announcement: json['announcement'] != null
-          ? Announcement.fromJson(json['announcement']
-              as Map<String, dynamic>)
+          ? Announcement.fromJson(
+              json['announcement']
+                  as Map<String, dynamic>)
           : null,
       settings: json['settings'] != null
-          ? AppSettings.fromJson(
-              json['settings'] as Map<String, dynamic>)
+          ? AppSettings.fromJson(json['settings']
+              as Map<String, dynamic>)
           : AppSettings.defaults(),
     );
   }
@@ -1060,16 +1087,18 @@ class Catalog {
     required Map<String, dynamic> surahs,
     required Map<String, dynamic> mushaf,
   }) {
-    final teachersList = _asList(teachers['teachers']);
-    final recitersList = _asList(reciters['reciters']);
+    final teachersList =
+        _asList(teachers['teachers']);
+    final recitersList =
+        _asList(reciters['reciters']);
     final booksList = _asList(books['books']);
 
     Map<String, dynamic> surahMap;
     if (surahs.containsKey('surahs')) {
       surahMap = _asMap(surahs['surahs']);
     } else if (surahs.containsKey('quran')) {
-      surahMap =
-          _asMap((_asMap(surahs['quran']))['surahs']);
+      surahMap = _asMap(
+          (_asMap(surahs['quran']))['surahs']);
     } else {
       surahMap = {};
     }
@@ -1084,20 +1113,25 @@ class Catalog {
     }
 
     final mushafPdfUrl =
-        mushafContent['mushafPdfUrl'] as String? ?? '';
+        mushafContent['mushafPdfUrl'] as String? ??
+            '';
     final subBranches =
         _asList(mushafContent['subBranches']);
 
     return {
-      'version': root['version']?.toString() ?? '1',
+      'version':
+          root['version']?.toString() ?? '1',
       'minAppVersion':
-          root['minAppVersion']?.toString() ?? '1.0.0',
-      'audioBaseUrl': root['audioBaseUrl'] as String? ??
-          'https://github.com/MuslimSaint/rawdah-catalog/'
-              'releases/download/v1.0-books',
-      'quranBaseUrl': root['quranBaseUrl'] as String? ??
-          'https://github.com/MuslimSaint/rawdah-catalog/'
-              'releases/download/v1.0-quran',
+          root['minAppVersion']?.toString() ??
+              '1.0.0',
+      'audioBaseUrl':
+          root['audioBaseUrl'] as String? ??
+              'https://github.com/MuslimSaint/rawdah-catalog/'
+                  'releases/download/v1.0-books',
+      'quranBaseUrl':
+          root['quranBaseUrl'] as String? ??
+              'https://github.com/MuslimSaint/rawdah-catalog/'
+                  'releases/download/v1.0-quran',
       'announcement': root['announcement'] ??
           {
             'active': false,
@@ -1118,11 +1152,14 @@ class Catalog {
   }
 
   static List<dynamic> _asList(dynamic value) {
-    if (value is List) return List<dynamic>.from(value);
+    if (value is List) {
+      return List<dynamic>.from(value);
+    }
     return <dynamic>[];
   }
 
-  static Map<String, dynamic> _asMap(dynamic value) {
+  static Map<String, dynamic> _asMap(
+      dynamic value) {
     if (value is Map<String, dynamic>) {
       return Map<String, dynamic>.from(value);
     }
@@ -1150,7 +1187,9 @@ class Catalog {
   }
 
   List<Book> booksInBranch(String branchId) =>
-      books.where((b) => b.isInBranch(branchId)).toList();
+      books
+          .where((b) => b.isInBranch(branchId))
+          .toList();
 
   List<Book> search(String query) {
     if (query.trim().isEmpty) return books;
