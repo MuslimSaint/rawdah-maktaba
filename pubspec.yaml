@@ -19,6 +19,9 @@ dependencies:
   # Liquid page transitions
   animations: ^2.0.0
 
+  # Open files with system apps (used for APK install)
+  open_file: ^3.3.2
+
   # Firebase
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.1
