@@ -1,16 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
-import '../core/arabic_utils.dart';
 import '../core/catalog_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
-// FIX: import public TeacherAvatar
 import 'book_detail_screen.dart' show TeacherAvatar;
 import 'surah_audio_player_screen.dart';
-// FIX: was show _ReciterAvatar — private, not exportable
-// now show ReciterAvatar — public
 import 'surah_detail_screen.dart' show ReciterAvatar;
 
 enum SurahNarratorType { reciter, teacher }
@@ -167,8 +163,8 @@ class _SurahLessonsScreenState
               padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.base),
               child: Container(
-                padding:
-                    const EdgeInsets.all(AppSpacing.base),
+                padding: const EdgeInsets.all(
+                    AppSpacing.base),
                 decoration: BoxDecoration(
                   color: c.card,
                   borderRadius: AppRadius.cardRadius,
@@ -184,8 +180,6 @@ class _SurahLessonsScreenState
                               state.downloadService,
                           builder: (context, _) {
                             if (_isReciter) {
-                              // FIX: was _ReciterAvatar
-                              // now ReciterAvatar (public)
                               return ReciterAvatar(
                                 reciter: widget.reciter!,
                                 downloadService:
@@ -253,7 +247,8 @@ class _SurahLessonsScreenState
                                   style: AppText.latin(
                                     color: accent,
                                     size: 18,
-                                    weight: FontWeight.w700,
+                                    weight:
+                                        FontWeight.w700,
                                   )),
                               Text('parts',
                                   style: AppText.latin(
@@ -265,7 +260,8 @@ class _SurahLessonsScreenState
                       ],
                     ),
 
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(
+                        height: AppSpacing.md),
 
                     Column(
                       crossAxisAlignment:
@@ -273,7 +269,8 @@ class _SurahLessonsScreenState
                       children: [
                         Row(
                           mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
+                              MainAxisAlignment
+                                  .spaceBetween,
                           children: [
                             Text('Progress',
                                 style: AppText.latin(
@@ -284,7 +281,8 @@ class _SurahLessonsScreenState
                               style: AppText.latin(
                                   color: accent,
                                   size: 11,
-                                  weight: FontWeight.w700),
+                                  weight:
+                                      FontWeight.w700),
                             ),
                           ],
                         ),
@@ -340,7 +338,8 @@ class _SurahLessonsScreenState
                     teacherAudio: widget.teacherAudio,
                     reciter: widget.reciter,
                     teacher: widget.teacher,
-                    downloadService: state.downloadService,
+                    downloadService:
+                        state.downloadService,
                     catalogService: state.catalogService,
                     onTap: () {
                       Navigator.of(context).push(
@@ -523,8 +522,11 @@ class _SurahLessonRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-    final lessonTitle =
-        ArabicUtils.lessonTitle(partNumber);
+
+    // FIX Task 1: use nameForPart() on the correct audio object.
+    final lessonTitle = isReciter
+        ? reciterAudio!.nameForPart(partNumber)
+        : teacherAudio!.nameForPart(partNumber);
 
     return ListenableBuilder(
       listenable: downloadService,
@@ -631,9 +633,11 @@ class _SurahLessonRow extends StatelessWidget {
                             url: _audioUrl,
                             displayName:
                                 '${meta.nameAr} - $lessonTitle',
-                            bookId: 'surah_${meta.number}',
+                            bookId:
+                                'surah_${meta.number}',
                             personId: _personId,
-                            personPhotoUrl: _personPhotoUrl,
+                            personPhotoUrl:
+                                _personPhotoUrl,
                             onError: (_) {},
                             onComplete: () {},
                           );
