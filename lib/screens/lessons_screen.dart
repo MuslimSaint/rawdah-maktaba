@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
-import '../core/arabic_utils.dart';
 import '../core/catalog_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 import 'audio_player_screen.dart';
-// FIX: import public TeacherAvatar
 import 'book_detail_screen.dart' show TeacherAvatar;
 
 class LessonsScreen extends StatefulWidget {
@@ -47,7 +45,9 @@ class _LessonsScreenState
   int get _totalParts =>
       _teacherAudio?.totalParts ?? 0;
   double get _progress =>
-      _totalParts > 0 ? _completedCount / _totalParts : 0;
+      _totalParts > 0
+          ? _completedCount / _totalParts
+          : 0;
 
   @override
   Widget build(BuildContext context) {
@@ -127,8 +127,8 @@ class _LessonsScreenState
               padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.base),
               child: Container(
-                padding:
-                    const EdgeInsets.all(AppSpacing.base),
+                padding: const EdgeInsets.all(
+                    AppSpacing.base),
                 decoration: BoxDecoration(
                   color: c.card,
                   borderRadius: AppRadius.cardRadius,
@@ -139,8 +139,6 @@ class _LessonsScreenState
                   children: [
                     Row(
                       children: [
-                        // FIX: was _TeacherAvatar (private)
-                        // now TeacherAvatar (public wrapper)
                         ListenableBuilder(
                           listenable:
                               state.downloadService,
@@ -154,10 +152,8 @@ class _LessonsScreenState
                             );
                           },
                         ),
-
                         const SizedBox(
                             width: AppSpacing.md),
-
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
@@ -184,7 +180,6 @@ class _LessonsScreenState
                             ],
                           ),
                         ),
-
                         Container(
                           padding:
                               const EdgeInsets.symmetric(
@@ -220,7 +215,8 @@ class _LessonsScreenState
                       ],
                     ),
 
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(
+                        height: AppSpacing.md),
 
                     Column(
                       crossAxisAlignment:
@@ -228,7 +224,8 @@ class _LessonsScreenState
                       children: [
                         Row(
                           mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
+                              MainAxisAlignment
+                                  .spaceBetween,
                           children: [
                             Text('Progress',
                                 style: AppText.latin(
@@ -239,7 +236,8 @@ class _LessonsScreenState
                               style: AppText.latin(
                                   color: c.brand,
                                   size: 11,
-                                  weight: FontWeight.w700),
+                                  weight:
+                                      FontWeight.w700),
                             ),
                           ],
                         ),
@@ -292,12 +290,14 @@ class _LessonsScreenState
                     book: widget.book,
                     teacher: widget.teacher,
                     teacherAudio: _teacherAudio!,
-                    downloadService: state.downloadService,
+                    downloadService:
+                        state.downloadService,
                     catalogService: state.catalogService,
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => AudioPlayerScreen(
+                          builder: (_) =>
+                              AudioPlayerScreen(
                             book: widget.book,
                             teacher: widget.teacher,
                             teacherAudio: _teacherAudio!,
@@ -444,8 +444,11 @@ class _LessonRowState extends State<_LessonRow> {
   @override
   Widget build(BuildContext context) {
     final c = widget.colors;
+
+    // FIX Task 1: use nameForPart() which returns custom
+    // name if set, falls back to Arabic ordinal if not.
     final lessonTitle =
-        ArabicUtils.lessonTitle(widget.partNumber);
+        widget.teacherAudio.nameForPart(widget.partNumber);
 
     return ListenableBuilder(
       listenable: widget.downloadService,
@@ -575,13 +578,16 @@ class _LessonRowState extends State<_LessonRow> {
                               ? c.dangerBg
                               : isDownloaded
                                   ? c.brand
-                                  : c.brand.withOpacity(0.1),
+                                  : c.brand
+                                      .withOpacity(0.1),
                           border: Border.all(
                             color: isDownloading
-                                ? c.danger.withOpacity(0.3)
+                                ? c.danger
+                                    .withOpacity(0.3)
                                 : isDownloaded
                                     ? c.brand
-                                    : c.brand.withOpacity(0.3),
+                                    : c.brand
+                                        .withOpacity(0.3),
                           ),
                         ),
                         child: isDownloading
@@ -589,8 +595,10 @@ class _LessonRowState extends State<_LessonRow> {
                                 size: 18, color: c.danger)
                             : Icon(
                                 isDownloaded
-                                    ? Icons.play_arrow_rounded
-                                    : Icons.download_rounded,
+                                    ? Icons
+                                        .play_arrow_rounded
+                                    : Icons
+                                        .download_rounded,
                                 size: 20,
                                 color: isDownloaded
                                     ? Colors.white
