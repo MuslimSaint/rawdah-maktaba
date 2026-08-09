@@ -1,5 +1,10 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 import '../core/app_state.dart';
 import '../core/models.dart';
 import '../core/quran_data.dart';
@@ -28,17 +33,16 @@ class HomeTab extends StatelessWidget {
           listenable: state,
           builder: (context, _) {
             return SingleChildScrollView(
-              padding:
-                  const EdgeInsets.only(bottom: AppSpacing.lg),
+              padding: const EdgeInsets.only(
+                  bottom: AppSpacing.lg),
               child: Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
                   _TopBar(colors: c),
 
-                  // Tighter between top bar and
-                  // announcement — they are in sequence.
-                  const SizedBox(height: AppSpacing.base),
+                  const SizedBox(
+                      height: AppSpacing.base),
 
                   ListenableBuilder(
                     listenable: Listenable.merge([
@@ -51,6 +55,17 @@ class HomeTab extends StatelessWidget {
                       if (a == null) {
                         return const SizedBox.shrink();
                       }
+
+                      // Update announcements are never
+                      // dismissible — they stay until the
+                      // app version changes.
+                      if (a.isUpdate) {
+                        return _UpdateBanner(
+                          announcement: a,
+                          colors: c,
+                        );
+                      }
+
                       final fingerprint =
                           AppState.announcementFingerprint(
                               a.message, a.type);
@@ -68,13 +83,13 @@ class HomeTab extends StatelessWidget {
 
                   _DailyHadith(colors: c),
 
-                  // Larger gap — section break between
-                  // hadith and reading progress.
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(
+                      height: AppSpacing.xl),
 
                   _ContinueReading(colors: c),
 
-                  const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(
+                      height: AppSpacing.xl),
 
                   _BranchesSection(colors: c),
                 ],
@@ -87,9 +102,381 @@ class HomeTab extends StatelessWidget {
   }
 }
 
-// ─── Announcement Banner ─────────────────────────────────
-// Left-border accent style — less visually heavy than
-// a full outlined box.
+// ─── Update Banner ────────────────────────────────────────
+//
+// A special banner for type='update' announcements.
+// Not dismissible. Shows download progress inside the
+// banner. After download completes, shows Install button.
+// The APK is downloaded silently outside the Downloads tab.
+
+enum _UpdateState { idle, downloading, done, error }
+
+class _UpdateBanner extends StatefulWidget {
+  final Announcement announcement;
+  final AppColors colors;
+
+  const _UpdateBanner({
+    required this.announcement,
+    required this.colors,
+  });
+
+  @override
+  State<_UpdateBanner> createState() =>
+      _UpdateBannerState();
+}
+
+class _UpdateBannerState
+    extends State<_UpdateBanner> {
+  _UpdateState _state = _UpdateState.idle;
+  double _progress = 0;
+  String? _apkPath;
+  String? _errorMsg;
+  StreamSubscription<List<int>>? _sub;
+  http.Client? _client;
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _client?.close();
+    super.dispose();
+  }
+
+  Future<void> _startDownload() async {
+    if (_state == _UpdateState.downloading) return;
+    if (!widget.announcement.hasDownloadUrl) return;
+
+    setState(() {
+      _state = _UpdateState.downloading;
+      _progress = 0;
+      _errorMsg = null;
+    });
+
+    try {
+      final uri = Uri.parse(
+          widget.announcement.downloadUrl.trim());
+      if (uri.scheme != 'https') {
+        setState(() {
+          _state = _UpdateState.error;
+          _errorMsg =
+              'Invalid update URL. Must be https.';
+        });
+        return;
+      }
+
+      final appDir =
+          await getApplicationDocumentsDirectory();
+      final apkFile = File(
+          '${appDir.path}/rawdah_update.apk');
+      if (await apkFile.exists()) {
+        await apkFile.delete();
+      }
+
+      _client = http.Client();
+      final request = http.Request('GET', uri);
+      request.followRedirects = true;
+      request.maxRedirects = 5;
+
+      final response = await _client!.send(request);
+
+      if (response.statusCode != 200) {
+        setState(() {
+          _state = _UpdateState.error;
+          _errorMsg =
+              'Download failed: ${response.statusCode}';
+        });
+        return;
+      }
+
+      final total = response.contentLength ?? 0;
+      int received = 0;
+      final sink = apkFile.openWrite();
+
+      final completer = Completer<void>();
+
+      _sub = response.stream.listen(
+        (chunk) {
+          sink.add(chunk);
+          received += chunk.length;
+          if (total > 0 && mounted) {
+            setState(() {
+              _progress = received / total;
+            });
+          }
+        },
+        onDone: () async {
+          await sink.flush();
+          await sink.close();
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        },
+        onError: (e) async {
+          await sink.close();
+          if (!completer.isCompleted) {
+            completer.completeError(e);
+          }
+        },
+        cancelOnError: true,
+      );
+
+      await completer.future;
+
+      if (mounted) {
+        setState(() {
+          _state = _UpdateState.done;
+          _apkPath = apkFile.path;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _state = _UpdateState.error;
+          _errorMsg =
+              'Download failed. Check your internet.';
+        });
+      }
+    } finally {
+      _client?.close();
+      _client = null;
+    }
+  }
+
+  Future<void> _install() async {
+    if (_apkPath == null) return;
+    try {
+      await OpenFile.open(_apkPath!);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _errorMsg =
+              'Could not open installer. Try again.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.colors;
+    final a = widget.announcement;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.base,
+        0,
+        AppSpacing.base,
+        AppSpacing.md,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.base),
+        decoration: BoxDecoration(
+          color: c.card,
+          border: Border(
+            left: BorderSide(
+                color: c.goldText, width: 3),
+            top: BorderSide(
+                color: c.goldText.withOpacity(0.2)),
+            right: BorderSide(
+                color: c.goldText.withOpacity(0.2)),
+            bottom: BorderSide(
+                color: c.goldText.withOpacity(0.2)),
+          ),
+          borderRadius: AppRadius.listItemRadius,
+        ),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.system_update_rounded,
+                  size: 18,
+                  color: c.goldText,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    a.message,
+                    style: AppText.latin(
+                      color: c.textPrimary,
+                      size: 13,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            if (_errorMsg != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                _errorMsg!,
+                style: AppText.latin(
+                    color: c.danger, size: 11),
+              ),
+            ],
+
+            const SizedBox(height: AppSpacing.md),
+
+            if (_state == _UpdateState.idle &&
+                a.hasDownloadUrl)
+              GestureDetector(
+                onTap: _startDownload,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [c.goldText, c.goldText],
+                    ),
+                    borderRadius:
+                        AppRadius.buttonRadius,
+                  ),
+                  child: Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.download_rounded,
+                          size: 16,
+                          color: c.isDark
+                              ? Colors.black
+                              : Colors.white),
+                      const SizedBox(
+                          width: AppSpacing.sm),
+                      Text(
+                        'Download Update',
+                        style: AppText.latin(
+                          color: c.isDark
+                              ? Colors.black
+                              : Colors.white,
+                          size: 14,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            if (_state == _UpdateState.downloading)
+              ...[
+              Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius:
+                        AppRadius.pillRadius,
+                    child: LinearProgressIndicator(
+                      value: _progress > 0
+                          ? _progress
+                          : null,
+                      backgroundColor: c.surface2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(
+                              c.goldText),
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(
+                      height: AppSpacing.xs),
+                  Text(
+                    _progress > 0
+                        ? '${(_progress * 100).toInt()}% — Downloading update...'
+                        : 'Connecting...',
+                    style: AppText.latin(
+                      color: c.goldText,
+                      size: 11,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            if (_state == _UpdateState.done) ...[
+              GestureDetector(
+                onTap: _install,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.brand,
+                    borderRadius:
+                        AppRadius.buttonRadius,
+                  ),
+                  child: Row(
+                    mainAxisAlignment:
+                        MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                          Icons.install_mobile_rounded,
+                          size: 16,
+                          color: Colors.white),
+                      const SizedBox(
+                          width: AppSpacing.sm),
+                      Text(
+                        'Install Now',
+                        style: AppText.latin(
+                          color: Colors.white,
+                          size: 14,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Tap Install Now — the system will guide you through installation.',
+                style: AppText.latin(
+                    color: c.textFaint, size: 11),
+                textAlign: TextAlign.center,
+              ),
+            ],
+
+            if (_state == _UpdateState.error &&
+                a.hasDownloadUrl) ...[
+              GestureDetector(
+                onTap: _startDownload,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: c.surface2,
+                    borderRadius:
+                        AppRadius.buttonRadius,
+                    border: Border.all(
+                        color: c.divider),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Try Again',
+                      style: AppText.latin(
+                        color: c.textMuted,
+                        size: 13,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Regular Announcement Banner ─────────────────────────
 
 class _AnnouncementBanner extends StatelessWidget {
   final Announcement announcement;
@@ -137,21 +524,15 @@ class _AnnouncementBanner extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: c.card,
-          // Left-border accent only — less noise.
           border: Border(
             left: BorderSide(
-              color: accentColor,
-              width: 3,
-            ),
+                color: accentColor, width: 3),
             top: BorderSide(
-              color: accentColor.withOpacity(0.15),
-            ),
+                color: accentColor.withOpacity(0.15)),
             right: BorderSide(
-              color: accentColor.withOpacity(0.15),
-            ),
+                color: accentColor.withOpacity(0.15)),
             bottom: BorderSide(
-              color: accentColor.withOpacity(0.15),
-            ),
+                color: accentColor.withOpacity(0.15)),
           ),
           borderRadius: AppRadius.listItemRadius,
         ),
@@ -215,9 +596,9 @@ class _TopBar extends StatelessWidget {
               height: 38,
               decoration: BoxDecoration(
                 color: c.surface2,
-                borderRadius:
-                    AppRadius.buttonRadius,
-                border: Border.all(color: c.divider),
+                borderRadius: AppRadius.buttonRadius,
+                border:
+                    Border.all(color: c.divider),
               ),
               child: Icon(
                 state.isDark
@@ -292,7 +673,8 @@ class _DailyHadith extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = colors;
     final dayIndex = DateTime.now().weekday - 1;
-    final hadith = _hadiths[dayIndex % _hadiths.length];
+    final hadith =
+        _hadiths[dayIndex % _hadiths.length];
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -336,7 +718,8 @@ class _DailyHadith extends StatelessWidget {
 
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.base),
+            padding: const EdgeInsets.all(
+                AppSpacing.base),
             decoration: BoxDecoration(
               color: c.card,
               borderRadius: AppRadius.cardRadius,
@@ -394,9 +777,6 @@ class _DailyHadith extends StatelessWidget {
 }
 
 // ─── Continue Reading ─────────────────────────────────────
-// Replaced the download-style progress bar with a
-// reading-specific metaphor: book icon + "Page X of Y"
-// prominent text + dot-segment position indicator.
 
 class _ContinueReading extends StatelessWidget {
   final AppColors colors;
@@ -404,10 +784,8 @@ class _ContinueReading extends StatelessWidget {
 
   static bool _isMushafId(String? bookId) =>
       bookId == 'mushaf';
-
   static bool _isSurahId(String? bookId) =>
       bookId != null && bookId.startsWith('surah_');
-
   static int? _surahNumberFromId(String? bookId) {
     if (bookId == null ||
         !bookId.startsWith('surah_')) return null;
@@ -440,7 +818,8 @@ class _ContinueReading extends StatelessWidget {
                 ? () => _handleTap(context, state)
                 : null,
             child: Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.all(
+                  AppSpacing.md),
               decoration: BoxDecoration(
                 color: c.card,
                 borderRadius: AppRadius.cardRadius,
@@ -470,13 +849,10 @@ class _ContinueReading extends StatelessWidget {
           .firstOrNull;
       if (mushafSub != null &&
           mushafSub.editions.isNotEmpty) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => MushafReaderScreen(
-              edition: mushafSub.editions.first,
-            ),
-          ),
-        );
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => MushafReaderScreen(
+              edition: mushafSub.editions.first),
+        ));
       }
       return;
     }
@@ -486,12 +862,10 @@ class _ContinueReading extends StatelessWidget {
       if (num != null) {
         final meta = QuranSkeleton.byNumber(num);
         if (meta != null) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) =>
-                  SurahDetailScreen(meta: meta),
-            ),
-          );
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) =>
+                SurahDetailScreen(meta: meta),
+          ));
         }
       }
       return;
@@ -500,14 +874,12 @@ class _ContinueReading extends StatelessWidget {
     try {
       final book = state.catalogService.books
           .firstWhere((b) => b.id == bookId);
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => BookDetailScreen(
-            book: book,
-            catalogService: state.catalogService,
-          ),
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => BookDetailScreen(
+          book: book,
+          catalogService: state.catalogService,
         ),
-      );
+      ));
     } catch (_) {}
   }
 }
@@ -561,7 +933,6 @@ class _LastBookContent extends StatelessWidget {
 
     return Row(
       children: [
-        // Cover / icon
         if (book != null)
           BookCoverWidget(
             book: book,
@@ -602,7 +973,6 @@ class _LastBookContent extends StatelessWidget {
                 CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Book title
               Text(
                 displayName,
                 textDirection: TextDirection.rtl,
@@ -614,20 +984,11 @@ class _LastBookContent extends StatelessWidget {
                   weight: FontWeight.w700,
                 ),
               ),
-
               const SizedBox(height: AppSpacing.xs),
-
-              // ── Reading progress metaphor ──────────
-              // "Page X of Y" is the primary reading
-              // indicator — specific to reading, not
-              // generic like a download bar.
               Row(
                 children: [
-                  Icon(
-                    Icons.auto_stories_rounded,
-                    size: 11,
-                    color: accentColor,
-                  ),
+                  Icon(Icons.auto_stories_rounded,
+                      size: 11, color: accentColor),
                   const SizedBox(
                       width: AppSpacing.xs),
                   Text(
@@ -642,13 +1003,7 @@ class _LastBookContent extends StatelessWidget {
                   ),
                 ],
               ),
-
               const SizedBox(height: AppSpacing.sm),
-
-              // ── Dot segment indicator ──────────────
-              // Segments represent relative position
-              // in the book — feels like a bookmark,
-              // not a download progress bar.
               _ReadingDotIndicator(
                 progress: progress,
                 accentColor: accentColor,
@@ -659,18 +1014,13 @@ class _LastBookContent extends StatelessWidget {
         ),
 
         const SizedBox(width: AppSpacing.sm),
-        Icon(
-          Icons.chevron_right_rounded,
-          size: 16,
-          color: c.textFaint,
-        ),
+        Icon(Icons.chevron_right_rounded,
+            size: 16, color: c.textFaint),
       ],
     );
   }
 }
 
-/// Segmented dot indicator — 8 dots showing
-/// relative position in the book.
 class _ReadingDotIndicator extends StatelessWidget {
   final double progress;
   final Color accentColor;
@@ -691,10 +1041,8 @@ class _ReadingDotIndicator extends StatelessWidget {
     return Row(
       children: List.generate(totalDots, (i) {
         final filled = i < filledDots;
-        // Slightly larger dot at current position
-        final isCurrent = i == filledDots - 1 &&
-            filledDots > 0;
-
+        final isCurrent =
+            i == filledDots - 1 && filledDots > 0;
         return Expanded(
           child: Padding(
             padding: const EdgeInsets.only(
@@ -704,9 +1052,10 @@ class _ReadingDotIndicator extends StatelessWidget {
                   const Duration(milliseconds: 300),
               height: isCurrent ? 6 : 4,
               decoration: BoxDecoration(
-                color: filled ? accentColor : bgColor,
-                borderRadius:
-                    BorderRadius.circular(AppRadius.pill),
+                color:
+                    filled ? accentColor : bgColor,
+                borderRadius: BorderRadius.circular(
+                    AppRadius.pill),
               ),
             ),
           ),
@@ -748,17 +1097,14 @@ class _NoBookContent extends StatelessWidget {
                 CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'No book opened yet',
-                style: AppText.latin(
-                    color: c.textMuted, size: 12),
-              ),
+              Text('No book opened yet',
+                  style: AppText.latin(
+                      color: c.textMuted, size: 12)),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'Tap a book in the Library to start',
-                style: AppText.latin(
-                    color: c.textFaint, size: 10),
-              ),
+                  'Tap a book in the Library to start',
+                  style: AppText.latin(
+                      color: c.textFaint, size: 10)),
               const SizedBox(height: AppSpacing.sm),
               Row(
                 children: List.generate(10, (i) {
@@ -793,7 +1139,8 @@ class _BranchesSection extends StatelessWidget {
   final AppColors colors;
   const _BranchesSection({required this.colors});
 
-  static const Map<String, IconData> _squareIcons = {
+  static const Map<String, IconData> _squareIcons =
+      {
     'aqeedah': Icons.verified_rounded,
     'fiqh': Icons.balance_rounded,
     'arabic': Icons.translate_rounded,
@@ -824,9 +1171,11 @@ class _BranchesSection extends StatelessWidget {
             listenable: state.catalogService,
             builder: (context, _) {
               final quranBranch = Catalog.branches
-                  .firstWhere((b) => b.id == 'quran');
+                  .firstWhere(
+                      (b) => b.id == 'quran');
               final hadithBranch = Catalog.branches
-                  .firstWhere((b) => b.id == 'hadith');
+                  .firstWhere(
+                      (b) => b.id == 'hadith');
               final gridBranches = Catalog.branches
                   .where((b) =>
                       b.id != 'quran' &&
@@ -841,16 +1190,15 @@ class _BranchesSection extends StatelessWidget {
                     colors: c,
                     language: state.language,
                     bookCount: null,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
+                    onTap: () =>
+                        Navigator.of(context).push(
+                      MaterialPageRoute(
                           builder: (_) =>
-                              const QuranScreen(),
-                        ),
-                      );
-                    },
+                              const QuranScreen()),
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.md),
+                  const SizedBox(
+                      height: AppSpacing.md),
                   BranchHeroCard(
                     branch: hadithBranch,
                     style: BranchHeroStyle.hadith,
@@ -858,19 +1206,19 @@ class _BranchesSection extends StatelessWidget {
                     language: state.language,
                     bookCount: state.catalogService
                         .bookCountForBranch('hadith'),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => BranchScreen(
-                            branch: hadithBranch,
-                            catalogService:
-                                state.catalogService,
-                          ),
+                    onTap: () =>
+                        Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => BranchScreen(
+                          branch: hadithBranch,
+                          catalogService:
+                              state.catalogService,
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.md),
+                  const SizedBox(
+                      height: AppSpacing.md),
                   GridView.builder(
                     shrinkWrap: true,
                     physics:
@@ -889,8 +1237,10 @@ class _BranchesSection extends StatelessWidget {
                       final iconData =
                           _squareIcons[branch.id] ??
                               Icons.category_rounded;
-                      final count = state.catalogService
-                          .bookCountForBranch(branch.id);
+                      final count = state
+                          .catalogService
+                          .bookCountForBranch(
+                              branch.id);
 
                       return _BranchSquareCard(
                         branch: branch,
@@ -898,18 +1248,18 @@ class _BranchesSection extends StatelessWidget {
                         count: count,
                         colors: c,
                         language: state.language,
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  BranchScreen(
-                                branch: branch,
-                                catalogService:
-                                    state.catalogService,
-                              ),
+                        onTap: () =>
+                            Navigator.of(context)
+                                .push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                BranchScreen(
+                              branch: branch,
+                              catalogService:
+                                  state.catalogService,
                             ),
-                          );
-                        },
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -951,7 +1301,6 @@ class _BranchSquareCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: c.card,
-          // Card radius for content cards
           borderRadius: AppRadius.cardRadius,
           border: Border.all(color: c.divider),
         ),
@@ -980,18 +1329,18 @@ class _BranchSquareCard extends StatelessWidget {
                           : c.divider,
                     ),
                   ),
-                  child: Icon(
-                    icon,
-                    size: 17,
-                    color: hasBooks
-                        ? c.brand
-                        : c.textFaint,
-                  ),
+                  child: Icon(icon,
+                      size: 17,
+                      color: hasBooks
+                          ? c.brand
+                          : c.textFaint),
                 ),
                 if (!hasBooks)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm - 1,
+                    padding:
+                        const EdgeInsets.symmetric(
+                      horizontal:
+                          AppSpacing.sm - 1,
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
@@ -999,50 +1348,42 @@ class _BranchSquareCard extends StatelessWidget {
                       borderRadius:
                           AppRadius.pillRadius,
                     ),
-                    child: Text(
-                      'Soon',
-                      style: AppText.latin(
-                        color: c.textFaint,
-                        size: 9,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
+                    child: Text('Soon',
+                        style: AppText.latin(
+                            color: c.textFaint,
+                            size: 9,
+                            weight:
+                                FontWeight.w700)),
                   ),
                 if (hasBooks)
                   Icon(
-                    Icons.chevron_right_rounded,
-                    size: 16,
-                    color: c.textFaint,
-                  ),
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: c.textFaint),
               ],
             ),
             Column(
               crossAxisAlignment:
                   CrossAxisAlignment.start,
               children: [
-                Text(
-                  branch.nameFor(language),
-                  style: AppText.latin(
-                    color: hasBooks
-                        ? c.textPrimary
-                        : c.textMuted,
-                    size: 13,
-                    weight: FontWeight.w700,
-                  ),
-                ),
+                Text(branch.nameFor(language),
+                    style: AppText.latin(
+                        color: hasBooks
+                            ? c.textPrimary
+                            : c.textMuted,
+                        size: 13,
+                        weight: FontWeight.w700)),
                 const SizedBox(
                     height: AppSpacing.xs),
                 Text(
-                  hasBooks
-                      ? '$count books'
-                      : 'Coming soon',
-                  style: AppText.latin(
-                    color: hasBooks
-                        ? c.brand
-                        : c.textFaint,
-                    size: 11,
-                  ),
-                ),
+                    hasBooks
+                        ? '$count books'
+                        : 'Coming soon',
+                    style: AppText.latin(
+                        color: hasBooks
+                            ? c.brand
+                            : c.textFaint,
+                        size: 11)),
               ],
             ),
           ],
