@@ -31,11 +31,6 @@ class Teacher {
   final String nameEn;
   final String nameAm;
   final String initials;
-
-  /// Optional direct URL to a photo of this teacher.
-  /// When set, the app downloads the photo automatically
-  /// the first time any of this teacher's audio is downloaded.
-  /// Empty string means no photo.
   final String photoUrl;
 
   const Teacher({
@@ -83,9 +78,6 @@ class Reciter {
   final String nameEn;
   final String nameAm;
   final String initials;
-
-  /// Optional direct URL to a photo of this reciter.
-  /// Same download semantics as Teacher.photoUrl.
   final String photoUrl;
 
   const Reciter({
@@ -130,19 +122,26 @@ class Reciter {
 class TeacherAudio {
   final String teacherId;
   final List<int> parts;
+
+  /// Per-part direct URL overrides.
   final Map<int, String> urls;
+
+  /// Optional custom Arabic name per part number.
+  /// If a part has no entry here, the default Arabic
+  /// ordinal (الجزء الأول...) is used as fallback.
+  final Map<int, String> partNames;
 
   const TeacherAudio({
     required this.teacherId,
     required this.parts,
     this.urls = const {},
+    this.partNames = const {},
   });
 
   factory TeacherAudio.fromJson(
       Map<String, dynamic> json) {
     final urlsRaw =
-        json['urls'] as Map<String, dynamic>? ??
-            const {};
+        json['urls'] as Map<String, dynamic>? ?? {};
     final urls = <int, String>{};
     urlsRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -152,12 +151,28 @@ class TeacherAudio {
         urls[n] = value;
       }
     });
+
+    // Parse optional partNames map.
+    // Catalog format: {"1": "مقدمة", "2": "الحديث الأول"}
+    final partNamesRaw =
+        json['partNames'] as Map<String, dynamic>? ?? {};
+    final partNames = <int, String>{};
+    partNamesRaw.forEach((key, value) {
+      final n = int.tryParse(key);
+      if (n != null &&
+          value is String &&
+          value.isNotEmpty) {
+        partNames[n] = value;
+      }
+    });
+
     return TeacherAudio(
       teacherId: json['teacherId'] as String,
       parts: (json['parts'] as List)
           .map((p) => p as int)
           .toList(),
       urls: urls,
+      partNames: partNames,
     );
   }
 
@@ -168,6 +183,50 @@ class TeacherAudio {
       parts.indexOf(partNumber);
   String? urlForPart(int partNumber) =>
       urls[partNumber];
+
+  /// Returns the custom Arabic name for this part if one
+  /// was provided in the catalog, otherwise falls back to
+  /// the standard Arabic ordinal from ArabicUtils.
+  String nameForPart(int partNumber) {
+    final custom = partNames[partNumber];
+    if (custom != null && custom.isNotEmpty) {
+      return custom;
+    }
+    return _arabicOrdinal(partNumber);
+  }
+
+  /// Standard Arabic lesson ordinal fallback.
+  /// Mirrors ArabicUtils.lessonTitle() so this model
+  /// is self-contained without needing an import.
+  static String _arabicOrdinal(int n) {
+    const ordinals = [
+      '',
+      'الجزء الأول',
+      'الجزء الثاني',
+      'الجزء الثالث',
+      'الجزء الرابع',
+      'الجزء الخامس',
+      'الجزء السادس',
+      'الجزء السابع',
+      'الجزء الثامن',
+      'الجزء التاسع',
+      'الجزء العاشر',
+      'الجزء الحادي عشر',
+      'الجزء الثاني عشر',
+      'الجزء الثالث عشر',
+      'الجزء الرابع عشر',
+      'الجزء الخامس عشر',
+      'الجزء السادس عشر',
+      'الجزء السابع عشر',
+      'الجزء الثامن عشر',
+      'الجزء التاسع عشر',
+      'الجزء العشرون',
+    ];
+    if (n >= 1 && n < ordinals.length) {
+      return ordinals[n];
+    }
+    return 'الجزء $n';
+  }
 }
 
 // ─── ReciterAudio ────────────────────────────────────────
@@ -175,19 +234,25 @@ class TeacherAudio {
 class ReciterAudio {
   final String reciterId;
   final List<int> parts;
+
+  /// Per-part direct URL overrides.
   final Map<int, String> urls;
+
+  /// Optional custom Arabic name per part number.
+  /// Same semantics as TeacherAudio.partNames.
+  final Map<int, String> partNames;
 
   const ReciterAudio({
     required this.reciterId,
     required this.parts,
     this.urls = const {},
+    this.partNames = const {},
   });
 
   factory ReciterAudio.fromJson(
       Map<String, dynamic> json) {
     final urlsRaw =
-        json['urls'] as Map<String, dynamic>? ??
-            const {};
+        json['urls'] as Map<String, dynamic>? ?? {};
     final urls = <int, String>{};
     urlsRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -197,12 +262,26 @@ class ReciterAudio {
         urls[n] = value;
       }
     });
+
+    final partNamesRaw =
+        json['partNames'] as Map<String, dynamic>? ?? {};
+    final partNames = <int, String>{};
+    partNamesRaw.forEach((key, value) {
+      final n = int.tryParse(key);
+      if (n != null &&
+          value is String &&
+          value.isNotEmpty) {
+        partNames[n] = value;
+      }
+    });
+
     return ReciterAudio(
       reciterId: json['reciterId'] as String,
       parts: (json['parts'] as List)
           .map((p) => p as int)
           .toList(),
       urls: urls,
+      partNames: partNames,
     );
   }
 
@@ -213,6 +292,17 @@ class ReciterAudio {
       parts.indexOf(partNumber);
   String? urlForPart(int partNumber) =>
       urls[partNumber];
+
+  /// Returns the custom Arabic name for this part if one
+  /// was provided in the catalog, otherwise falls back to
+  /// the standard Arabic ordinal.
+  String nameForPart(int partNumber) {
+    final custom = partNames[partNumber];
+    if (custom != null && custom.isNotEmpty) {
+      return custom;
+    }
+    return TeacherAudio._arabicOrdinal(partNumber);
+  }
 }
 
 // ─── ContentTableEntry ───────────────────────────────────
@@ -734,12 +824,8 @@ class QuranData {
   }
 }
 
-// ─── Settings models (catalog-controlled) ────────────────
+// ─── Settings models ─────────────────────────────────────
 
-/// A single link entry in the Connect section of Settings.
-/// Platform drives the icon automatically in the UI.
-/// Supported platform values:
-///   telegram, youtube, instagram, twitter, facebook, website
 class SettingsLink {
   final String name;
   final String platform;
@@ -770,15 +856,12 @@ class SettingsLink {
   }
 }
 
-/// A single FAQ entry.
 class FaqEntry {
   final String question;
   final String answer;
 
-  const FaqEntry({
-    required this.question,
-    required this.answer,
-  });
+  const FaqEntry(
+      {required this.question, required this.answer});
 
   factory FaqEntry.fromJson(
       Map<String, dynamic> json) {
@@ -789,15 +872,12 @@ class FaqEntry {
   }
 }
 
-/// A single Privacy policy item.
 class PrivacyEntry {
   final String title;
   final String content;
 
-  const PrivacyEntry({
-    required this.title,
-    required this.content,
-  });
+  const PrivacyEntry(
+      {required this.title, required this.content});
 
   factory PrivacyEntry.fromJson(
       Map<String, dynamic> json) {
@@ -808,13 +888,9 @@ class PrivacyEntry {
   }
 }
 
-/// A credit entry for a teacher or reciter —
-/// their name and social media links.
 class CreditEntry {
   final String nameAr;
   final String nameEn;
-
-  /// List of social links for this person.
   final List<SettingsLink> links;
 
   const CreditEntry({
@@ -838,21 +914,11 @@ class CreditEntry {
   }
 }
 
-/// All catalog-controlled content for the Settings tab.
 class AppSettings {
-  /// Links shown in the Connect section.
   final List<SettingsLink> connectLinks;
-
-  /// FAQ questions and answers.
   final List<FaqEntry> faq;
-
-  /// Privacy policy items.
   final List<PrivacyEntry> privacy;
-
-  /// About section description paragraph.
   final String aboutDescription;
-
-  /// Credits section — teacher/reciter social links.
   final List<CreditEntry> credits;
 
   const AppSettings({
@@ -924,8 +990,6 @@ class Catalog {
   final String audioBaseUrl;
   final String quranBaseUrl;
   final Announcement? announcement;
-
-  /// Catalog-controlled settings tab content.
   final AppSettings settings;
 
   const Catalog({
@@ -939,13 +1003,14 @@ class Catalog {
     required this.quranBaseUrl,
     this.announcement,
     AppSettings? settings,
-  }) : settings = settings ?? const AppSettings(
-          connectLinks: [],
-          faq: [],
-          privacy: [],
-          aboutDescription: '',
-          credits: [],
-        );
+  }) : settings = settings ??
+            const AppSettings(
+              connectLinks: [],
+              faq: [],
+              privacy: [],
+              aboutDescription: '',
+              credits: [],
+            );
 
   factory Catalog.fromJson(Map<String, dynamic> json) {
     return Catalog(
@@ -987,8 +1052,6 @@ class Catalog {
     );
   }
 
-  // ─── Split-catalog assembly ─────────────────────────
-
   static Map<String, dynamic> assembleJson({
     required Map<String, dynamic> root,
     required Map<String, dynamic> teachers,
@@ -1028,8 +1091,7 @@ class Catalog {
     return {
       'version': root['version']?.toString() ?? '1',
       'minAppVersion':
-          root['minAppVersion']?.toString() ??
-              '1.0.0',
+          root['minAppVersion']?.toString() ?? '1.0.0',
       'audioBaseUrl': root['audioBaseUrl'] as String? ??
           'https://github.com/MuslimSaint/rawdah-catalog/'
               'releases/download/v1.0-books',
@@ -1042,7 +1104,6 @@ class Catalog {
             'message': '',
             'type': 'info',
           },
-      // Settings lives in root catalog.json
       if (root['settings'] != null)
         'settings': root['settings'],
       'teachers': teachersList,
@@ -1072,8 +1133,6 @@ class Catalog {
     return <String, dynamic>{};
   }
 
-  // ─── Helpers ───────────────────────────────────────
-
   Teacher? teacherById(String id) {
     try {
       return teachers.firstWhere((t) => t.id == id);
@@ -1091,9 +1150,7 @@ class Catalog {
   }
 
   List<Book> booksInBranch(String branchId) =>
-      books
-          .where((b) => b.isInBranch(branchId))
-          .toList();
+      books.where((b) => b.isInBranch(branchId)).toList();
 
   List<Book> search(String query) {
     if (query.trim().isEmpty) return books;
