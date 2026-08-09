@@ -1,13 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
-import '../core/arabic_utils.dart';
 import '../core/audio_service.dart';
 import '../core/cover_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
-// FIX: import the public TeacherAvatar wrapper
 import 'book_detail_screen.dart' show TeacherAvatar;
 import 'pdf_reader_screen.dart';
 
@@ -49,8 +47,7 @@ class _AudioPlayerScreenState
     _downloadService = state.downloadService;
     _coverService = state.coverService;
 
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_audioService.currentFileId !=
           _currentFileId) {
@@ -64,11 +61,9 @@ class _AudioPlayerScreenState
 
   int get _currentPartNumber =>
       widget.teacherAudio.parts[_currentPartIndex];
-  int get _totalParts =>
-      widget.teacherAudio.totalParts;
+  int get _totalParts => widget.teacherAudio.totalParts;
 
-  String get _currentFileId =>
-      DownloadService.audioId(
+  String get _currentFileId => DownloadService.audioId(
         widget.book.id,
         widget.teacher.id,
         _currentPartNumber,
@@ -92,12 +87,12 @@ class _AudioPlayerScreenState
     if (!_downloadService.isDownloaded(fileId)) {
       return null;
     }
-    final path =
-        await _downloadService.localPath(fileId);
+    final path = await _downloadService.localPath(fileId);
     if (path == null) return null;
 
+    // FIX Task 1: use nameForPart() for title
     final lessonTitle =
-        ArabicUtils.lessonTitle(partNumber);
+        widget.teacherAudio.nameForPart(partNumber);
     final coverPath =
         _coverService.coverPath(widget.book.id);
 
@@ -165,14 +160,12 @@ class _AudioPlayerScreenState
       final path =
           await _downloadService.localPath(_pdfFileId);
       if (path != null && mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => PdfReaderScreen(
-              book: widget.book,
-              filePath: path,
-            ),
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => PdfReaderScreen(
+            book: widget.book,
+            filePath: path,
           ),
-        );
+        ));
       }
     } else {
       if (widget.book.pdfUrl.isEmpty) return;
@@ -192,10 +185,11 @@ class _AudioPlayerScreenState
     final state = AppState.of(context);
     final c = AppColors(isDark: state.isDark);
     final hasPrev = _currentPartIndex > 0;
-    final hasNext =
-        _currentPartIndex < _totalParts - 1;
+    final hasNext = _currentPartIndex < _totalParts - 1;
+
+    // FIX Task 1: use nameForPart() for display
     final lessonTitle =
-        ArabicUtils.lessonTitle(_currentPartNumber);
+        widget.teacherAudio.nameForPart(_currentPartNumber);
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -211,9 +205,8 @@ class _AudioPlayerScreenState
             final position = _audioService.position;
             final duration = _audioService.duration;
             final speed = _audioService.speed;
-            final isActive =
-                _audioService.currentFileId ==
-                    _currentFileId;
+            final isActive = _audioService.currentFileId ==
+                _currentFileId;
             final isLoading =
                 isActive && _audioService.isLoading;
 
@@ -330,9 +323,6 @@ class _AudioPlayerScreenState
                       ),
                       const SizedBox(
                           height: AppSpacing.sm),
-
-                      // FIX: was _TeacherAvatar (private)
-                      // now TeacherAvatar (public wrapper)
                       Row(
                         mainAxisAlignment:
                             MainAxisAlignment.center,
@@ -340,15 +330,14 @@ class _AudioPlayerScreenState
                           ListenableBuilder(
                             listenable:
                                 state.downloadService,
-                            builder: (context, _) {
-                              return TeacherAvatar(
-                                teacher: widget.teacher,
-                                downloadService:
-                                    state.downloadService,
-                                colors: c,
-                                size: 28,
-                              );
-                            },
+                            builder: (context, _) =>
+                                TeacherAvatar(
+                              teacher: widget.teacher,
+                              downloadService:
+                                  state.downloadService,
+                              colors: c,
+                              size: 28,
+                            ),
                           ),
                           const SizedBox(
                               width: AppSpacing.sm),
@@ -357,13 +346,11 @@ class _AudioPlayerScreenState
                             textDirection:
                                 TextDirection.rtl,
                             style: AppText.arabic(
-                              color: c.goldText,
-                              size: 13,
-                            ),
+                                color: c.goldText,
+                                size: 13),
                           ),
                         ],
                       ),
-
                       const SizedBox(
                           height: AppSpacing.xs),
                       Text(
@@ -411,8 +398,7 @@ class _AudioPlayerScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(
-                      height: AppSpacing.md),
+                  const SizedBox(height: AppSpacing.md),
                 ],
 
                 if (_errorMessage != null) ...[
@@ -427,8 +413,8 @@ class _AudioPlayerScreenState
                         borderRadius:
                             AppRadius.listItemRadius,
                         border: Border.all(
-                            color:
-                                c.danger.withOpacity(0.3)),
+                            color: c.danger
+                                .withOpacity(0.3)),
                       ),
                       child: Row(
                         children: [
@@ -448,8 +434,7 @@ class _AudioPlayerScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(
-                      height: AppSpacing.md),
+                  const SizedBox(height: AppSpacing.md),
                 ],
 
                 Padding(
@@ -469,8 +454,7 @@ class _AudioPlayerScreenState
                           ),
                           trackHeight: 4,
                           overlayShape:
-                              SliderComponentShape
-                                  .noOverlay,
+                              SliderComponentShape.noOverlay,
                         ),
                         child: Slider(
                           value: isActive
@@ -490,12 +474,10 @@ class _AudioPlayerScreenState
                                   .toDouble()
                               : 1,
                           onChanged: isActive
-                              ? (v) {
-                                  _audioService.seekTo(
+                              ? (v) => _audioService.seekTo(
                                     Duration(
                                         seconds: v.toInt()),
-                                  );
-                                }
+                                  )
                               : null,
                         ),
                       ),
@@ -505,8 +487,7 @@ class _AudioPlayerScreenState
                                 horizontal: AppSpacing.sm),
                         child: Row(
                           mainAxisAlignment:
-                              MainAxisAlignment
-                                  .spaceBetween,
+                              MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               isActive
@@ -520,8 +501,7 @@ class _AudioPlayerScreenState
                             ),
                             Text(
                               isActive &&
-                                      duration.inSeconds >
-                                          0
+                                      duration.inSeconds > 0
                                   ? AudioService
                                       .formatDuration(
                                           duration)
@@ -565,8 +545,7 @@ class _AudioPlayerScreenState
                         onTap: _isCurrentDownloaded
                             ? () {
                                 if (isActive) {
-                                  _audioService
-                                      .togglePlay();
+                                  _audioService.togglePlay();
                                 } else {
                                   _startPlayback();
                                 }
@@ -625,8 +604,8 @@ class _AudioPlayerScreenState
                         isForward: true,
                         colors: c,
                         onTap: isActive
-                            ? () => _audioService
-                                .seekForward(10)
+                            ? () =>
+                                _audioService.seekForward(10)
                             : null,
                       ),
                       _ControlButton(
@@ -764,25 +743,18 @@ class _BigCover extends StatelessWidget {
             borderRadius: AppRadius.cardRadius,
             child: SizedBox.expand(
               child: coverPath != null
-                  ? Image.file(
-                      File(coverPath),
+                  ? Image.file(File(coverPath),
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) =>
                           Center(
                         child: Icon(
-                          Icons.menu_book_rounded,
-                          size: 56,
-                          color: c.brand,
-                        ),
-                      ),
-                    )
+                            Icons.menu_book_rounded,
+                            size: 56,
+                            color: c.brand),
+                      ))
                   : Center(
-                      child: Icon(
-                        Icons.menu_book_rounded,
-                        size: 56,
-                        color: c.brand,
-                      ),
-                    ),
+                      child: Icon(Icons.menu_book_rounded,
+                          size: 56, color: c.brand)),
             ),
           ),
           if (hasPdfUrl)
@@ -793,9 +765,8 @@ class _BigCover extends StatelessWidget {
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
-                  ),
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.55),
                     borderRadius: AppRadius.pillRadius,
@@ -810,8 +781,7 @@ class _BigCover extends StatelessWidget {
                         size: 11,
                         color: Colors.white,
                       ),
-                      const SizedBox(
-                          width: AppSpacing.xs),
+                      const SizedBox(width: AppSpacing.xs),
                       Text(
                         isPdfDownloaded ? 'Open' : 'Download',
                         style: const TextStyle(
@@ -860,8 +830,7 @@ class _SeekButton extends StatelessWidget {
               ? Icons.forward_10_rounded
               : Icons.replay_10_rounded,
           size: 28,
-          color:
-              onTap != null ? c.textPrimary : c.textFaint,
+          color: onTap != null ? c.textPrimary : c.textFaint,
         ),
       ),
     );
@@ -902,11 +871,10 @@ class _ControlButton extends StatelessWidget {
                 : c.divider.withOpacity(0.5),
           ),
         ),
-        child: Icon(
-          icon,
-          size: size,
-          color: enabled ? c.textPrimary : c.textFaint,
-        ),
+        child: Icon(icon,
+            size: size,
+            color:
+                enabled ? c.textPrimary : c.textFaint),
       ),
     );
   }
