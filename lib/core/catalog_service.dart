@@ -7,19 +7,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 /// Loads and caches the book catalog.
+///
 /// Supports both monolithic and 6-file split formats.
+///
+/// Version-check optimization (Task 8):
+///   On every app launch, only catalog.json (root, ~1 KB)
+///   is fetched first. If its "version" field matches the
+///   cached version, the 5 sub-files are NOT re-fetched —
+///   the existing assembled cache is used directly.
+///   Only when the version differs (catalog was updated)
+///   are all 5 sub-files re-fetched and reassembled.
 class CatalogService extends ChangeNotifier {
   static const _cacheKey = 'catalog_json';
+  static const _cachedVersionKey = 'catalog_cached_version';
   static const _rootCacheKey = 'catalog_root_json';
-  static const _teachersCacheKey =
-      'catalog_teachers_json';
-  static const _recitersCacheKey =
-      'catalog_reciters_json';
+  static const _teachersCacheKey = 'catalog_teachers_json';
+  static const _recitersCacheKey = 'catalog_reciters_json';
   static const _booksCacheKey = 'catalog_books_json';
-  static const _surahsCacheKey =
-      'catalog_surahs_json';
-  static const _mushafCacheKey =
-      'catalog_mushaf_json';
+  static const _surahsCacheKey = 'catalog_surahs_json';
+  static const _mushafCacheKey = 'catalog_mushaf_json';
 
   static const _primaryBase =
       'https://raw.githubusercontent.com/MuslimSaint/rawdah-catalog/main';
@@ -38,12 +44,9 @@ class CatalogService extends ChangeNotifier {
   // ─── Catalog data ──────────────────────────────────
 
   List<Book> get books => _catalog?.books ?? [];
-  List<Teacher> get teachers =>
-      _catalog?.teachers ?? [];
-  List<Reciter> get reciters =>
-      _catalog?.reciters ?? [];
-  QuranData get quran =>
-      _catalog?.quran ?? QuranData.empty();
+  List<Teacher> get teachers => _catalog?.teachers ?? [];
+  List<Reciter> get reciters => _catalog?.reciters ?? [];
+  QuranData get quran => _catalog?.quran ?? QuranData.empty();
   AppSettings get settings =>
       _catalog?.settings ?? AppSettings.defaults();
 
@@ -62,9 +65,7 @@ class CatalogService extends ChangeNotifier {
 
   Announcement? get activeAnnouncement {
     final a = _catalog?.announcement;
-    if (a == null || !a.active || a.message.isEmpty) {
-      return null;
-    }
+    if (a == null || !a.active || a.message.isEmpty) return null;
     return a;
   }
 
@@ -77,8 +78,7 @@ class CatalogService extends ChangeNotifier {
 
   Future<void> _loadFromCache() async {
     try {
-      final prefs =
-          await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
       final cached = prefs.getString(_cacheKey);
       if (cached != null) {
         final json = _decodeMap(cached);
@@ -88,8 +88,7 @@ class CatalogService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      debugPrint(
-          'CatalogService cache load failed: $e');
+      debugPrint('CatalogService cache load failed: $e');
     }
   }
 
@@ -98,56 +97,74 @@ class CatalogService extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    final primaryFresh = await _tryRepo(
-        _primaryBase,
-        allowCacheFallback: false);
+    // ── Pass 1: fresh fetch, no cache fallback ──────
+    // Try primary first, then backup.
+    // Both use the version-check optimization:
+    // if the remote version matches our cached version,
+    // we skip all sub-file fetches entirely.
+    final primaryFresh =
+        await _tryRepo(_primaryBase, allowCacheFallback: false);
     if (primaryFresh != null) {
       await _apply(primaryFresh);
       return;
     }
 
-    final backupFresh = await _tryRepo(
-        _backupBase,
-        allowCacheFallback: false);
+    final backupFresh =
+        await _tryRepo(_backupBase, allowCacheFallback: false);
     if (backupFresh != null) {
       await _apply(backupFresh);
       return;
     }
 
-    final primaryCached = await _tryRepo(
-        _primaryBase,
-        allowCacheFallback: true);
+    // ── Pass 2: cache-assisted fallback ────────────
+    // Network failed. Try again but allow each sub-file
+    // to fall back to its individual cached copy.
+    final primaryCached =
+        await _tryRepo(_primaryBase, allowCacheFallback: true);
     if (primaryCached != null) {
       await _apply(primaryCached);
       return;
     }
 
-    final backupCached = await _tryRepo(
-        _backupBase,
-        allowCacheFallback: true);
+    final backupCached =
+        await _tryRepo(_backupBase, allowCacheFallback: true);
     if (backupCached != null) {
       await _apply(backupCached);
       return;
     }
 
-    debugPrint(
-        'All catalog fetches failed — keeping cache.');
+    debugPrint('All catalog fetches failed — keeping cache.');
     if (_catalog == null) {
-      _error =
-          'No internet connection and no cached data.';
+      _error = 'No internet connection and no cached data.';
     }
     _isLoading = false;
     notifyListeners();
   }
+
+  // ─── _tryRepo ──────────────────────────────────────
+  //
+  // Returns an assembled catalog JSON map if successful,
+  // or null if the fetch/parse failed.
+  //
+  // Version-check logic:
+  //   1. Fetch only catalog.json (root).
+  //   2. Read its "version" field.
+  //   3. Compare to the locally stored cached version.
+  //   4. If SAME and we have a valid assembled cache:
+  //      → Return the cached assembled catalog immediately.
+  //      → Zero additional HTTP requests.
+  //   5. If DIFFERENT (or no cache):
+  //      → Fetch all 5 sub-files in parallel.
+  //      → Assemble and return.
 
   Future<Map<String, dynamic>?> _tryRepo(
     String baseUrl, {
     required bool allowCacheFallback,
   }) async {
     try {
-      final prefs =
-          await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
 
+      // Step 1 — fetch root catalog.json
       final root = await _fetchFile(
         url: '$baseUrl/catalog.json',
         cacheKey: _rootCacheKey,
@@ -156,11 +173,57 @@ class CatalogService extends ChangeNotifier {
       );
       if (root == null) return null;
 
+      // Step 2 — read remote version
+      final remoteVersion =
+          root['version']?.toString() ?? '';
+
+      // Step 3 — read locally cached version
+      final cachedVersion =
+          prefs.getString(_cachedVersionKey) ?? '';
+
+      // Step 4 — version-check shortcut
+      // Only applies when:
+      //   - versions match (catalog not updated)
+      //   - we have a valid assembled cache
+      //   - we are not in cache-fallback mode
+      //     (cache-fallback mode means network already
+      //      failed so we skip version shortcut to avoid
+      //      using a stale assembled cache if root was
+      //      served from local cache too)
+      if (!allowCacheFallback &&
+          remoteVersion.isNotEmpty &&
+          remoteVersion == cachedVersion) {
+        final assembledCached = prefs.getString(_cacheKey);
+        if (assembledCached != null) {
+          final assembledJson = _decodeMap(assembledCached);
+          if (assembledJson != null) {
+            try {
+              Catalog.fromJson(assembledJson);
+              debugPrint(
+                'Catalog version $remoteVersion unchanged '
+                '— using cache, skipping sub-file fetches.',
+              );
+              return assembledJson;
+            } catch (_) {
+              // Assembled cache is corrupt — fall through
+              // to full fetch below.
+            }
+          }
+        }
+      }
+
+      // Step 5 — version changed (or no cache).
+      // Determine if this is split or monolithic.
       final includes = _readIncludes(root['includes']);
 
       if (includes.isEmpty) {
+        // Monolithic format
         try {
           Catalog.fromJson(root);
+          debugPrint(
+            'Loaded monolithic catalog from $baseUrl '
+            '(version: $remoteVersion)',
+          );
           return root;
         } catch (e) {
           debugPrint(
@@ -169,16 +232,21 @@ class CatalogService extends ChangeNotifier {
         }
       }
 
+      // Step 6 — split format: fetch 5 sub-files in parallel
       final teachersPath =
           includes['teachers'] ?? 'teachers.json';
       final recitersPath =
           includes['reciters'] ?? 'reciters.json';
-      final booksPath =
-          includes['books'] ?? 'books.json';
+      final booksPath = includes['books'] ?? 'books.json';
       final surahsPath =
           includes['surahs'] ?? 'surahs.json';
       final mushafPath =
           includes['mushaf'] ?? 'mushaf.json';
+
+      debugPrint(
+        'Catalog version changed ($cachedVersion → $remoteVersion). '
+        'Fetching all sub-files from $baseUrl...',
+      );
 
       final results =
           await Future.wait<Map<String, dynamic>?>([
@@ -215,6 +283,8 @@ class CatalogService extends ChangeNotifier {
       ]);
 
       if (results.any((r) => r == null)) {
+        debugPrint(
+            'Sub-file fetch incomplete from $baseUrl');
         return null;
       }
 
@@ -230,11 +300,14 @@ class CatalogService extends ChangeNotifier {
       try {
         Catalog.fromJson(assembled);
       } catch (e) {
-        debugPrint(
-            'Assembled catalog parse failed: $e');
+        debugPrint('Assembled catalog parse failed: $e');
         return null;
       }
 
+      debugPrint(
+        'Fetched and assembled split catalog from $baseUrl '
+        '(version: $remoteVersion)',
+      );
       return assembled;
     } catch (e) {
       debugPrint(
@@ -243,6 +316,8 @@ class CatalogService extends ChangeNotifier {
     }
   }
 
+  // ─── _fetchFile ────────────────────────────────────
+
   Future<Map<String, dynamic>?> _fetchFile({
     required String url,
     required String cacheKey,
@@ -250,8 +325,7 @@ class CatalogService extends ChangeNotifier {
     required bool allowCacheFallback,
   }) async {
     try {
-      final ts =
-          DateTime.now().millisecondsSinceEpoch;
+      final ts = DateTime.now().millisecondsSinceEpoch;
       final uri = Uri.parse('$url?t=$ts');
 
       final response = await http
@@ -262,14 +336,12 @@ class CatalogService extends ChangeNotifier {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) {
-        throw Exception(
-            'HTTP ${response.statusCode}');
+        throw Exception('HTTP ${response.statusCode}');
       }
 
       final json = _decodeMap(response.body);
       if (json == null) {
-        throw Exception(
-            'Response is not a JSON object');
+        throw Exception('Response is not a JSON object');
       }
 
       await prefs.setString(cacheKey, response.body);
@@ -284,16 +356,23 @@ class CatalogService extends ChangeNotifier {
     }
   }
 
+  // ─── _apply ────────────────────────────────────────
+
   Future<void> _apply(
       Map<String, dynamic> assembled) async {
     try {
       _catalog = Catalog.fromJson(assembled);
       _error = null;
 
-      final prefs =
-          await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
+
+      // Save assembled catalog for cold-start cache
+      await prefs.setString(_cacheKey, jsonEncode(assembled));
+
+      // Save the version so the next launch can do a
+      // version-check shortcut.
       await prefs.setString(
-          _cacheKey, jsonEncode(assembled));
+          _cachedVersionKey, _catalog!.version);
 
       debugPrint(
         'Catalog applied. '
@@ -315,6 +394,13 @@ class CatalogService extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    // Force a full re-fetch regardless of version.
+    // Called manually by the user (pull to refresh)
+    // or by the app on demand.
+    // Clear the cached version so the version-check
+    // shortcut is bypassed this one time.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_cachedVersionKey);
     await _fetchFromNetwork();
   }
 
@@ -323,9 +409,7 @@ class CatalogService extends ChangeNotifier {
   Map<String, dynamic>? _decodeMap(String body) {
     try {
       final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
+      if (decoded is Map<String, dynamic>) return decoded;
       if (decoded is Map) {
         return decoded.map(
             (k, v) => MapEntry(k.toString(), v));
@@ -380,8 +464,7 @@ class CatalogService extends ChangeNotifier {
     required TeacherAudio teacherAudio,
     required int partNumber,
   }) {
-    final override =
-        teacherAudio.urlForPart(partNumber);
+    final override = teacherAudio.urlForPart(partNumber);
     if (override != null && override.isNotEmpty) {
       return override;
     }
@@ -394,8 +477,7 @@ class CatalogService extends ChangeNotifier {
     required ReciterAudio reciterAudio,
     required int partNumber,
   }) {
-    final override =
-        reciterAudio.urlForPart(partNumber);
+    final override = reciterAudio.urlForPart(partNumber);
     if (override != null && override.isNotEmpty) {
       return override;
     }
@@ -409,8 +491,7 @@ class CatalogService extends ChangeNotifier {
     required TeacherAudio teacherAudio,
     required int partNumber,
   }) {
-    final override =
-        teacherAudio.urlForPart(partNumber);
+    final override = teacherAudio.urlForPart(partNumber);
     if (override != null && override.isNotEmpty) {
       return override;
     }
@@ -428,8 +509,7 @@ class CatalogService extends ChangeNotifier {
       '$quranBaseUrl/$surahNumber.pdf';
 
   String? get mushafPdfUrl {
-    final url =
-        _catalog?.quran.mushafPdfUrl ?? '';
+    final url = _catalog?.quran.mushafPdfUrl ?? '';
     if (url.isEmpty) return null;
     return url;
   }
