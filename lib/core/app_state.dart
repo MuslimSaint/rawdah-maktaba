@@ -15,6 +15,7 @@ class AppState extends ChangeNotifier {
   static const _keyLanguage = 'language';
   static const _keyFirstLaunch = 'first_launch';
   static const _keyUserSignedIn = 'user_signed_in';
+  static const _keyIsGuest = 'user_is_guest';
   static const _keyLastBookId = 'last_book_id';
   static const _keyLastBookPage = 'last_book_page';
   static const _keyLastBookTitle = 'last_book_title';
@@ -34,6 +35,7 @@ class AppState extends ChangeNotifier {
   String _language = 'en';
   bool _isFirstLaunch = true;
   bool _isSignedIn = false;
+  bool _isGuest = false;
 
   String? _lastBookId;
   String? _lastBookTitle;
@@ -46,16 +48,24 @@ class AppState extends ChangeNotifier {
   final Set<String> _dismissedAnnouncements =
       <String>{};
 
-  final CatalogService catalogService = CatalogService();
-  final DownloadService downloadService = DownloadService();
+  final CatalogService catalogService =
+      CatalogService();
+  final DownloadService downloadService =
+      DownloadService();
   final AudioService audioService = AudioService();
-  final FirestoreService firestoreService = FirestoreService();
+  final FirestoreService firestoreService =
+      FirestoreService();
   final CoverService coverService = CoverService();
 
   bool get isDark => _isDark;
   String get language => _language;
   bool get isFirstLaunch => _isFirstLaunch;
   bool get isSignedIn => _isSignedIn;
+
+  /// True when the user entered as a guest
+  /// (no Firebase account, local-only).
+  bool get isGuest => _isGuest;
+
   String? get lastBookId => _lastBookId;
   String? get lastBookTitle => _lastBookTitle;
   int get lastBookPage => _lastBookPage;
@@ -86,13 +96,17 @@ class AppState extends ChangeNotifier {
           Brightness.dark;
     }
 
-    _language = _prefs.getString(_keyLanguage) ?? 'en';
+    _language =
+        _prefs.getString(_keyLanguage) ?? 'en';
     _isFirstLaunch =
         _prefs.getBool(_keyFirstLaunch) ?? true;
     _isSignedIn =
         _prefs.getBool(_keyUserSignedIn) ?? false;
+    _isGuest = _prefs.getBool(_keyIsGuest) ?? false;
+
     _lastBookId = _prefs.getString(_keyLastBookId);
-    _lastBookTitle = _prefs.getString(_keyLastBookTitle);
+    _lastBookTitle =
+        _prefs.getString(_keyLastBookTitle);
     _lastBookPage =
         _prefs.getInt(_keyLastBookPage) ?? 0;
     _lastBookTotalPages =
@@ -100,8 +114,8 @@ class AppState extends ChangeNotifier {
 
     _migrateLegacyMushafLastPage();
 
-    final dismissed = _prefs
-            .getStringList(_keyDismissedAnnouncements) ??
+    final dismissed = _prefs.getStringList(
+            _keyDismissedAnnouncements) ??
         [];
     _dismissedAnnouncements.addAll(dismissed);
 
@@ -177,7 +191,9 @@ class AppState extends ChangeNotifier {
 
     catalogService.addListener(_onCatalogLoaded);
     catalogService.load();
-    if (_isSignedIn) _syncFromCloud();
+
+    // Only sync cloud for authenticated users
+    if (_isSignedIn && !_isGuest) _syncFromCloud();
   }
 
   void _migrateLegacyMushafLastPage() {
@@ -206,14 +222,13 @@ class AppState extends ChangeNotifier {
     catalogService.removeListener(_onCatalogLoaded);
     _extractCoversForDownloadedBooks();
     _downloadMissingPhotos();
-    // Task 7: remove any downloaded files that no
-    // longer exist in the catalog.
     _cleanOrphanedFiles();
   }
 
   // ─── Cover extraction ──────────────────────────────
 
-  Future<void> _extractCoversForDownloadedBooks() async {
+  Future<void> _extractCoversForDownloadedBooks()
+      async {
     final books = catalogService.books;
     for (final book in books) {
       final fileId = 'pdf_${book.id}';
@@ -231,7 +246,8 @@ class AppState extends ChangeNotifier {
         }
       }
     }
-    for (final sub in catalogService.quranSubBranches) {
+    for (final sub
+        in catalogService.quranSubBranches) {
       for (final book in sub.books) {
         final fileId = 'pdf_${book.id}';
         if (downloadService.isDownloaded(fileId) &&
@@ -284,7 +300,8 @@ class AppState extends ChangeNotifier {
           downloadService.hasPhoto(reciter.id)) continue;
       bool hasAudio = false;
       for (int n = 1; n <= 114; n++) {
-        final surah = catalogService.quran.surahFor(n);
+        final surah =
+            catalogService.quran.surahFor(n);
         for (final ra in surah.reciters) {
           if (ra.reciterId != reciter.id) continue;
           for (final part in ra.parts) {
@@ -308,30 +325,7 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // ─── Orphan cleanup (Task 7) ───────────────────────
-  //
-  // After catalog loads, build the complete set of
-  // file IDs that the catalog currently recognizes as
-  // valid. Any downloaded file ID not in this set is
-  // an orphan — it was removed from the catalog (book
-  // deleted, teacher removed, parts reduced, etc.).
-  //
-  // Orphans are silently deleted from the device.
-  //
-  // What is included in the valid set:
-  //   - book PDFs
-  //   - book audio parts (all teachers × all parts)
-  //   - Surah PDFs
-  //   - Surah reciter audio parts
-  //   - Surah teacher audio parts
-  //   - Mushaf edition PDFs
-  //   - Sub-branch book PDFs and their audio parts
-  //
-  // What is NOT included (never deleted):
-  //   - Teacher/reciter photos (identity cache)
-  //   - Mushaf PDFs marked as "mushaf" or "mushaf-bw"
-  //     (these are long-lived user content, not removed
-  //     silently — user must delete manually)
+  // ─── Orphan cleanup ────────────────────────────────
 
   Future<void> _cleanOrphanedFiles() async {
     try {
@@ -344,8 +338,7 @@ class AppState extends ChangeNotifier {
         final fileId = file['id'] as String;
         if (!validIds.contains(fileId)) {
           debugPrint(
-            'Orphan cleanup: deleting $fileId '
-            '(not in current catalog)',
+            'Orphan cleanup: deleting $fileId',
           );
           await downloadService.deleteFile(fileId);
           deleted++;
@@ -356,31 +349,19 @@ class AppState extends ChangeNotifier {
         debugPrint(
             'Orphan cleanup: deleted $deleted file(s).');
         notifyListeners();
-      } else {
-        debugPrint(
-            'Orphan cleanup: nothing to delete.');
       }
 
-      // Also clean up reading progress if the last
-      // opened book no longer exists in the catalog.
       _cleanOrphanedReadingProgress(validIds);
     } catch (e) {
       debugPrint('Orphan cleanup failed: $e');
     }
   }
 
-  /// Builds the complete set of valid file IDs from the
-  /// current catalog. Any downloaded file not in this
-  /// set is considered an orphan.
   Set<String> _buildValidFileIds() {
     final valid = <String>{};
 
-    // ── Regular books ──────────────────────────────
     for (final book in catalogService.books) {
-      // Book PDF
       valid.add('pdf_${book.id}');
-
-      // Book audio — every teacher × every part
       for (final ta in book.teacherAudio) {
         for (final part in ta.parts) {
           valid.add(DownloadService.audioId(
@@ -389,8 +370,8 @@ class AppState extends ChangeNotifier {
       }
     }
 
-    // ── Sub-branch books ───────────────────────────
-    for (final sub in catalogService.quranSubBranches) {
+    for (final sub
+        in catalogService.quranSubBranches) {
       for (final book in sub.books) {
         valid.add('pdf_${book.id}');
         for (final ta in book.teacherAudio) {
@@ -402,37 +383,27 @@ class AppState extends ChangeNotifier {
       }
     }
 
-    // ── Surah PDFs and audio ───────────────────────
     for (int n = 1; n <= 114; n++) {
-      // Surah PDF
       valid.add('pdf_surah_$n');
-
       final surah = catalogService.quran.surahFor(n);
-
-      // Surah reciter audio
       for (final ra in surah.reciters) {
         for (final part in ra.parts) {
-          valid.add(DownloadService.surahReciterAudioId(
-              n, ra.reciterId, part));
+          valid.add(
+              DownloadService.surahReciterAudioId(
+                  n, ra.reciterId, part));
         }
       }
-
-      // Surah teacher audio
       for (final ta in surah.teachers) {
         for (final part in ta.parts) {
-          valid.add(DownloadService.surahTeacherAudioId(
-              n, ta.teacherId, part));
+          valid.add(
+              DownloadService.surahTeacherAudioId(
+                  n, ta.teacherId, part));
         }
       }
     }
 
-    // ── Mushaf edition PDFs ────────────────────────
-    // These are kept in the valid set always —
-    // Mushaf editions are long-lived user content.
-    // Even if an edition is removed from the catalog,
-    // we do NOT silently delete a 200MB Mus'haf the
-    // user downloaded. They can delete it manually.
-    for (final sub in catalogService.quranSubBranches) {
+    for (final sub
+        in catalogService.quranSubBranches) {
       for (final edition in sub.editions) {
         final fileId = edition.id == 'mushaf'
             ? 'pdf_mushaf'
@@ -440,37 +411,21 @@ class AppState extends ChangeNotifier {
         valid.add(fileId);
       }
     }
-    // Also keep the default edition even if not listed
     valid.add('pdf_mushaf');
 
     return valid;
   }
 
-  /// If the last opened book no longer exists in the
-  /// catalog, clear the reading progress so the
-  /// Continue Reading section does not show a ghost.
   void _cleanOrphanedReadingProgress(
       Set<String> validFileIds) {
-    if (_lastBookId == null || _lastBookId!.isEmpty) {
-      return;
-    }
-
-    // Check if it was a regular book PDF
+    if (_lastBookId == null ||
+        _lastBookId!.isEmpty) return;
     final pdfId = 'pdf_$_lastBookId';
-    // Check if it was a Surah
-    final isSurah = _lastBookId!.startsWith('surah_');
-    // Check if it was Mus'haf
+    final isSurah =
+        _lastBookId!.startsWith('surah_');
     final isMushaf = _lastBookId == 'mushaf';
-
-    // Surahs and Mushaf are always valid
     if (isSurah || isMushaf) return;
-
-    // If the book PDF is not in the valid set, clear
     if (!validFileIds.contains(pdfId)) {
-      debugPrint(
-        'Orphan cleanup: clearing reading progress '
-        'for removed book $_lastBookId',
-      );
       _lastBookId = null;
       _lastBookTitle = null;
       _lastBookPage = 0;
@@ -486,6 +441,8 @@ class AppState extends ChangeNotifier {
   // ─── Cloud Sync ────────────────────────────────────
 
   Future<void> _syncFromCloud() async {
+    // Guests never sync
+    if (_isGuest) return;
     try {
       final cloudData =
           await firestoreService.syncOnLogin();
@@ -495,7 +452,8 @@ class AppState extends ChangeNotifier {
         final bookId =
             cloudData['lastBookId'] as String? ?? '';
         final bookTitle =
-            cloudData['lastBookTitle'] as String? ?? '';
+            cloudData['lastBookTitle'] as String? ??
+                '';
         final page =
             cloudData['lastPage'] as int? ?? 0;
         final total =
@@ -541,12 +499,40 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ─── Auth ──────────────────────────────────────────
+
   Future<void> setSignedIn(bool value) async {
     _isSignedIn = value;
+    if (value) {
+      // Signing in clears guest state
+      _isGuest = false;
+      await _prefs.setBool(_keyIsGuest, false);
+    }
     await _prefs.setBool(_keyUserSignedIn, value);
     if (value) _syncFromCloud();
     notifyListeners();
   }
+
+  /// Sets guest mode. The user enters without an account.
+  /// All progress is stored locally only.
+  Future<void> setGuest() async {
+    _isGuest = true;
+    _isSignedIn = false;
+    await _prefs.setBool(_keyIsGuest, true);
+    await _prefs.setBool(_keyUserSignedIn, false);
+    notifyListeners();
+  }
+
+  /// Clears guest mode without signing in.
+  /// Called when a guest explicitly signs out
+  /// or when navigating back to auth screen.
+  Future<void> clearGuest() async {
+    _isGuest = false;
+    await _prefs.setBool(_keyIsGuest, false);
+    notifyListeners();
+  }
+
+  // ─── Reading Progress ──────────────────────────────
 
   Future<void> setLastOpenedBook({
     required String bookId,
@@ -558,18 +544,24 @@ class AppState extends ChangeNotifier {
     _lastBookTitle = bookTitle;
     _lastBookPage = page;
     _lastBookTotalPages = totalPages;
+
     await _prefs.setString(_keyLastBookId, bookId);
     await _prefs.setString(
         _keyLastBookTitle, bookTitle);
     await _prefs.setInt(_keyLastBookPage, page);
     await _prefs.setInt(
         _keyLastBookTotalPages, totalPages);
-    firestoreService.saveReadingProgress(
-      bookId: bookId,
-      bookTitle: bookTitle,
-      page: page,
-      totalPages: totalPages,
-    );
+
+    // Guests don't sync to Firebase
+    if (!_isGuest) {
+      firestoreService.saveReadingProgress(
+        bookId: bookId,
+        bookTitle: bookTitle,
+        page: page,
+        totalPages: totalPages,
+      );
+    }
+
     notifyListeners();
   }
 
@@ -580,7 +572,8 @@ class AppState extends ChangeNotifier {
     await _prefs.setInt(_keyLastBookPage, page);
     await _prefs.setInt(
         _keyLastBookTotalPages, totalPages);
-    if (_lastBookId != null) {
+
+    if (_lastBookId != null && !_isGuest) {
       firestoreService.saveReadingProgress(
         bookId: _lastBookId!,
         bookTitle: _lastBookTitle ?? '',
@@ -588,8 +581,11 @@ class AppState extends ChangeNotifier {
         totalPages: totalPages,
       );
     }
+
     notifyListeners();
   }
+
+  // ─── Mus'haf Position ──────────────────────────────
 
   int mushafLastPageFor(String editionId) {
     if (_mushafLastPages.containsKey(editionId)) {
@@ -624,9 +620,8 @@ class AppState extends ChangeNotifier {
 
   Future<void> dismissAnnouncement(
       String fingerprint) async {
-    if (_dismissedAnnouncements.contains(fingerprint)) {
-      return;
-    }
+    if (_dismissedAnnouncements
+        .contains(fingerprint)) return;
     _dismissedAnnouncements.add(fingerprint);
     await _prefs.setStringList(
       _keyDismissedAnnouncements,
