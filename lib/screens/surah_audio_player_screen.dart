@@ -1,18 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../core/app_state.dart';
-import '../core/arabic_utils.dart';
 import '../core/audio_service.dart';
 import '../core/cover_service.dart';
 import '../core/download_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
-// FIX: import public TeacherAvatar
 import 'book_detail_screen.dart' show TeacherAvatar;
 import 'pdf_reader_screen.dart';
-// FIX: was show fakeBookForSurah, _ReciterAvatar
-// _ReciterAvatar is private and can't be exported
-// now show fakeBookForSurah, ReciterAvatar (public)
 import 'surah_detail_screen.dart'
     show fakeBookForSurah, ReciterAvatar;
 import 'surah_lessons_screen.dart';
@@ -145,12 +140,14 @@ class _SurahAudioPlayerScreenState
       return null;
     }
 
-    final path =
-        await _downloadService.localPath(fileId);
+    final path = await _downloadService.localPath(fileId);
     if (path == null) return null;
 
-    final lessonTitle =
-        ArabicUtils.lessonTitle(partNumber);
+    // FIX Task 1: use nameForPart() on correct audio object
+    final lessonTitle = _isReciter
+        ? widget.reciterAudio!.nameForPart(partNumber)
+        : widget.teacherAudio!.nameForPart(partNumber);
+
     final coverPath =
         _coverService.coverPath(_surahCoverKey);
 
@@ -218,14 +215,12 @@ class _SurahAudioPlayerScreenState
       final path = await _downloadService
           .localPath(_surahPdfFileId);
       if (path != null && mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => PdfReaderScreen(
-              book: fakeBookForSurah(widget.meta),
-              filePath: path,
-            ),
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => PdfReaderScreen(
+            book: fakeBookForSurah(widget.meta),
+            filePath: path,
           ),
-        );
+        ));
       }
     } else {
       if (!_hasPdfUrl) return;
@@ -251,8 +246,12 @@ class _SurahAudioPlayerScreenState
     final c = AppColors(isDark: state.isDark);
     final hasPrev = _currentPartIndex > 0;
     final hasNext = _currentPartIndex < _totalParts - 1;
-    final lessonTitle =
-        ArabicUtils.lessonTitle(_currentPartNumber);
+
+    // FIX Task 1: use nameForPart() for display
+    final lessonTitle = _isReciter
+        ? widget.reciterAudio!.nameForPart(_currentPartNumber)
+        : widget.teacherAudio!.nameForPart(_currentPartNumber);
+
     final accent = _isReciter ? c.goldText : c.brand;
     final accentHover =
         _isReciter ? c.goldText : c.brandHover;
@@ -271,9 +270,8 @@ class _SurahAudioPlayerScreenState
             final position = _audioService.position;
             final duration = _audioService.duration;
             final speed = _audioService.speed;
-            final isActive =
-                _audioService.currentFileId ==
-                    _currentFileId;
+            final isActive = _audioService.currentFileId ==
+                _currentFileId;
             final isLoading =
                 isActive && _audioService.isLoading;
 
@@ -389,10 +387,8 @@ class _SurahAudioPlayerScreenState
                           height: 1.5,
                         ),
                       ),
-
                       const SizedBox(
                           height: AppSpacing.sm),
-
                       Row(
                         mainAxisAlignment:
                             MainAxisAlignment.center,
@@ -402,8 +398,6 @@ class _SurahAudioPlayerScreenState
                                 state.downloadService,
                             builder: (context, _) {
                               if (_isReciter) {
-                                // FIX: was _ReciterAvatar
-                                // now ReciterAvatar (public)
                                 return ReciterAvatar(
                                   reciter: widget.reciter!,
                                   downloadService:
@@ -433,7 +427,6 @@ class _SurahAudioPlayerScreenState
                           ),
                         ],
                       ),
-
                       const SizedBox(
                           height: AppSpacing.xs),
                       Text(
@@ -496,8 +489,8 @@ class _SurahAudioPlayerScreenState
                         borderRadius:
                             AppRadius.listItemRadius,
                         border: Border.all(
-                            color:
-                                c.danger.withOpacity(0.3)),
+                            color: c.danger
+                                .withOpacity(0.3)),
                       ),
                       child: Row(
                         children: [
@@ -537,8 +530,7 @@ class _SurahAudioPlayerScreenState
                           ),
                           trackHeight: 4,
                           overlayShape:
-                              SliderComponentShape
-                                  .noOverlay,
+                              SliderComponentShape.noOverlay,
                         ),
                         child: Slider(
                           value: isActive
@@ -558,12 +550,10 @@ class _SurahAudioPlayerScreenState
                                   .toDouble()
                               : 1,
                           onChanged: isActive
-                              ? (v) {
-                                  _audioService.seekTo(
+                              ? (v) => _audioService.seekTo(
                                     Duration(
                                         seconds: v.toInt()),
-                                  );
-                                }
+                                  )
                               : null,
                         ),
                       ),
@@ -690,8 +680,8 @@ class _SurahAudioPlayerScreenState
                         isForward: true,
                         colors: c,
                         onTap: isActive
-                            ? () => _audioService
-                                .seekForward(10)
+                            ? () =>
+                                _audioService.seekForward(10)
                             : null,
                       ),
                       _ControlButton(
@@ -726,9 +716,8 @@ class _SurahAudioPlayerScreenState
                     child: Text(
                       'Speed: ${speed}x',
                       style: AppText.latin(
-                        color: isActive
-                            ? accent
-                            : c.textFaint,
+                        color:
+                            isActive ? accent : c.textFaint,
                         size: 13,
                         weight: FontWeight.w700,
                       ),
@@ -838,12 +827,10 @@ class _SurahCover extends StatelessWidget {
             borderRadius: AppRadius.cardRadius,
             child: SizedBox.expand(
               child: coverPath != null
-                  ? Image.file(
-                      File(coverPath),
+                  ? Image.file(File(coverPath),
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) =>
-                          _placeholder(c),
-                    )
+                          _placeholder(c))
                   : _placeholder(c),
             ),
           ),
@@ -872,12 +859,9 @@ class _SurahCover extends StatelessWidget {
                         size: 11,
                         color: Colors.white,
                       ),
-                      const SizedBox(
-                          width: AppSpacing.xs),
+                      const SizedBox(width: AppSpacing.xs),
                       Text(
-                        isPdfDownloaded
-                            ? 'Open'
-                            : 'Download',
+                        isPdfDownloaded ? 'Open' : 'Download',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -947,8 +931,7 @@ class _SeekButton extends StatelessWidget {
               ? Icons.forward_10_rounded
               : Icons.replay_10_rounded,
           size: 28,
-          color:
-              onTap != null ? c.textPrimary : c.textFaint,
+          color: onTap != null ? c.textPrimary : c.textFaint,
         ),
       ),
     );
@@ -989,11 +972,10 @@ class _ControlButton extends StatelessWidget {
                 : c.divider.withOpacity(0.5),
           ),
         ),
-        child: Icon(
-          icon,
-          size: size,
-          color: enabled ? c.textPrimary : c.textFaint,
-        ),
+        child: Icon(icon,
+            size: size,
+            color:
+                enabled ? c.textPrimary : c.textFaint),
       ),
     );
   }
