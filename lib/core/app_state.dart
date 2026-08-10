@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'catalog_service.dart';
+import 'content_table_service.dart';
 import 'download_service.dart';
 import 'audio_service.dart';
 import 'firestore_service.dart';
@@ -57,15 +58,15 @@ class AppState extends ChangeNotifier {
       FirestoreService();
   final CoverService coverService = CoverService();
 
+  // NEW: Content table service
+  final ContentTableService contentTableService =
+      ContentTableService();
+
   bool get isDark => _isDark;
   String get language => _language;
   bool get isFirstLaunch => _isFirstLaunch;
   bool get isSignedIn => _isSignedIn;
-
-  /// True when the user entered as a guest
-  /// (no Firebase account, local-only).
   bool get isGuest => _isGuest;
-
   String? get lastBookId => _lastBookId;
   String? get lastBookTitle => _lastBookTitle;
   int get lastBookPage => _lastBookPage;
@@ -103,7 +104,6 @@ class AppState extends ChangeNotifier {
     _isSignedIn =
         _prefs.getBool(_keyUserSignedIn) ?? false;
     _isGuest = _prefs.getBool(_keyIsGuest) ?? false;
-
     _lastBookId = _prefs.getString(_keyLastBookId);
     _lastBookTitle =
         _prefs.getString(_keyLastBookTitle);
@@ -121,6 +121,8 @@ class AppState extends ChangeNotifier {
 
     await downloadService.init();
     await coverService.init();
+    // NEW: init content table service
+    await contentTableService.init();
 
     downloadService.onPdfDownloadComplete =
         (bookId, pdfPath) => coverService.extractCover(
@@ -129,7 +131,11 @@ class AppState extends ChangeNotifier {
             );
 
     downloadService.onPdfFileDeleted =
-        (bookId) => coverService.clearFor(bookId);
+        (bookId) async {
+      await coverService.clearFor(bookId);
+      // NEW: also delete TOC file when PDF deleted
+      await contentTableService.deleteToc(bookId);
+    };
 
     downloadService.onPhotoDownloaded =
         (id, path) async {
@@ -175,6 +181,8 @@ class AppState extends ChangeNotifier {
         try {
           final book = catalogService.books
               .firstWhere((b) => b.id == bookId);
+
+          // Photos
           for (final ta in book.teacherAudio) {
             final teacher =
                 catalogService.teacherById(ta.teacherId);
@@ -185,14 +193,20 @@ class AppState extends ChangeNotifier {
               );
             }
           }
+
+          // NEW: download TOC file if available
+          if (book.hasContentTableUrl) {
+            contentTableService.downloadToc(
+              bookId: book.id,
+              url: book.contentTableUrl,
+            );
+          }
         } catch (_) {}
       }
     };
 
     catalogService.addListener(_onCatalogLoaded);
     catalogService.load();
-
-    // Only sync cloud for authenticated users
     if (_isSignedIn && !_isGuest) _syncFromCloud();
   }
 
@@ -223,6 +237,9 @@ class AppState extends ChangeNotifier {
     _extractCoversForDownloadedBooks();
     _downloadMissingPhotos();
     _cleanOrphanedFiles();
+    // NEW: download missing TOC files for books
+    // whose PDFs are already downloaded
+    _downloadMissingTocs();
   }
 
   // ─── Cover extraction ──────────────────────────────
@@ -264,6 +281,26 @@ class AppState extends ChangeNotifier {
           }
         }
       }
+    }
+  }
+
+  // ─── TOC migration (Task 6) ───────────────────────
+
+  /// After catalog loads, for any book whose PDF is
+  /// already downloaded and has a contentTableUrl but
+  /// no local TOC file yet, silently download the TOC.
+  Future<void> _downloadMissingTocs() async {
+    for (final book in catalogService.books) {
+      if (!book.hasContentTableUrl) continue;
+      if (contentTableService.hasCachedToc(book.id)) {
+        continue;
+      }
+      if (!downloadService
+          .isDownloaded('pdf_${book.id}')) continue;
+      contentTableService.downloadToc(
+        bookId: book.id,
+        url: book.contentTableUrl,
+      );
     }
   }
 
@@ -337,17 +374,12 @@ class AppState extends ChangeNotifier {
       for (final file in downloadedFiles) {
         final fileId = file['id'] as String;
         if (!validIds.contains(fileId)) {
-          debugPrint(
-            'Orphan cleanup: deleting $fileId',
-          );
           await downloadService.deleteFile(fileId);
           deleted++;
         }
       }
 
       if (deleted > 0) {
-        debugPrint(
-            'Orphan cleanup: deleted $deleted file(s).');
         notifyListeners();
       }
 
@@ -441,7 +473,6 @@ class AppState extends ChangeNotifier {
   // ─── Cloud Sync ────────────────────────────────────
 
   Future<void> _syncFromCloud() async {
-    // Guests never sync
     if (_isGuest) return;
     try {
       final cloudData =
@@ -504,7 +535,6 @@ class AppState extends ChangeNotifier {
   Future<void> setSignedIn(bool value) async {
     _isSignedIn = value;
     if (value) {
-      // Signing in clears guest state
       _isGuest = false;
       await _prefs.setBool(_keyIsGuest, false);
     }
@@ -513,8 +543,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sets guest mode. The user enters without an account.
-  /// All progress is stored locally only.
   Future<void> setGuest() async {
     _isGuest = true;
     _isSignedIn = false;
@@ -523,9 +551,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Clears guest mode without signing in.
-  /// Called when a guest explicitly signs out
-  /// or when navigating back to auth screen.
   Future<void> clearGuest() async {
     _isGuest = false;
     await _prefs.setBool(_keyIsGuest, false);
@@ -552,7 +577,6 @@ class AppState extends ChangeNotifier {
     await _prefs.setInt(
         _keyLastBookTotalPages, totalPages);
 
-    // Guests don't sync to Firebase
     if (!_isGuest) {
       firestoreService.saveReadingProgress(
         bookId: bookId,
