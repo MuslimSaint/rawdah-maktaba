@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -29,8 +31,14 @@ class AppState extends ChangeNotifier {
   static const _keyMushafLastPagePrefix =
       'mushaf_last_page_';
 
+  // MethodChannel for querying Android app version.
+  // Uses the same channel as the APK installer.
+  static const _installChannel =
+      MethodChannel('com.rawda.library/install');
+
   late SharedPreferences _prefs;
   String _appDocsPath = '';
+  String _appVersion = '';
 
   bool _isDark = false;
   String _language = 'en';
@@ -57,8 +65,6 @@ class AppState extends ChangeNotifier {
   final FirestoreService firestoreService =
       FirestoreService();
   final CoverService coverService = CoverService();
-
-  // NEW: Content table service
   final ContentTableService contentTableService =
       ContentTableService();
 
@@ -72,6 +78,7 @@ class AppState extends ChangeNotifier {
   int get lastBookPage => _lastBookPage;
   int get lastBookTotalPages => _lastBookTotalPages;
   String get appDocsPath => _appDocsPath;
+  String get appVersion => _appVersion;
 
   bool get hasLastBook =>
       _lastBookId != null && _lastBookId!.isNotEmpty;
@@ -87,6 +94,10 @@ class AppState extends ChangeNotifier {
     _prefs = await SharedPreferences.getInstance();
     final docs = await getApplicationDocumentsDirectory();
     _appDocsPath = docs.path;
+
+    // Fetch the current app version from Android's
+    // package manager via MethodChannel.
+    await _loadAppVersion();
 
     final savedTheme = _prefs.getString(_keyThemeMode);
     if (savedTheme != null) {
@@ -121,7 +132,6 @@ class AppState extends ChangeNotifier {
 
     await downloadService.init();
     await coverService.init();
-    // NEW: init content table service
     await contentTableService.init();
 
     downloadService.onPdfDownloadComplete =
@@ -133,7 +143,6 @@ class AppState extends ChangeNotifier {
     downloadService.onPdfFileDeleted =
         (bookId) async {
       await coverService.clearFor(bookId);
-      // NEW: also delete TOC file when PDF deleted
       await contentTableService.deleteToc(bookId);
     };
 
@@ -182,7 +191,6 @@ class AppState extends ChangeNotifier {
           final book = catalogService.books
               .firstWhere((b) => b.id == bookId);
 
-          // Photos
           for (final ta in book.teacherAudio) {
             final teacher =
                 catalogService.teacherById(ta.teacherId);
@@ -194,7 +202,6 @@ class AppState extends ChangeNotifier {
             }
           }
 
-          // NEW: download TOC file if available
           if (book.hasContentTableUrl) {
             contentTableService.downloadToc(
               bookId: book.id,
@@ -208,6 +215,20 @@ class AppState extends ChangeNotifier {
     catalogService.addListener(_onCatalogLoaded);
     catalogService.load();
     if (_isSignedIn && !_isGuest) _syncFromCloud();
+  }
+
+  /// Fetches the current app version from Android via
+  /// MethodChannel and injects it into catalogService
+  /// for announcement version filtering.
+  Future<void> _loadAppVersion() async {
+    try {
+      final v = await _installChannel
+          .invokeMethod<String>('getAppVersion');
+      _appVersion = v ?? '';
+    } catch (_) {
+      _appVersion = '';
+    }
+    catalogService.setCurrentAppVersion(_appVersion);
   }
 
   void _migrateLegacyMushafLastPage() {
@@ -237,9 +258,59 @@ class AppState extends ChangeNotifier {
     _extractCoversForDownloadedBooks();
     _downloadMissingPhotos();
     _cleanOrphanedFiles();
-    // NEW: download missing TOC files for books
-    // whose PDFs are already downloaded
     _downloadMissingTocs();
+    // Delete the cached APK if the user has already
+    // updated past the announced version.
+    _cleanupApkIfUpdated();
+  }
+
+  /// Deletes the cached rawdah_update.apk file when the
+  /// current app version is greater than or equal to the
+  /// announcement's maxVersionToShow (meaning: the user
+  /// has already installed this update or a newer one).
+  ///
+  /// Also deletes when there is no active update
+  /// announcement at all — the APK is stale.
+  Future<void> _cleanupApkIfUpdated() async {
+    try {
+      final cacheDir = await getTemporaryDirectory();
+      final apkFile =
+          File('${cacheDir.path}/rawdah_update.apk');
+      if (!await apkFile.exists()) return;
+
+      final rawAnnouncement =
+          catalogService.catalog?.announcement;
+      final isActiveUpdate = rawAnnouncement != null &&
+          rawAnnouncement.active &&
+          rawAnnouncement.isUpdate &&
+          rawAnnouncement.hasDownloadUrl;
+
+      bool shouldDelete = false;
+
+      if (!isActiveUpdate) {
+        // No update announcement in the catalog.
+        // The APK is stale — delete it.
+        shouldDelete = true;
+      } else if (_appVersion.isNotEmpty &&
+          rawAnnouncement!.maxVersionToShow.isNotEmpty) {
+        // Compare current version with maxVersionToShow.
+        // If current > max, user has updated past this
+        // announcement — safe to delete.
+        final cmp = catalogService.compareVersions(
+            _appVersion, rawAnnouncement.maxVersionToShow);
+        if (cmp > 0) {
+          shouldDelete = true;
+        }
+      }
+
+      if (shouldDelete) {
+        await apkFile.delete();
+        debugPrint(
+            'Cached update APK deleted (user is up to date).');
+      }
+    } catch (e) {
+      debugPrint('APK cleanup failed: $e');
+    }
   }
 
   // ─── Cover extraction ──────────────────────────────
@@ -284,11 +355,8 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // ─── TOC migration (Task 6) ───────────────────────
+  // ─── TOC migration ─────────────────────────────────
 
-  /// After catalog loads, for any book whose PDF is
-  /// already downloaded and has a contentTableUrl but
-  /// no local TOC file yet, silently download the TOC.
   Future<void> _downloadMissingTocs() async {
     for (final book in catalogService.books) {
       if (!book.hasContentTableUrl) continue;
