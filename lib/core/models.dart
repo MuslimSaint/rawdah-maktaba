@@ -6,19 +6,8 @@ class Announcement {
   final bool active;
   final String message;
   final String type;
-
-  /// Optional direct URL to an APK file.
-  /// Only meaningful when type == 'update'.
   final String downloadUrl;
-
-  /// If set, only show this announcement to app versions
-  /// >= minVersionToShow (inclusive).
-  /// Format: "1.0.0"
   final String minVersionToShow;
-
-  /// If set, only show this announcement to app versions
-  /// <= maxVersionToShow (inclusive).
-  /// Format: "1.0.9"
   final String maxVersionToShow;
 
   const Announcement({
@@ -167,8 +156,7 @@ class TeacherAudio {
   factory TeacherAudio.fromJson(
       Map<String, dynamic> json) {
     final urlsRaw =
-        json['urls'] as Map<String, dynamic>? ??
-            {};
+        json['urls'] as Map<String, dynamic>? ?? {};
     final urls = <int, String>{};
     urlsRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -180,8 +168,7 @@ class TeacherAudio {
     });
 
     final partNamesRaw =
-        json['partNames'] as Map<String, dynamic>? ??
-            {};
+        json['partNames'] as Map<String, dynamic>? ?? {};
     final partNames = <int, String>{};
     partNamesRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -267,8 +254,7 @@ class ReciterAudio {
   factory ReciterAudio.fromJson(
       Map<String, dynamic> json) {
     final urlsRaw =
-        json['urls'] as Map<String, dynamic>? ??
-            {};
+        json['urls'] as Map<String, dynamic>? ?? {};
     final urls = <int, String>{};
     urlsRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -280,8 +266,7 @@ class ReciterAudio {
     });
 
     final partNamesRaw =
-        json['partNames'] as Map<String, dynamic>? ??
-            {};
+        json['partNames'] as Map<String, dynamic>? ?? {};
     final partNames = <int, String>{};
     partNamesRaw.forEach((key, value) {
       final n = int.tryParse(key);
@@ -361,7 +346,22 @@ class Book {
   final String pdfUrl;
   final String? coverUrl;
   final DateTime addedAt;
+
+  /// Embedded content table from the catalog.
+  /// Used as fallback if contentTableUrl is absent
+  /// or the remote file has not been downloaded yet.
   final List<ContentTableEntry> contentTable;
+
+  /// Optional URL to an external JSON file containing
+  /// the content table. When present and the file has
+  /// been downloaded, it takes priority over the
+  /// embedded contentTable above.
+  ///
+  /// Format of the JSON file:
+  ///   [{"titleAr":"...", "titleEn":"...", "page": 1}]
+  ///
+  /// Local cache key: toc_<bookId>.json
+  final String contentTableUrl;
 
   const Book({
     required this.id,
@@ -379,6 +379,7 @@ class Book {
     this.coverUrl,
     required this.addedAt,
     this.contentTable = const [],
+    this.contentTableUrl = '',
   });
 
   factory Book.fromJson(Map<String, dynamic> json) {
@@ -417,10 +418,23 @@ class Book {
           ? DateTime.parse(json['addedAt'] as String)
           : DateTime.now(),
       contentTable: contentTable,
+      contentTableUrl:
+          json['contentTableUrl'] as String? ?? '',
     );
   }
 
-  bool get hasContentTable => contentTable.isNotEmpty;
+  bool get hasContentTable =>
+      contentTable.isNotEmpty;
+  bool get hasContentTableUrl =>
+      contentTableUrl.isNotEmpty;
+
+  /// True if either embedded or external content
+  /// table data is available. PdfReaderScreen uses
+  /// this to decide whether to show the button.
+  /// It will check local cache for external first.
+  bool get mayHaveContentTable =>
+      hasContentTable || hasContentTableUrl;
+
   bool get isRecentlyAdded =>
       DateTime.now().difference(addedAt).inDays <= 7;
   bool isInBranch(String branchId) =>
@@ -887,7 +901,8 @@ class FaqEntry {
   factory FaqEntry.fromJson(
       Map<String, dynamic> json) {
     return FaqEntry(
-      question: json['question'] as String? ?? '',
+      question:
+          json['question'] as String? ?? '',
       answer: json['answer'] as String? ?? '',
     );
   }
@@ -1218,7 +1233,7 @@ class Catalog {
       id: 'aqeedah',
       nameEn: 'Aqeedah',
       nameAr: 'عقيدة',
-      nameAm: 'አቂዳ',
+      nameAm: 'ዐቂዳ',
     ),
     Branch(
       id: 'fiqh',
