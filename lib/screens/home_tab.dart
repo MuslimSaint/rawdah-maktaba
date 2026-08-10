@@ -104,7 +104,12 @@ class HomeTab extends StatelessWidget {
 // A special banner for type='update' announcements.
 // Not dismissible. Shows download progress inside the
 // banner. After download completes, shows Install button.
-// The APK is downloaded silently outside the Downloads tab.
+//
+// The APK is saved to the cache directory (temp dir) so
+// that FileProvider can share it with the Android
+// package installer. Cache dir is the universally-
+// supported FileProvider path on all Android versions.
+//
 // On app restart, checks if APK already exists on disk
 // and skips straight to Install Now if found.
 
@@ -140,9 +145,15 @@ class _UpdateBannerState
   @override
   void initState() {
     super.initState();
-    // Bug fix 3: on restart, check if APK already
-    // downloaded and skip straight to Install Now.
     _checkExistingApk();
+  }
+
+  /// Returns the target APK file location.
+  /// Uses cache directory so that FileProvider can
+  /// share it with the Android package installer.
+  Future<File> _apkTargetFile() async {
+    final cacheDir = await getTemporaryDirectory();
+    return File('${cacheDir.path}/rawdah_update.apk');
   }
 
   /// Checks if a previously downloaded APK still
@@ -150,14 +161,10 @@ class _UpdateBannerState
   /// real APK (> 1 MB), goes straight to done state.
   Future<void> _checkExistingApk() async {
     try {
-      final appDir =
-          await getApplicationDocumentsDirectory();
-      final apkFile =
-          File('${appDir.path}/rawdah_update.apk');
+      final apkFile = await _apkTargetFile();
       if (await apkFile.exists()) {
         final size = await apkFile.length();
         if (size > 1024 * 1024) {
-          // > 1 MB → treat as valid APK
           if (mounted) {
             setState(() {
               _apkPath = apkFile.path;
@@ -166,9 +173,7 @@ class _UpdateBannerState
           }
         }
       }
-    } catch (_) {
-      // If anything fails just stay in idle state
-    }
+    } catch (_) {}
   }
 
   @override
@@ -200,10 +205,7 @@ class _UpdateBannerState
         return;
       }
 
-      final appDir =
-          await getApplicationDocumentsDirectory();
-      final apkFile =
-          File('${appDir.path}/rawdah_update.apk');
+      final apkFile = await _apkTargetFile();
       if (await apkFile.exists()) {
         await apkFile.delete();
       }
@@ -278,11 +280,6 @@ class _UpdateBannerState
     }
   }
 
-  /// Bug fix 2: Use MethodChannel to invoke the native
-  /// Android installer. The native side handles:
-  ///   - Android 8+ install permission check
-  ///   - FileProvider URI for Android 7+
-  ///   - ACTION_VIEW intent with correct MIME type
   Future<void> _install() async {
     if (_apkPath == null) return;
     setState(() => _errorMsg = null);
