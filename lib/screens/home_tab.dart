@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:open_file/open_file.dart';
 import '../core/app_state.dart';
 import '../core/models.dart';
 import '../core/quran_data.dart';
@@ -56,9 +56,6 @@ class HomeTab extends StatelessWidget {
                         return const SizedBox.shrink();
                       }
 
-                      // Update announcements are never
-                      // dismissible — they stay until the
-                      // app version changes.
                       if (a.isUpdate) {
                         return _UpdateBanner(
                           announcement: a,
@@ -108,6 +105,8 @@ class HomeTab extends StatelessWidget {
 // Not dismissible. Shows download progress inside the
 // banner. After download completes, shows Install button.
 // The APK is downloaded silently outside the Downloads tab.
+// On app restart, checks if APK already exists on disk
+// and skips straight to Install Now if found.
 
 enum _UpdateState { idle, downloading, done, error }
 
@@ -127,12 +126,50 @@ class _UpdateBanner extends StatefulWidget {
 
 class _UpdateBannerState
     extends State<_UpdateBanner> {
+  // MethodChannel matching the one in MainActivity.kt
+  static const _installChannel =
+      MethodChannel('com.rawda.library/install');
+
   _UpdateState _state = _UpdateState.idle;
   double _progress = 0;
   String? _apkPath;
   String? _errorMsg;
   StreamSubscription<List<int>>? _sub;
   http.Client? _client;
+
+  @override
+  void initState() {
+    super.initState();
+    // Bug fix 3: on restart, check if APK already
+    // downloaded and skip straight to Install Now.
+    _checkExistingApk();
+  }
+
+  /// Checks if a previously downloaded APK still
+  /// exists on disk. If it is large enough to be a
+  /// real APK (> 1 MB), goes straight to done state.
+  Future<void> _checkExistingApk() async {
+    try {
+      final appDir =
+          await getApplicationDocumentsDirectory();
+      final apkFile =
+          File('${appDir.path}/rawdah_update.apk');
+      if (await apkFile.exists()) {
+        final size = await apkFile.length();
+        if (size > 1024 * 1024) {
+          // > 1 MB → treat as valid APK
+          if (mounted) {
+            setState(() {
+              _apkPath = apkFile.path;
+              _state = _UpdateState.done;
+            });
+          }
+        }
+      }
+    } catch (_) {
+      // If anything fails just stay in idle state
+    }
+  }
 
   @override
   void dispose() {
@@ -165,8 +202,8 @@ class _UpdateBannerState
 
       final appDir =
           await getApplicationDocumentsDirectory();
-      final apkFile = File(
-          '${appDir.path}/rawdah_update.apk');
+      final apkFile =
+          File('${appDir.path}/rawdah_update.apk');
       if (await apkFile.exists()) {
         await apkFile.delete();
       }
@@ -241,10 +278,26 @@ class _UpdateBannerState
     }
   }
 
+  /// Bug fix 2: Use MethodChannel to invoke the native
+  /// Android installer. The native side handles:
+  ///   - Android 8+ install permission check
+  ///   - FileProvider URI for Android 7+
+  ///   - ACTION_VIEW intent with correct MIME type
   Future<void> _install() async {
     if (_apkPath == null) return;
+    setState(() => _errorMsg = null);
     try {
-      await OpenFile.open(_apkPath!);
+      await _installChannel.invokeMethod(
+        'installApk',
+        {'path': _apkPath!},
+      );
+    } on PlatformException catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMsg = e.message ??
+              'Could not open installer. Try again.';
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
