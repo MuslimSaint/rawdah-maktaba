@@ -108,10 +108,32 @@ class _DownloadsTabState extends State<DownloadsTab> {
       ),
     );
 
-    if (confirm == true) {
-      await state.downloadService.deleteAll();
-      await _loadData();
+    if (confirm != true) return;
+
+    // Collect PDF book IDs before deletion to clean up covers/TOCs
+    final downloaded = await state.downloadService.downloadedFiles();
+    final pdfBookIds = <String>[];
+
+    for (final file in downloaded) {
+      final fileId = file['id'] as String;
+      if (fileId.startsWith('pdf_') &&
+          fileId != 'pdf_mushaf' &&
+          !fileId.startsWith('pdf_mushaf_') &&
+          !fileId.startsWith('pdf_surah_')) {
+        final bookId = fileId.replaceFirst('pdf_', '');
+        pdfBookIds.add(bookId);
+      }
     }
+
+    await state.downloadService.deleteAll();
+
+    // Cleanup covers and TOC files manually
+    for (final bookId in pdfBookIds) {
+      await state.coverService.clearFor(bookId);
+      await state.contentTableService.deleteToc(bookId);
+    }
+
+    await _loadData();
   }
 
   // ─── Name resolution ──────────────────────────────
@@ -416,7 +438,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                     active['awaitingNetwork']
                                         as bool? ??
                                     false;
-                                // Task 2: read size fields
                                 final downloadedMb =
                                     active['downloadedMb']
                                         as double? ??
@@ -622,7 +643,6 @@ class _ActiveDownloadCard extends StatelessWidget {
             ? 'Tap ▶ to resume'
             : 'Tap ∥ to pause · × to cancel';
 
-    // Task 2: build size string
     final String sizeLabel = _buildSizeLabel();
 
     return Container(
@@ -845,7 +865,6 @@ class _ActiveDownloadCard extends StatelessWidget {
                   weight: FontWeight.w600,
                 ),
               ),
-              // Task 2: show size label on the right
               if (sizeLabel.isNotEmpty && !isAwaitingNetwork)
                 Text(
                   sizeLabel,
@@ -867,11 +886,6 @@ class _ActiveDownloadCard extends StatelessWidget {
     );
   }
 
-  /// Builds the size display string.
-  /// Examples:
-  ///   "51.2 MB / 200.0 MB"   — when total is known
-  ///   "51.2 MB"              — when total is unknown
-  ///   ""                     — when nothing downloaded yet
   String _buildSizeLabel() {
     if (downloadedMb <= 0) return '';
     if (totalMb != null && totalMb! > 0) {
