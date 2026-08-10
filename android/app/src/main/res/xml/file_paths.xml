@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!--
+        Covers the app's internal documents directory.
+        This is where rawdah_update.apk is saved by
+        getApplicationDocumentsDirectory() in Flutter.
+    -->
+    <files-path
+        name="internal_files"
+        path="." />
+</paths>
