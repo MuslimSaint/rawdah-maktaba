@@ -3,11 +3,17 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/app_state.dart';
 import '../core/bookmark_service.dart';
+import '../core/content_table_service.dart';
 import '../core/models.dart';
 import '../core/theme.dart';
 
 /// PDF reader — horizontal default with toggle,
 /// universal bookmarks, and optional chapter index.
+///
+/// Content table source priority (Task 6):
+///   1. External TOC file (downloaded separately)
+///   2. Embedded contentTable from catalog
+///   3. No content table (button not shown)
 class PdfReaderScreen extends StatefulWidget {
   final Book book;
   final String filePath;
@@ -41,6 +47,12 @@ class _PdfReaderScreenState
   final BookmarkService _bookmarkService =
       BookmarkService();
 
+  /// The effective content table — resolved once after
+  /// the PDF renders. Can come from external file or
+  /// embedded catalog data.
+  List<ContentTableEntry>? _resolvedContentTable;
+  bool _contentTableResolved = false;
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +71,35 @@ class _PdfReaderScreenState
       }
     });
   }
+
+  // ─── Resolve content table ─────────────────────
+
+  /// Resolves the effective content table using the
+  /// ContentTableService priority chain. Called once
+  /// after the PDF is ready.
+  Future<void> _resolveContentTable() async {
+    if (_contentTableResolved) return;
+    _contentTableResolved = true;
+
+    if (!mounted) return;
+    final state = AppState.of(context);
+
+    final entries = await state.contentTableService
+        .getEffectiveToc(widget.book);
+
+    if (mounted) {
+      setState(() {
+        _resolvedContentTable = entries;
+      });
+    }
+  }
+
+  /// Whether the content table button should be shown.
+  bool get _hasContentTable =>
+      _resolvedContentTable != null &&
+      _resolvedContentTable!.isNotEmpty;
+
+  // ─── Mode preference ───────────────────────────
 
   Future<void> _loadModePreference() async {
     try {
@@ -121,12 +162,13 @@ class _PdfReaderScreenState
     _pdfController?.setPage(page);
   }
 
-  // ─── Content table sheet (Task 6) ──────────────
+  // ─── Content table sheet ───────────────────────
 
   void _showContentTableSheet() {
+    if (!_hasContentTable) return;
     final c =
         AppColors(isDark: AppState.of(context).isDark);
-    final entries = widget.book.contentTable;
+    final entries = _resolvedContentTable!;
 
     showModalBottomSheet(
       context: context,
@@ -146,7 +188,6 @@ class _PdfReaderScreenState
           builder: (ctx, scrollController) {
             return Column(
               children: [
-                // Handle + header (not scrollable)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                       20, 16, 20, 0),
@@ -212,7 +253,6 @@ class _PdfReaderScreenState
                   ),
                 ),
 
-                // Scrollable entries list
                 Expanded(
                   child: ListView.builder(
                     controller: scrollController,
@@ -221,8 +261,6 @@ class _PdfReaderScreenState
                     itemCount: entries.length,
                     itemBuilder: (ctx, index) {
                       final entry = entries[index];
-                      // Convert 1-indexed catalog page
-                      // to 0-indexed PDFView page.
                       final zeroPage = entry.page - 1;
 
                       return _ContentTableRow(
@@ -234,8 +272,8 @@ class _PdfReaderScreenState
                                 index, entries),
                         onTap: () {
                           Navigator.of(ctx).pop();
-                          _jumpToPage(zeroPage
-                              .clamp(0, _totalPages - 1));
+                          _jumpToPage(zeroPage.clamp(
+                              0, _totalPages - 1));
                         },
                       );
                     },
@@ -249,8 +287,6 @@ class _PdfReaderScreenState
     );
   }
 
-  /// Returns true if the chapter at [index] is the one
-  /// the reader is currently on.
   bool _isCurrentChapter(
       int index, List<ContentTableEntry> entries) {
     final currentOneBased = _currentPage + 1;
@@ -262,7 +298,7 @@ class _PdfReaderScreenState
         currentOneBased < nextPage;
   }
 
-  // ─── Bookmark dialogs (unchanged) ──────────────
+  // ─── Bookmark dialogs ──────────────────────────
 
   void _showAddBookmarkDialog() {
     if (_bookmarkService.isBookmarked(_currentPage)) {
@@ -284,7 +320,6 @@ class _PdfReaderScreenState
     final controller = TextEditingController(
       text: 'Page ${_currentPage + 1}',
     );
-
     final c =
         AppColors(isDark: AppState.of(context).isDark);
 
@@ -309,18 +344,14 @@ class _PdfReaderScreenState
             Text(
               'Name this bookmark (or keep the default):',
               style: AppText.latin(
-                color: c.textMuted,
-                size: 13,
-              ),
+                  color: c.textMuted, size: 13),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
               autofocus: true,
               style: AppText.latin(
-                color: c.textPrimary,
-                size: 14,
-              ),
+                  color: c.textPrimary, size: 14),
               decoration: InputDecoration(
                 filled: true,
                 fillColor: c.surface2,
@@ -340,29 +371,22 @@ class _PdfReaderScreenState
                   borderRadius:
                       BorderRadius.circular(12),
                   borderSide: BorderSide(
-                    color: c.brand,
-                    width: 1.5,
-                  ),
+                      color: c.brand, width: 1.5),
                 ),
                 contentPadding:
                     const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
+                        horizontal: 14, vertical: 12),
               ),
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Cancel',
-              style: AppText.latin(
-                color: c.textMuted,
-                size: 14,
-              ),
-            ),
+            onPressed: () =>
+                Navigator.of(ctx).pop(),
+            child: Text('Cancel',
+                style: AppText.latin(
+                    color: c.textMuted, size: 14)),
           ),
           TextButton(
             onPressed: () {
@@ -372,26 +396,20 @@ class _PdfReaderScreenState
               );
               Navigator.of(ctx).pop();
               ScaffoldMessenger.of(context)
-                  .showSnackBar(
-                SnackBar(
-                  content: Text(
+                  .showSnackBar(SnackBar(
+                content: Text(
                     'Bookmark saved: ${controller.text.trim()}',
-                    style:
-                        const TextStyle(fontSize: 13),
-                  ),
-                  backgroundColor: c.brand,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+                    style: const TextStyle(
+                        fontSize: 13)),
+                backgroundColor: c.brand,
+                duration: const Duration(seconds: 2),
+              ));
             },
-            child: Text(
-              'Save',
-              style: AppText.latin(
-                color: c.brand,
-                size: 14,
-                weight: FontWeight.w700,
-              ),
-            ),
+            child: Text('Save',
+                style: AppText.latin(
+                    color: c.brand,
+                    size: 14,
+                    weight: FontWeight.w700)),
           ),
         ],
       ),
@@ -407,8 +425,7 @@ class _PdfReaderScreenState
       backgroundColor: c.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20),
-        ),
+            top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return ListenableBuilder(
@@ -439,28 +456,22 @@ class _PdfReaderScreenState
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Icon(
-                          Icons.bookmark_rounded,
-                          color: c.brand,
-                          size: 20),
+                      Icon(Icons.bookmark_rounded,
+                          color: c.brand, size: 20),
                       const SizedBox(width: 8),
-                      Text(
-                        'Bookmarks',
-                        style: AppText.latin(
-                          color: c.textPrimary,
-                          size: 16,
-                          weight: FontWeight.w700,
-                        ),
-                      ),
+                      Text('Bookmarks',
+                          style: AppText.latin(
+                              color: c.textPrimary,
+                              size: 16,
+                              weight:
+                                  FontWeight.w700)),
                       const Spacer(),
-                      Text(
-                        '${bookmarks.length}',
-                        style: AppText.latin(
-                          color: c.brand,
-                          size: 14,
-                          weight: FontWeight.w700,
-                        ),
-                      ),
+                      Text('${bookmarks.length}',
+                          style: AppText.latin(
+                              color: c.brand,
+                              size: 14,
+                              weight:
+                                  FontWeight.w700)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -474,10 +485,9 @@ class _PdfReaderScreenState
                           'No bookmarks yet.\nTap the bookmark icon to save your position.',
                           textAlign: TextAlign.center,
                           style: AppText.latin(
-                            color: c.textMuted,
-                            size: 13,
-                            height: 1.5,
-                          ),
+                              color: c.textMuted,
+                              size: 13,
+                              height: 1.5),
                         ),
                       ),
                     )
@@ -502,7 +512,8 @@ class _PdfReaderScreenState
                             bookmark: bm,
                             colors: c,
                             onTap: () {
-                              Navigator.of(ctx).pop();
+                              Navigator.of(ctx)
+                                  .pop();
                               _jumpToPage(bm.page);
                             },
                             onDelete: () {
@@ -523,6 +534,8 @@ class _PdfReaderScreenState
     );
   }
 
+  // ─── Build ────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final state = AppState.of(context);
@@ -535,8 +548,6 @@ class _PdfReaderScreenState
       _currentPage = state.lastBookPage;
     }
 
-    final hasContentTable =
-        widget.book.hasContentTable;
     final showControls =
         _isReady && !_showLoadingOverlay;
 
@@ -545,13 +556,12 @@ class _PdfReaderScreenState
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top Bar ──────────────────────────────
+            // ── Top Bar ──
             Padding(
               padding: const EdgeInsets.fromLTRB(
                   20, 16, 20, 0),
               child: Row(
                 children: [
-                  // Back button
                   GestureDetector(
                     onTap: () =>
                         Navigator.of(context).pop(),
@@ -566,15 +576,12 @@ class _PdfReaderScreenState
                             color: c.divider),
                       ),
                       child: Icon(
-                        Icons.arrow_back_rounded,
-                        size: 18,
-                        color: c.textPrimary,
-                      ),
+                          Icons.arrow_back_rounded,
+                          size: 18,
+                          color: c.textPrimary),
                     ),
                   ),
                   const SizedBox(width: 8),
-
-                  // Title
                   Expanded(
                     child: Text(
                       widget.book.titleAr,
@@ -591,10 +598,9 @@ class _PdfReaderScreenState
                   ),
                   const SizedBox(width: 6),
 
-                  // ── Content table button (Task 6) ──
-                  // Only shown when the book has a
-                  // contentTable AND the PDF is ready.
-                  if (hasContentTable && showControls)
+                  // Content table button — shown when
+                  // resolved content table is available.
+                  if (_hasContentTable && showControls)
                     GestureDetector(
                       onTap: _showContentTableSheet,
                       child: Container(
@@ -605,9 +611,8 @@ class _PdfReaderScreenState
                           borderRadius:
                               BorderRadius.circular(9),
                           border: Border.all(
-                            color: c.goldText
-                                .withOpacity(0.4),
-                          ),
+                              color: c.goldText
+                                  .withOpacity(0.4)),
                         ),
                         child: Icon(
                           Icons
@@ -618,7 +623,7 @@ class _PdfReaderScreenState
                       ),
                     ),
 
-                  if (hasContentTable && showControls)
+                  if (_hasContentTable && showControls)
                     const SizedBox(width: 6),
 
                   // Mode toggle
@@ -716,11 +721,10 @@ class _PdfReaderScreenState
                               alignment: Alignment.center,
                               children: [
                                 Icon(
-                                  Icons
-                                      .bookmarks_outlined,
-                                  size: 16,
-                                  color: c.textPrimary,
-                                ),
+                                    Icons
+                                        .bookmarks_outlined,
+                                    size: 16,
+                                    color: c.textPrimary),
                                 if (_bookmarkService
                                         .count >
                                     0)
@@ -737,14 +741,13 @@ class _PdfReaderScreenState
                                             .circle,
                                       ),
                                       alignment:
-                                          Alignment
-                                              .center,
+                                          Alignment.center,
                                       child: Text(
                                         '${_bookmarkService.count}',
                                         style:
                                             const TextStyle(
-                                          color: Colors
-                                              .white,
+                                          color:
+                                              Colors.white,
                                           fontSize: 8,
                                           fontWeight:
                                               FontWeight
@@ -790,7 +793,7 @@ class _PdfReaderScreenState
               ),
             ),
 
-            // ── Progress bar ─────────────────────────
+            // Progress bar
             if (showControls && _totalPages > 0) ...[
               const SizedBox(height: 8),
               Padding(
@@ -816,7 +819,7 @@ class _PdfReaderScreenState
 
             const SizedBox(height: 8),
 
-            // ── PDF Viewer ───────────────────────────
+            // PDF Viewer
             Expanded(
               child: Stack(
                 children: [
@@ -845,6 +848,11 @@ class _PdfReaderScreenState
                         totalPages: pages ?? 0,
                       );
                       _hideLoadingOverlay();
+
+                      // Resolve content table now that
+                      // we know the total pages and the
+                      // ContentTableService is ready.
+                      _resolveContentTable();
                     },
                     onViewCreated: (controller) {
                       _pdfController = controller;
@@ -859,18 +867,15 @@ class _PdfReaderScreenState
                             _showLoadingOverlay =
                                 false);
                         ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Could not open PDF: $error',
-                              style: AppText.latin(
+                            .showSnackBar(SnackBar(
+                          content: Text(
+                            'Could not open PDF: $error',
+                            style: AppText.latin(
                                 color: Colors.white,
-                                size: 13,
-                              ),
-                            ),
-                            backgroundColor: c.danger,
+                                size: 13),
                           ),
-                        );
+                          backgroundColor: c.danger,
+                        ));
                       }
                     },
                   ),
@@ -884,18 +889,16 @@ class _PdfReaderScreenState
                               MainAxisAlignment.center,
                           children: [
                             CircularProgressIndicator(
-                              color: c.brand,
-                              strokeWidth: 2,
-                            ),
+                                color: c.brand,
+                                strokeWidth: 2),
                             const SizedBox(height: 16),
                             Text(
                               _defaultPage > 0
                                   ? 'Opening to page ${_defaultPage + 1}...'
                                   : 'Loading...',
                               style: AppText.latin(
-                                color: c.textMuted,
-                                size: 13,
-                              ),
+                                  color: c.textMuted,
+                                  size: 13),
                             ),
                           ],
                         ),
@@ -905,7 +908,7 @@ class _PdfReaderScreenState
               ),
             ),
 
-            // ── Bottom indicator ─────────────────────
+            // Bottom indicator
             if (showControls)
               Container(
                 padding:
@@ -914,22 +917,17 @@ class _PdfReaderScreenState
                 decoration: BoxDecoration(
                   color: c.card,
                   border: Border(
-                    top: BorderSide(color: c.divider),
-                  ),
+                      top: BorderSide(color: c.divider)),
                 ),
                 child: Center(
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
                       color: c.surface2,
                       borderRadius:
                           BorderRadius.circular(20),
-                      border:
-                          Border.all(color: c.divider),
+                      border: Border.all(color: c.divider),
                     ),
                     child: Text(
                       _horizontalMode
@@ -951,7 +949,7 @@ class _PdfReaderScreenState
   }
 }
 
-// ─── Content Table Row (Task 6) ──────────────────────────
+// ─── Content Table Row ───────────────────────────────────
 
 class _ContentTableRow extends StatelessWidget {
   final ContentTableEntry entry;
@@ -977,9 +975,7 @@ class _ContentTableRow extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 12,
-        ),
+            horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: isCurrentChapter
               ? c.goldLine
@@ -993,7 +989,6 @@ class _ContentTableRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Chapter number badge
             Container(
               width: 32,
               height: 32,
@@ -1020,10 +1015,7 @@ class _ContentTableRow extends StatelessWidget {
                 ),
               ),
             ),
-
             const SizedBox(width: 12),
-
-            // Title
             Expanded(
               child: Column(
                 crossAxisAlignment:
@@ -1062,15 +1054,10 @@ class _ContentTableRow extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(width: 12),
-
-            // Page number badge
             Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
-              ),
+                  horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: isCurrentChapter
                     ? c.goldText.withOpacity(0.15)
@@ -1094,15 +1081,10 @@ class _ContentTableRow extends StatelessWidget {
                 ),
               ),
             ),
-
-            // Current chapter indicator arrow
             if (isCurrentChapter) ...[
               const SizedBox(width: 6),
-              Icon(
-                Icons.play_arrow_rounded,
-                size: 14,
-                color: c.goldText,
-              ),
+              Icon(Icons.play_arrow_rounded,
+                  size: 14, color: c.goldText),
             ],
           ],
         ),
@@ -1129,14 +1111,11 @@ class _BookmarkRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = colors;
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 12,
-        ),
+            horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: c.surface2,
           borderRadius: BorderRadius.circular(12),
@@ -1151,18 +1130,14 @@ class _BookmarkRow extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: c.brand.withOpacity(0.12),
                 border: Border.all(
-                  color: c.brand.withOpacity(0.3),
-                ),
+                    color: c.brand.withOpacity(0.3)),
               ),
               alignment: Alignment.center,
-              child: Text(
-                '${bookmark.page + 1}',
-                style: AppText.latin(
-                  color: c.brand,
-                  size: 11,
-                  weight: FontWeight.w700,
-                ),
-              ),
+              child: Text('${bookmark.page + 1}',
+                  style: AppText.latin(
+                      color: c.brand,
+                      size: 11,
+                      weight: FontWeight.w700)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1170,24 +1145,18 @@ class _BookmarkRow extends StatelessWidget {
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    bookmark.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.latin(
-                      color: c.textPrimary,
-                      size: 13,
-                      weight: FontWeight.w600,
-                    ),
-                  ),
+                  Text(bookmark.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.latin(
+                          color: c.textPrimary,
+                          size: 13,
+                          weight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  Text(
-                    'Page ${bookmark.page + 1}',
-                    style: AppText.latin(
-                      color: c.textFaint,
-                      size: 10,
-                    ),
-                  ),
+                  Text('Page ${bookmark.page + 1}',
+                      style: AppText.latin(
+                          color: c.textFaint,
+                          size: 10)),
                 ],
               ),
             ),
@@ -1197,14 +1166,12 @@ class _BookmarkRow extends StatelessWidget {
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: c.dangerBg,
-                ),
+                    shape: BoxShape.circle,
+                    color: c.dangerBg),
                 child: Icon(
-                  Icons.delete_outline_rounded,
-                  size: 14,
-                  color: c.danger,
-                ),
+                    Icons.delete_outline_rounded,
+                    size: 14,
+                    color: c.danger),
               ),
             ),
           ],
