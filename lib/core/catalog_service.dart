@@ -36,10 +36,25 @@ class CatalogService extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
+  /// The current app version, injected from AppState.
+  /// Used to filter announcements by version range.
+  /// If empty, no version filtering is applied.
+  String _currentAppVersion = '';
+
   Catalog? get catalog => _catalog;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get hasData => _catalog != null;
+
+  /// Called by AppState after it discovers the app version
+  /// via MethodChannel to Android.
+  void setCurrentAppVersion(String version) {
+    if (_currentAppVersion == version) return;
+    _currentAppVersion = version;
+    notifyListeners();
+  }
+
+  String get currentAppVersion => _currentAppVersion;
 
   // ─── Catalog data ──────────────────────────────────
 
@@ -63,11 +78,90 @@ class CatalogService extends ChangeNotifier {
       'https://github.com/MuslimSaint/rawdah-catalog/'
           'releases/download/v1.0-quran';
 
+  /// Returns the active announcement, filtered by:
+  ///   1. active flag
+  ///   2. non-empty message
+  ///   3. currentAppVersion within
+  ///      [minVersionToShow .. maxVersionToShow] range
+  ///
+  /// If minVersionToShow / maxVersionToShow are empty,
+  /// they are ignored (no lower / upper bound).
+  ///
+  /// If currentAppVersion is empty (not yet loaded from
+  /// Android), no version filtering is applied — the
+  /// announcement shows.
   Announcement? get activeAnnouncement {
     final a = _catalog?.announcement;
-    if (a == null || !a.active || a.message.isEmpty) return null;
+    if (a == null || !a.active || a.message.isEmpty) {
+      return null;
+    }
+
+    if (_currentAppVersion.isEmpty) {
+      // App version not yet loaded — show anyway.
+      return a;
+    }
+
+    // Check min version
+    if (a.minVersionToShow.isNotEmpty) {
+      if (_compareVersions(
+              _currentAppVersion, a.minVersionToShow) <
+          0) {
+        // current < min → don't show
+        return null;
+      }
+    }
+
+    // Check max version
+    if (a.maxVersionToShow.isNotEmpty) {
+      if (_compareVersions(
+              _currentAppVersion, a.maxVersionToShow) >
+          0) {
+        // current > max → user already updated → don't show
+        return null;
+      }
+    }
+
     return a;
   }
+
+  /// Semantic version comparison.
+  /// Returns:
+  ///   -1 if a < b
+  ///    0 if a == b
+  ///    1 if a > b
+  ///
+  /// Splits on '.' and '+' and compares numerically.
+  /// Examples:
+  ///   compareVersions('1.0.0', '1.0.1')      → -1
+  ///   compareVersions('1.0.0.1', '1.0.0')    →  1
+  ///   compareVersions('1.0.0+1', '1.0.0')    →  0  (build code ignored)
+  ///   compareVersions('1.0.0+2', '1.0.0+1')  →  0  (both are 1.0.0)
+  int _compareVersions(String a, String b) {
+    // Strip build code (everything after '+')
+    final aClean = a.split('+').first.trim();
+    final bClean = b.split('+').first.trim();
+
+    final aParts = aClean.split('.');
+    final bParts = bClean.split('.');
+    final maxLen =
+        aParts.length > bParts.length ? aParts.length : bParts.length;
+
+    for (var i = 0; i < maxLen; i++) {
+      final aNum =
+          i < aParts.length ? int.tryParse(aParts[i]) ?? 0 : 0;
+      final bNum =
+          i < bParts.length ? int.tryParse(bParts[i]) ?? 0 : 0;
+      if (aNum < bNum) return -1;
+      if (aNum > bNum) return 1;
+    }
+    return 0;
+  }
+
+  /// Public version comparison — exposed so other services
+  /// (like APK cleanup logic in AppState) can use the same
+  /// logic without duplicating it.
+  int compareVersions(String a, String b) =>
+      _compareVersions(a, b);
 
   // ─── Load ──────────────────────────────────────────
 
@@ -97,11 +191,6 @@ class CatalogService extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
-    // ── Pass 1: fresh fetch, no cache fallback ──────
-    // Try primary first, then backup.
-    // Both use the version-check optimization:
-    // if the remote version matches our cached version,
-    // we skip all sub-file fetches entirely.
     final primaryFresh =
         await _tryRepo(_primaryBase, allowCacheFallback: false);
     if (primaryFresh != null) {
@@ -116,9 +205,6 @@ class CatalogService extends ChangeNotifier {
       return;
     }
 
-    // ── Pass 2: cache-assisted fallback ────────────
-    // Network failed. Try again but allow each sub-file
-    // to fall back to its individual cached copy.
     final primaryCached =
         await _tryRepo(_primaryBase, allowCacheFallback: true);
     if (primaryCached != null) {
@@ -141,22 +227,6 @@ class CatalogService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ─── _tryRepo ──────────────────────────────────────
-  //
-  // Returns an assembled catalog JSON map if successful,
-  // or null if the fetch/parse failed.
-  //
-  // Version-check logic:
-  //   1. Fetch only catalog.json (root).
-  //   2. Read its "version" field.
-  //   3. Compare to the locally stored cached version.
-  //   4. If SAME and we have a valid assembled cache:
-  //      → Return the cached assembled catalog immediately.
-  //      → Zero additional HTTP requests.
-  //   5. If DIFFERENT (or no cache):
-  //      → Fetch all 5 sub-files in parallel.
-  //      → Assemble and return.
-
   Future<Map<String, dynamic>?> _tryRepo(
     String baseUrl, {
     required bool allowCacheFallback,
@@ -164,7 +234,6 @@ class CatalogService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // Step 1 — fetch root catalog.json
       final root = await _fetchFile(
         url: '$baseUrl/catalog.json',
         cacheKey: _rootCacheKey,
@@ -173,23 +242,11 @@ class CatalogService extends ChangeNotifier {
       );
       if (root == null) return null;
 
-      // Step 2 — read remote version
       final remoteVersion =
           root['version']?.toString() ?? '';
-
-      // Step 3 — read locally cached version
       final cachedVersion =
           prefs.getString(_cachedVersionKey) ?? '';
 
-      // Step 4 — version-check shortcut
-      // Only applies when:
-      //   - versions match (catalog not updated)
-      //   - we have a valid assembled cache
-      //   - we are not in cache-fallback mode
-      //     (cache-fallback mode means network already
-      //      failed so we skip version shortcut to avoid
-      //      using a stale assembled cache if root was
-      //      served from local cache too)
       if (!allowCacheFallback &&
           remoteVersion.isNotEmpty &&
           remoteVersion == cachedVersion) {
@@ -204,20 +261,14 @@ class CatalogService extends ChangeNotifier {
                 '— using cache, skipping sub-file fetches.',
               );
               return assembledJson;
-            } catch (_) {
-              // Assembled cache is corrupt — fall through
-              // to full fetch below.
-            }
+            } catch (_) {}
           }
         }
       }
 
-      // Step 5 — version changed (or no cache).
-      // Determine if this is split or monolithic.
       final includes = _readIncludes(root['includes']);
 
       if (includes.isEmpty) {
-        // Monolithic format
         try {
           Catalog.fromJson(root);
           debugPrint(
@@ -232,7 +283,6 @@ class CatalogService extends ChangeNotifier {
         }
       }
 
-      // Step 6 — split format: fetch 5 sub-files in parallel
       final teachersPath =
           includes['teachers'] ?? 'teachers.json';
       final recitersPath =
@@ -316,8 +366,6 @@ class CatalogService extends ChangeNotifier {
     }
   }
 
-  // ─── _fetchFile ────────────────────────────────────
-
   Future<Map<String, dynamic>?> _fetchFile({
     required String url,
     required String cacheKey,
@@ -356,8 +404,6 @@ class CatalogService extends ChangeNotifier {
     }
   }
 
-  // ─── _apply ────────────────────────────────────────
-
   Future<void> _apply(
       Map<String, dynamic> assembled) async {
     try {
@@ -365,12 +411,7 @@ class CatalogService extends ChangeNotifier {
       _error = null;
 
       final prefs = await SharedPreferences.getInstance();
-
-      // Save assembled catalog for cold-start cache
       await prefs.setString(_cacheKey, jsonEncode(assembled));
-
-      // Save the version so the next launch can do a
-      // version-check shortcut.
       await prefs.setString(
           _cachedVersionKey, _catalog!.version);
 
@@ -394,17 +435,10 @@ class CatalogService extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
-    // Force a full re-fetch regardless of version.
-    // Called manually by the user (pull to refresh)
-    // or by the app on demand.
-    // Clear the cached version so the version-check
-    // shortcut is bypassed this one time.
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_cachedVersionKey);
     await _fetchFromNetwork();
   }
-
-  // ─── JSON helpers ──────────────────────────────────
 
   Map<String, dynamic>? _decodeMap(String body) {
     try {
@@ -431,8 +465,6 @@ class CatalogService extends ChangeNotifier {
     return result;
   }
 
-  // ─── Helpers ───────────────────────────────────────
-
   List<Book> booksInBranch(String branchId) =>
       _catalog?.booksInBranch(branchId) ?? [];
 
@@ -456,8 +488,6 @@ class CatalogService extends ChangeNotifier {
       return null;
     }
   }
-
-  // ─── URL resolvers ─────────────────────────────────
 
   String audioUrlFor({
     required String bookId,
