@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <!--
-        <data-path> maps to the app's internal data
-        directory: /data/data/com.rawda.library/
-        This covers app_flutter/ where Flutter's
-        getApplicationDocumentsDirectory() saves files.
+        Standard cache directory used for APK updates.
+        Maps to: /data/data/com.rawda.library/cache/
+        This is the universally-supported FileProvider
+        path that works on every Android version.
     -->
-    <data-path
-        name="internal_data"
+    <cache-path
+        name="apk_cache"
         path="." />
 </paths>
