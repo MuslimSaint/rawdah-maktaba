@@ -1,7 +1,7 @@
 name: rawdah_maktaba
 description: Islamic learning platform
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -19,7 +19,7 @@ dependencies:
   # Liquid page transitions
   animations: ^2.0.0
 
-  # Open files with system apps (used for APK install)
+  # Open files with system apps (legacy — install now uses MethodChannel)
   open_file: ^3.3.2
 
   # Firebase
