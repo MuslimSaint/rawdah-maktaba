@@ -305,28 +305,60 @@ class ReciterAudio {
 }
 
 // ─── ContentTableEntry ───────────────────────────────────
+//
+// Supports nested children for hierarchical TOCs.
+//
+// Format in JSON:
+//   {
+//     "titleAr": "كتاب الطهارة",
+//     "titleEn": "",
+//     "page": 5,
+//     "children": [
+//       {"titleAr": "باب المياه", "titleEn": "", "page": 6, "children": [...]},
+//       {"titleAr": "باب التيمم", "titleEn": "", "page": 30}
+//     ]
+//   }
+//
+// - "children" is optional. Absent, null, or empty
+//   list all mean the entry has no children.
+// - Nesting depth is unlimited.
+// - Old flat TOCs (no "children" field anywhere)
+//   continue to work: every entry becomes a leaf.
 
 class ContentTableEntry {
   final String titleAr;
   final String titleEn;
   final int page;
+  final List<ContentTableEntry> children;
 
   const ContentTableEntry({
     required this.titleAr,
     required this.titleEn,
     required this.page,
+    this.children = const [],
   });
 
   factory ContentTableEntry.fromJson(
       Map<String, dynamic> json) {
+    final childrenRaw =
+        json['children'] as List? ?? const [];
+    final children = childrenRaw
+        .whereType<Map<String, dynamic>>()
+        .map((m) => ContentTableEntry.fromJson(m))
+        .where(
+            (e) => e.titleAr.isNotEmpty && e.page >= 1)
+        .toList();
+
     return ContentTableEntry(
       titleAr: json['titleAr'] as String? ?? '',
       titleEn: json['titleEn'] as String? ?? '',
       page: json['page'] as int? ?? 1,
+      children: children,
     );
   }
 
   bool get hasEnglish => titleEn.isNotEmpty;
+  bool get hasChildren => children.isNotEmpty;
 }
 
 // ─── Book ────────────────────────────────────────────────
@@ -350,6 +382,7 @@ class Book {
   /// Embedded content table from the catalog.
   /// Used as fallback if contentTableUrl is absent
   /// or the remote file has not been downloaded yet.
+  /// Supports nested children.
   final List<ContentTableEntry> contentTable;
 
   /// Optional URL to an external JSON file containing
@@ -357,8 +390,15 @@ class Book {
   /// been downloaded, it takes priority over the
   /// embedded contentTable above.
   ///
-  /// Format of the JSON file:
-  ///   [{"titleAr":"...", "titleEn":"...", "page": 1}]
+  /// Format supports nested children:
+  ///   [
+  ///     {
+  ///       "titleAr": "...",
+  ///       "titleEn": "...",
+  ///       "page": 1,
+  ///       "children": [ ... ]
+  ///     }
+  ///   ]
   ///
   /// Local cache key: toc_<bookId>.json
   final String contentTableUrl;
