@@ -8,12 +8,17 @@ import '../core/models.dart';
 import '../core/theme.dart';
 
 /// PDF reader — horizontal default with toggle,
-/// universal bookmarks, and optional chapter index.
+/// universal bookmarks, and optional hierarchical
+/// chapter index.
 ///
-/// Content table source priority (Task 6):
+/// Content table source priority:
 ///   1. External TOC file (downloaded separately)
 ///   2. Embedded contentTable from catalog
 ///   3. No content table (button not shown)
+///
+/// Hierarchy is controlled entirely by the TOC JSON
+/// file structure. Each entry may have a "children"
+/// array. Depth is unlimited.
 class PdfReaderScreen extends StatefulWidget {
   final Book book;
   final String filePath;
@@ -74,9 +79,6 @@ class _PdfReaderScreenState
 
   // ─── Resolve content table ─────────────────────
 
-  /// Resolves the effective content table using the
-  /// ContentTableService priority chain. Called once
-  /// after the PDF is ready.
   Future<void> _resolveContentTable() async {
     if (_contentTableResolved) return;
     _contentTableResolved = true;
@@ -94,7 +96,6 @@ class _PdfReaderScreenState
     }
   }
 
-  /// Whether the content table button should be shown.
   bool get _hasContentTable =>
       _resolvedContentTable != null &&
       _resolvedContentTable!.isNotEmpty;
@@ -180,122 +181,19 @@ class _PdfReaderScreenState
         ),
       ),
       builder: (ctx) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.55,
-          minChildSize: 0.35,
-          maxChildSize: 0.85,
-          builder: (ctx, scrollController) {
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      20, 16, 20, 0),
-                  child: Column(
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: c.divider,
-                            borderRadius:
-                                BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons
-                                .format_list_bulleted_rounded,
-                            color: c.goldText,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'فهرس المحتويات',
-                            textDirection:
-                                TextDirection.rtl,
-                            style: AppText.arabic(
-                              color: c.textPrimary,
-                              size: 16,
-                              weight: FontWeight.w700,
-                            ),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding:
-                                const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: c.goldLine,
-                              borderRadius:
-                                  BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '${entries.length}',
-                              style: AppText.latin(
-                                color: c.goldText,
-                                size: 11,
-                                weight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Divider(color: c.divider),
-                    ],
-                  ),
-                ),
-
-                Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(
-                        20, 4, 20, 24),
-                    itemCount: entries.length,
-                    itemBuilder: (ctx, index) {
-                      final entry = entries[index];
-                      final zeroPage = entry.page - 1;
-
-                      return _ContentTableRow(
-                        entry: entry,
-                        index: index,
-                        colors: c,
-                        isCurrentChapter:
-                            _isCurrentChapter(
-                                index, entries),
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          _jumpToPage(zeroPage.clamp(
-                              0, _totalPages - 1));
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            );
+        return _ContentTableSheet(
+          entries: entries,
+          currentPageOneBased: _currentPage + 1,
+          totalPages: _totalPages,
+          colors: c,
+          onTap: (page) {
+            Navigator.of(ctx).pop();
+            _jumpToPage(
+                (page - 1).clamp(0, _totalPages - 1));
           },
         );
       },
     );
-  }
-
-  bool _isCurrentChapter(
-      int index, List<ContentTableEntry> entries) {
-    final currentOneBased = _currentPage + 1;
-    final thisPage = entries[index].page;
-    final nextPage = index + 1 < entries.length
-        ? entries[index + 1].page
-        : _totalPages + 1;
-    return currentOneBased >= thisPage &&
-        currentOneBased < nextPage;
   }
 
   // ─── Bookmark dialogs ──────────────────────────
@@ -556,7 +454,6 @@ class _PdfReaderScreenState
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top Bar ──
             Padding(
               padding: const EdgeInsets.fromLTRB(
                   20, 16, 20, 0),
@@ -598,8 +495,6 @@ class _PdfReaderScreenState
                   ),
                   const SizedBox(width: 6),
 
-                  // Content table button — shown when
-                  // resolved content table is available.
                   if (_hasContentTable && showControls)
                     GestureDetector(
                       onTap: _showContentTableSheet,
@@ -626,7 +521,6 @@ class _PdfReaderScreenState
                   if (_hasContentTable && showControls)
                     const SizedBox(width: 6),
 
-                  // Mode toggle
                   GestureDetector(
                     onTap: _toggleMode,
                     child: Container(
@@ -652,7 +546,6 @@ class _PdfReaderScreenState
 
                   const SizedBox(width: 6),
 
-                  // Add bookmark
                   if (showControls)
                     GestureDetector(
                       onTap: _showAddBookmarkDialog,
@@ -699,7 +592,6 @@ class _PdfReaderScreenState
 
                   const SizedBox(width: 6),
 
-                  // Bookmarks list
                   if (showControls)
                     GestureDetector(
                       onTap: _showBookmarksSheet,
@@ -765,7 +657,6 @@ class _PdfReaderScreenState
 
                   const SizedBox(width: 6),
 
-                  // Page counter
                   if (showControls)
                     Container(
                       padding:
@@ -793,7 +684,6 @@ class _PdfReaderScreenState
               ),
             ),
 
-            // Progress bar
             if (showControls && _totalPages > 0) ...[
               const SizedBox(height: 8),
               Padding(
@@ -819,7 +709,6 @@ class _PdfReaderScreenState
 
             const SizedBox(height: 8),
 
-            // PDF Viewer
             Expanded(
               child: Stack(
                 children: [
@@ -848,10 +737,6 @@ class _PdfReaderScreenState
                         totalPages: pages ?? 0,
                       );
                       _hideLoadingOverlay();
-
-                      // Resolve content table now that
-                      // we know the total pages and the
-                      // ContentTableService is ready.
                       _resolveContentTable();
                     },
                     onViewCreated: (controller) {
@@ -908,7 +793,6 @@ class _PdfReaderScreenState
               ),
             ),
 
-            // Bottom indicator
             if (showControls)
               Container(
                 padding:
@@ -949,145 +833,394 @@ class _PdfReaderScreenState
   }
 }
 
+// ─── Content Table Sheet ─────────────────────────────────
+//
+// Stateful sheet that manages expansion state for
+// hierarchical entries. Expansion state resets each
+// time the sheet is opened (fresh session).
+
+class _ContentTableSheet extends StatefulWidget {
+  final List<ContentTableEntry> entries;
+  final int currentPageOneBased;
+  final int totalPages;
+  final AppColors colors;
+  final void Function(int page) onTap;
+
+  const _ContentTableSheet({
+    required this.entries,
+    required this.currentPageOneBased,
+    required this.totalPages,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  State<_ContentTableSheet> createState() =>
+      _ContentTableSheetState();
+}
+
+class _ContentTableSheetState
+    extends State<_ContentTableSheet> {
+  /// Tracks which entries are currently expanded.
+  /// Key = a stable path string like "0.2.1" that
+  /// uniquely identifies an entry by its position
+  /// in the tree.
+  final Set<String> _expanded = <String>{};
+
+  int _totalEntries(
+      List<ContentTableEntry> list) {
+    var count = 0;
+    for (final e in list) {
+      count += 1 + _totalEntries(e.children);
+    }
+    return count;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.colors;
+    final total = _totalEntries(widget.entries);
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.55,
+      minChildSize: 0.35,
+      maxChildSize: 0.9,
+      builder: (ctx, scrollController) {
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  20, 16, 20, 0),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: c.divider,
+                        borderRadius:
+                            BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons
+                            .format_list_bulleted_rounded,
+                        color: c.goldText,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'فهرس المحتويات',
+                        textDirection:
+                            TextDirection.rtl,
+                        style: AppText.arabic(
+                          color: c.textPrimary,
+                          size: 16,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding:
+                            const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: c.goldLine,
+                          borderRadius:
+                              BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$total',
+                          style: AppText.latin(
+                            color: c.goldText,
+                            size: 11,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Divider(color: c.divider),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(
+                    16, 4, 16, 24),
+                children: _buildTree(
+                  entries: widget.entries,
+                  parentPath: '',
+                  depth: 0,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Recursively builds the flat list of rows to
+  /// display, respecting the current expansion state.
+  List<Widget> _buildTree({
+    required List<ContentTableEntry> entries,
+    required String parentPath,
+    required int depth,
+  }) {
+    final rows = <Widget>[];
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      final path = parentPath.isEmpty
+          ? '$i'
+          : '$parentPath.$i';
+      final isExpanded = _expanded.contains(path);
+
+      rows.add(_ContentTableRow(
+        entry: entry,
+        depth: depth,
+        isExpanded: isExpanded,
+        colors: widget.colors,
+        isCurrentChapter: _isCurrentChapter(entry),
+        onTap: () => widget.onTap(entry.page),
+        onToggleExpand: entry.hasChildren
+            ? () {
+                setState(() {
+                  if (isExpanded) {
+                    _expanded.remove(path);
+                  } else {
+                    _expanded.add(path);
+                  }
+                });
+              }
+            : null,
+      ));
+
+      if (isExpanded && entry.hasChildren) {
+        rows.addAll(_buildTree(
+          entries: entry.children,
+          parentPath: path,
+          depth: depth + 1,
+        ));
+      }
+    }
+    return rows;
+  }
+
+  /// True if the current PDF page falls within
+  /// this entry's range. For leaf entries, the
+  /// range is [entry.page, next entry's page).
+  /// For parent entries, the range spans until
+  /// the next sibling at the same or shallower
+  /// level.
+  bool _isCurrentChapter(ContentTableEntry entry) {
+    final cur = widget.currentPageOneBased;
+    if (cur < entry.page) return false;
+    final nextPage =
+        _findNextPage(entry, widget.entries);
+    if (nextPage == null) {
+      return cur <= widget.totalPages;
+    }
+    return cur < nextPage;
+  }
+
+  /// Finds the page number of the entry that
+  /// comes right after `target` in a flattened
+  /// depth-first traversal. Returns null if
+  /// `target` is the last entry.
+  int? _findNextPage(
+    ContentTableEntry target,
+    List<ContentTableEntry> tree,
+  ) {
+    final flat = <ContentTableEntry>[];
+    void flatten(List<ContentTableEntry> list) {
+      for (final e in list) {
+        flat.add(e);
+        flatten(e.children);
+      }
+    }
+
+    flatten(tree);
+    final idx = flat.indexOf(target);
+    if (idx < 0 || idx == flat.length - 1) {
+      return null;
+    }
+    return flat[idx + 1].page;
+  }
+}
+
 // ─── Content Table Row ───────────────────────────────────
 
 class _ContentTableRow extends StatelessWidget {
   final ContentTableEntry entry;
-  final int index;
+  final int depth;
+  final bool isExpanded;
   final AppColors colors;
   final bool isCurrentChapter;
   final VoidCallback onTap;
+  final VoidCallback? onToggleExpand;
 
   const _ContentTableRow({
     required this.entry,
-    required this.index,
+    required this.depth,
+    required this.isExpanded,
     required this.colors,
     required this.isCurrentChapter,
     required this.onTap,
+    required this.onToggleExpand,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
+    // Progressive indent: 16 px per depth level.
+    final leftPad = 4.0 + (depth * 16.0);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(
-            horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: isCurrentChapter
-              ? c.goldLine
-              : c.surface2,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isCurrentChapter
-                ? c.goldText.withOpacity(0.5)
-                : c.divider,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isCurrentChapter
-                    ? c.goldText.withOpacity(0.15)
-                    : c.brand.withOpacity(0.08),
-                border: Border.all(
+    return Padding(
+      padding: EdgeInsets.only(
+        left: leftPad,
+        right: 4,
+        bottom: 6,
+      ),
+      child: Row(
+        children: [
+          // Main tappable body: title + page badge
+          Expanded(
+            child: GestureDetector(
+              onTap: onTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
                   color: isCurrentChapter
-                      ? c.goldText.withOpacity(0.4)
-                      : c.brand.withOpacity(0.2),
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '${index + 1}',
-                style: AppText.latin(
-                  color: isCurrentChapter
-                      ? c.goldText
-                      : c.brand,
-                  size: 11,
-                  weight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    entry.titleAr,
-                    textDirection: TextDirection.rtl,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.arabic(
-                      color: isCurrentChapter
-                          ? c.goldText
-                          : c.textPrimary,
-                      size: 13,
-                      weight: isCurrentChapter
-                          ? FontWeight.w700
-                          : FontWeight.w600,
-                    ),
+                      ? c.goldLine
+                      : c.surface2,
+                  borderRadius:
+                      BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isCurrentChapter
+                        ? c.goldText.withOpacity(0.5)
+                        : c.divider,
                   ),
-                  if (entry.hasEnglish) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      entry.titleEn,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.latin(
-                        color: isCurrentChapter
-                            ? c.goldText
-                                .withOpacity(0.8)
-                            : c.textMuted,
-                        size: 10,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        entry.titleAr,
+                        textDirection:
+                            TextDirection.rtl,
+                        textAlign: TextAlign.right,
+                        maxLines: 2,
+                        overflow:
+                            TextOverflow.ellipsis,
+                        style: AppText.arabic(
+                          color: isCurrentChapter
+                              ? c.goldText
+                              : c.textPrimary,
+                          size: 13,
+                          weight: isCurrentChapter
+                              ? FontWeight.w700
+                              : FontWeight.w600,
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isCurrentChapter
+                            ? c.goldText
+                                .withOpacity(0.15)
+                            : c.card,
+                        borderRadius:
+                            BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isCurrentChapter
+                              ? c.goldText
+                                  .withOpacity(0.3)
+                              : c.divider,
+                        ),
+                      ),
+                      child: Text(
+                        'p. ${entry.page}',
+                        style: AppText.latin(
+                          color: isCurrentChapter
+                              ? c.goldText
+                              : c.textFaint,
+                          size: 10,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (isCurrentChapter) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                          Icons.play_arrow_rounded,
+                          size: 14,
+                          color: c.goldText),
+                    ],
                   ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isCurrentChapter
-                    ? c.goldText.withOpacity(0.15)
-                    : c.card,
-                borderRadius:
-                    BorderRadius.circular(8),
-                border: Border.all(
-                  color: isCurrentChapter
-                      ? c.goldText.withOpacity(0.3)
-                      : c.divider,
-                ),
-              ),
-              child: Text(
-                'p. ${entry.page}',
-                style: AppText.latin(
-                  color: isCurrentChapter
-                      ? c.goldText
-                      : c.textFaint,
-                  size: 10,
-                  weight: FontWeight.w700,
                 ),
               ),
             ),
-            if (isCurrentChapter) ...[
-              const SizedBox(width: 6),
-              Icon(Icons.play_arrow_rounded,
-                  size: 14, color: c.goldText),
-            ],
+          ),
+
+          // Expand/retract chevron button (only when
+          // this entry has children).
+          if (onToggleExpand != null) ...[
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: onToggleExpand,
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isExpanded
+                      ? c.brand.withOpacity(0.12)
+                      : c.surface2,
+                  borderRadius:
+                      BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isExpanded
+                        ? c.brand.withOpacity(0.4)
+                        : c.divider,
+                  ),
+                ),
+                child: AnimatedRotation(
+                  turns: isExpanded ? 0.5 : 0.0,
+                  duration: const Duration(
+                      milliseconds: 200),
+                  child: Icon(
+                    Icons.expand_more_rounded,
+                    size: 18,
+                    color: isExpanded
+                        ? c.brand
+                        : c.textMuted,
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            // Placeholder to keep alignment consistent
+            // when there is no expand button.
+            const SizedBox(width: 38),
           ],
-        ),
+        ],
       ),
     );
   }
