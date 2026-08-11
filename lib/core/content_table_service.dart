@@ -9,8 +9,23 @@ import 'models.dart';
 /// Manages external content table files for books.
 ///
 /// Each book can have a contentTableUrl pointing to a
-/// small JSON file like:
-///   [{"titleAr":"...", "titleEn":"...", "page": 1}]
+/// small JSON file. The format supports nested children
+/// for hierarchical tables of contents:
+///
+///   [
+///     {
+///       "titleAr": "كتاب الطهارة",
+///       "titleEn": "",
+///       "page": 5,
+///       "children": [
+///         {"titleAr": "باب المياه", "titleEn": "", "page": 6},
+///         {"titleAr": "باب التيمم", "titleEn": "", "page": 30}
+///       ]
+///     }
+///   ]
+///
+/// Old flat format (no "children" field) is fully
+/// supported — every entry just becomes a leaf.
 ///
 /// Files are cached locally as:
 ///   {appDocumentsDir}/book_toc/toc_<bookId>.json
@@ -147,7 +162,7 @@ class ContentTableService {
 
       debugPrint(
         'ContentTableService: downloaded TOC for '
-        '$bookId (${parsed.length} entries)',
+        '$bookId (${parsed.length} top-level entries)',
       );
     } catch (e) {
       debugPrint(
@@ -224,6 +239,9 @@ class ContentTableService {
     return File('${dir.path}/toc_$bookId.json');
   }
 
+  /// Parses the TOC JSON body. Handles both flat and
+  /// hierarchical formats (children are parsed
+  /// recursively by ContentTableEntry.fromJson).
   List<ContentTableEntry> _parseJson(String body) {
     try {
       final decoded = jsonDecode(body);
