@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/app_state.dart';
 import '../core/auth_service.dart';
+import '../core/models.dart';
 import '../core/theme.dart';
 import '../main.dart';
 
-/// Settings tab — full implementation.
+/// Settings tab — fully catalog-driven for
+/// Connect, FAQ, Privacy, About, and Credits.
 class SettingsTab extends StatelessWidget {
   const SettingsTab({super.key});
 
@@ -16,7 +18,6 @@ class SettingsTab extends StatelessWidget {
     final authService = AuthService();
     final user = authService.currentUser;
 
-    // Guest mode: show "Guest" as name, no email
     final isGuest = state.isGuest;
     final userName = isGuest
         ? 'Guest'
@@ -27,326 +28,362 @@ class SettingsTab extends StatelessWidget {
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(
-              bottom: AppSpacing.xxl),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.base,
-                  AppSpacing.base,
-                  AppSpacing.base,
-                  0,
-                ),
-                child: Text(
-                  'Settings',
-                  style: AppText.latin(
-                    color: c.textPrimary,
-                    size: 22,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-              ),
+        child: ListenableBuilder(
+          listenable: state.catalogService,
+          builder: (context, _) {
+            final settings =
+                state.catalogService.settings;
 
-              const SizedBox(height: AppSpacing.lg),
-
-              _SectionLabel(
-                  label: 'ACCOUNT', colors: c),
-              const SizedBox(height: AppSpacing.sm),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.base),
-                child: _ProfileCard(
-                  userName: userName,
-                  userEmail: userEmail,
-                  isGuest: isGuest,
-                  colors: c,
-                  onSignOut: () =>
-                      _signOut(context, state),
-                  onSignIn: () =>
-                      _goToSignIn(context, state),
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              _SectionLabel(
-                  label: 'APPEARANCE', colors: c),
-              const SizedBox(height: AppSpacing.sm),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.base),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: c.card,
-                    borderRadius: AppRadius.cardRadius,
-                    border:
-                        Border.all(color: c.divider),
-                  ),
-                  child: Column(
-                    children: [
-                      _SettingsToggleRow(
-                        icon: state.isDark
-                            ? Icons.dark_mode_rounded
-                            : Icons.light_mode_rounded,
-                        title: 'Dark Mode',
-                        subtitle: state.isDark
-                            ? 'Dark theme active'
-                            : 'Light theme active',
-                        value: state.isDark,
-                        onChanged: (_) =>
-                            state.toggleTheme(),
-                        colors: c,
+            return SingleChildScrollView(
+              padding: const EdgeInsets.only(
+                  bottom: AppSpacing.xxl),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  // ── Header ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.base,
+                      AppSpacing.base,
+                      AppSpacing.base,
+                      0,
+                    ),
+                    child: Text(
+                      'Settings',
+                      style: AppText.latin(
+                        color: c.textPrimary,
+                        size: 22,
+                        weight: FontWeight.w700,
                       ),
-                      Divider(
-                          color: c.divider,
-                          height: 1,
-                          indent: 16,
-                          endIndent: 16),
-                      _LanguageRow(colors: c),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              _SectionLabel(
-                  label: 'CONNECT', colors: c),
-              const SizedBox(height: AppSpacing.sm),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.base),
-                child: GestureDetector(
-                  onTap: () => _launchUrl(
-                      'https://t.me/JUMadrasabot'),
-                  child: Container(
-                    padding: const EdgeInsets.all(
-                        AppSpacing.base),
-                    decoration: BoxDecoration(
-                      color: c.card,
-                      borderRadius:
-                          AppRadius.cardRadius,
-                      border: Border.all(
-                          color: c.divider),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: const Color(
-                                    0xFF229ED9)
-                                .withOpacity(0.12),
-                            borderRadius:
-                                AppRadius.buttonRadius,
-                            border: Border.all(
-                              color: const Color(
-                                      0xFF229ED9)
-                                  .withOpacity(0.3),
+                  ),
+
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // ── ACCOUNT ──
+                  _SectionLabel(
+                      label: 'ACCOUNT', colors: c),
+                  const SizedBox(height: AppSpacing.sm),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.base),
+                    child: _ProfileCard(
+                      userName: userName,
+                      userEmail: userEmail,
+                      isGuest: isGuest,
+                      colors: c,
+                      onSignOut: () =>
+                          _signOut(context, state),
+                      onSignIn: () =>
+                          _goToSignIn(context, state),
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // ── APPEARANCE ──
+                  _SectionLabel(
+                      label: 'APPEARANCE', colors: c),
+                  const SizedBox(height: AppSpacing.sm),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.base),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: c.card,
+                        borderRadius:
+                            AppRadius.cardRadius,
+                        border: Border.all(
+                            color: c.divider),
+                      ),
+                      child: Column(
+                        children: [
+                          _SettingsToggleRow(
+                            icon: state.isDark
+                                ? Icons.dark_mode_rounded
+                                : Icons
+                                    .light_mode_rounded,
+                            title: 'Dark Mode',
+                            subtitle: state.isDark
+                                ? 'Dark theme active'
+                                : 'Light theme active',
+                            value: state.isDark,
+                            onChanged: (_) =>
+                                state.toggleTheme(),
+                            colors: c,
+                          ),
+                          Divider(
+                              color: c.divider,
+                              height: 1,
+                              indent: 16,
+                              endIndent: 16),
+                          _LanguageRow(colors: c),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // ── CONNECT (catalog-driven) ──
+                  if (settings
+                      .connectLinks.isNotEmpty) ...[
+                    _SectionLabel(
+                        label: 'CONNECT', colors: c),
+                    const SizedBox(
+                        height: AppSpacing.sm),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(
+                              horizontal:
+                                  AppSpacing.base),
+                      child: Column(
+                        children: settings.connectLinks
+                            .map((link) => Padding(
+                                  padding:
+                                      const EdgeInsets
+                                          .only(
+                                          bottom:
+                                              AppSpacing
+                                                  .sm),
+                                  child:
+                                      _SocialLinkCard(
+                                    link: link,
+                                    colors: c,
+                                    onTap: () =>
+                                        _launchUrl(
+                                            link.url),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                    const SizedBox(
+                        height: AppSpacing.xl),
+                  ],
+
+                  // ── FAQ (catalog-driven) ──
+                  if (settings.faq.isNotEmpty) ...[
+                    _SectionLabel(
+                        label: 'FAQ', colors: c),
+                    const SizedBox(
+                        height: AppSpacing.sm),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(
+                              horizontal:
+                                  AppSpacing.base),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: c.card,
+                          borderRadius:
+                              AppRadius.cardRadius,
+                          border: Border.all(
+                              color: c.divider),
+                        ),
+                        child: Column(
+                          children: List.generate(
+                            settings.faq.length,
+                            (i) {
+                              final entry =
+                                  settings.faq[i];
+                              return _FaqItem(
+                                number: i + 1,
+                                question:
+                                    entry.question,
+                                answer: entry.answer,
+                                colors: c,
+                                isFirst: i == 0,
+                                isLast: i ==
+                                    settings.faq
+                                            .length -
+                                        1,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(
+                        height: AppSpacing.xl),
+                  ],
+
+                  // ── PRIVACY (catalog-driven) ──
+                  if (settings.privacy.isNotEmpty) ...[
+                    _SectionLabel(
+                        label: 'PRIVACY & DATA',
+                        colors: c),
+                    const SizedBox(
+                        height: AppSpacing.sm),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(
+                              horizontal:
+                                  AppSpacing.base),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: c.card,
+                          borderRadius:
+                              AppRadius.cardRadius,
+                          border: Border.all(
+                              color: c.divider),
+                        ),
+                        child: Column(
+                          children: List.generate(
+                            settings.privacy.length,
+                            (i) {
+                              final entry =
+                                  settings.privacy[i];
+                              return _PrivacyItem(
+                                title: entry.title,
+                                content:
+                                    entry.content,
+                                colors: c,
+                                isFirst: i == 0,
+                                isLast: i ==
+                                    settings.privacy
+                                            .length -
+                                        1,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(
+                        height: AppSpacing.xl),
+                  ],
+
+                  // ── ABOUT (catalog-driven text) ──
+                  _SectionLabel(
+                      label: 'ABOUT', colors: c),
+                  const SizedBox(height: AppSpacing.sm),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.base),
+                    child: _AboutCard(
+                      colors: c,
+                      aboutDescription:
+                          settings.aboutDescription,
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // ── CREDITS (catalog-driven) ──
+                  if (settings.credits.isNotEmpty) ...[
+                    _SectionLabel(
+                        label:
+                            'CREDITS & APPRECIATION',
+                        colors: c),
+                    const SizedBox(
+                        height: AppSpacing.sm),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(
+                              horizontal:
+                                  AppSpacing.base),
+                      child: Container(
+                        padding: const EdgeInsets
+                            .all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: c.card,
+                          borderRadius:
+                              AppRadius.cardRadius,
+                          border: Border.all(
+                              color: c.goldLine,
+                              width: 1.5),
+                        ),
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons
+                                      .favorite_rounded,
+                                  color: c.goldText,
+                                  size: 16,
+                                ),
+                                const SizedBox(
+                                    width:
+                                        AppSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    'With gratitude to these scholars and channels whose content helped build this library.',
+                                    style:
+                                        AppText.latin(
+                                      color:
+                                          c.textMuted,
+                                      size: 11,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.send_rounded,
-                            color: Color(0xFF229ED9),
-                            size: 22,
-                          ),
+                            const SizedBox(
+                                height:
+                                    AppSpacing.md),
+                            ...settings.credits
+                                .map((credit) =>
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets
+                                              .only(
+                                              bottom:
+                                                  AppSpacing
+                                                      .md),
+                                      child:
+                                          _CreditCard(
+                                        credit: credit,
+                                        colors: c,
+                                        language: state
+                                            .language,
+                                        onLinkTap: (url) =>
+                                            _launchUrl(
+                                                url),
+                                      ),
+                                    ))
+                                .toList(),
+                          ],
                         ),
-                        const SizedBox(
-                            width: AppSpacing.md),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              Text('Rawdah · روضة',
-                                  style: AppText.latin(
-                                      color: c.textPrimary,
-                                      size: 14,
-                                      weight:
-                                          FontWeight.w700)),
-                              const SizedBox(
-                                  height: AppSpacing.xs),
-                              Text(
-                                  '@JUMadrasabot · Telegram',
-                                  style: AppText.latin(
-                                      color: c.textMuted,
-                                      size: 12)),
-                              const SizedBox(
-                                  height: AppSpacing.xs),
-                              Text(
-                                  'Islamic Studies & University Materials',
-                                  style: AppText.latin(
-                                      color: c.textFaint,
-                                      size: 11)),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.open_in_new_rounded,
-                            size: 16,
-                            color: c.textFaint),
-                      ],
+                      ),
+                    ),
+                    const SizedBox(
+                        height: AppSpacing.lg),
+                  ],
+
+                  Center(
+                    child: Text(
+                      'Rawdah project for the Muslim Ummah',
+                      style: AppText.latin(
+                          color: c.textFaint,
+                          size: 11),
                     ),
                   ),
-                ),
+
+                  const SizedBox(height: AppSpacing.sm),
+                ],
               ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              _SectionLabel(label: 'FAQ', colors: c),
-              const SizedBox(height: AppSpacing.sm),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.base),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: c.card,
-                    borderRadius: AppRadius.cardRadius,
-                    border:
-                        Border.all(color: c.divider),
-                  ),
-                  child: Column(
-                    children: [
-                      _FaqItem(
-                          number: 1,
-                          question:
-                              'Is everything in this app free?',
-                          answer:
-                              'Yes. All books and audio lessons in مكتبة الروضة are completely free. There is no premium plan, no subscription, and no hidden charges. Everything will always be free.',
-                          colors: c,
-                          isFirst: true),
-                      _FaqItem(
-                          number: 2,
-                          question:
-                              'Do I need internet to use the app?',
-                          answer:
-                              'You need internet to download books and audio for the first time. After downloading, everything works fully offline — reading, listening, and tracking your progress.',
-                          colors: c),
-                      _FaqItem(
-                          number: 3,
-                          question:
-                              'How do I read a downloaded book?',
-                          answer:
-                              'Go to Library → tap a book → tap the PDF card to download. Once downloaded, tap anywhere on the card to open and read the book.',
-                          colors: c),
-                      _FaqItem(
-                          number: 4,
-                          question:
-                              'Will new books be added?',
-                          answer:
-                              'Yes. New books and audio lessons are added regularly. When you open the app with internet, your library updates automatically — no app update needed.',
-                          colors: c),
-                      _FaqItem(
-                          number: 5,
-                          question:
-                              'Are the books scholar-verified?',
-                          answer:
-                              'Yes. All books in مكتبة الروضة are authentic Islamic texts taught by qualified scholars. The audio explanations are provided by named scholars shown on each book\'s detail page.',
-                          colors: c,
-                          isLast: true),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              _SectionLabel(
-                  label: 'PRIVACY & DATA', colors: c),
-              const SizedBox(height: AppSpacing.sm),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.base),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: c.card,
-                    borderRadius: AppRadius.cardRadius,
-                    border:
-                        Border.all(color: c.divider),
-                  ),
-                  child: Column(
-                    children: [
-                      _PrivacyItem(
-                          title: 'What we collect',
-                          content:
-                              'We collect your name and email address when you create an account. This is the minimum required to provide you with a personal reading experience.',
-                          colors: c,
-                          isFirst: true),
-                      _PrivacyItem(
-                          title: 'What we do NOT collect',
-                          content:
-                              'We do not collect your location, contacts, camera, microphone, or any personal device data. We do not sell or share your data with any third party.',
-                          colors: c),
-                      _PrivacyItem(
-                          title: 'Authentication',
-                          content:
-                              'Your account is secured through Firebase Authentication by Google. We do not store your password — it is handled entirely by Firebase.',
-                          colors: c),
-                      _PrivacyItem(
-                          title: 'Reading progress',
-                          content:
-                              'Your reading progress, downloaded files, and preferences are stored locally on your device. This data never leaves your phone without your knowledge.',
-                          colors: c),
-                      _PrivacyItem(
-                          title: 'Downloaded files',
-                          content:
-                              'Books and audio files you download are stored privately in your app\'s internal storage. Only this app can access them. You can delete them anytime from the Downloads tab.',
-                          colors: c),
-                      _PrivacyItem(
-                          title: 'Children',
-                          content:
-                              'This app is suitable for all ages. We do not knowingly collect data from children under 13 without parental consent.',
-                          colors: c,
-                          isLast: true),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              _SectionLabel(label: 'ABOUT', colors: c),
-              const SizedBox(height: AppSpacing.sm),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.base),
-                child: _AboutCard(colors: c),
-              ),
-
-              const SizedBox(height: AppSpacing.lg),
-
-              Center(
-                child: Text(
-                  'Rawdah project for the Muslim Ummah',
-                  style: AppText.latin(
-                      color: c.textFaint, size: 11),
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.sm),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
   Future<void> _launchUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri,
-          mode: LaunchMode.externalApplication);
-    }
+    if (url.isEmpty) return;
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri,
+            mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {}
   }
 
   Future<void> _signOut(
@@ -409,7 +446,6 @@ class SettingsTab extends StatelessWidget {
 
   Future<void> _goToSignIn(
       BuildContext context, AppState state) async {
-    // Clear guest state and go back to auth
     await state.clearGuest();
     if (context.mounted) {
       Navigator.of(context).pushAndRemoveUntil(
@@ -421,6 +457,380 @@ class SettingsTab extends StatelessWidget {
         ),
         (_) => false,
       );
+    }
+  }
+}
+
+// ─── Social Link Card (used for CONNECT) ──────────────────
+
+class _SocialLinkCard extends StatelessWidget {
+  final SettingsLink link;
+  final AppColors colors;
+  final VoidCallback onTap;
+
+  const _SocialLinkCard({
+    required this.link,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final platform =
+        _PlatformStyle.forPlatform(link.platform);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.base),
+        decoration: BoxDecoration(
+          color: c.card,
+          borderRadius: AppRadius.cardRadius,
+          border: Border.all(color: c.divider),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: platform.color.withOpacity(0.12),
+                borderRadius:
+                    AppRadius.buttonRadius,
+                border: Border.all(
+                  color:
+                      platform.color.withOpacity(0.3),
+                ),
+              ),
+              child: Icon(
+                platform.icon,
+                color: platform.color,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    link.name,
+                    style: AppText.latin(
+                      color: c.textPrimary,
+                      size: 14,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(
+                      height: AppSpacing.xs),
+                  Text(
+                    link.handle.isNotEmpty
+                        ? '${link.handle} · ${platform.label}'
+                        : platform.label,
+                    style: AppText.latin(
+                      color: c.textMuted,
+                      size: 12,
+                    ),
+                  ),
+                  if (link.description
+                      .isNotEmpty) ...[
+                    const SizedBox(
+                        height: AppSpacing.xs),
+                    Text(
+                      link.description,
+                      style: AppText.latin(
+                        color: c.textFaint,
+                        size: 11,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.open_in_new_rounded,
+                size: 16, color: c.textFaint),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Credit Card ──────────────────────────────────────────
+
+class _CreditCard extends StatelessWidget {
+  final CreditEntry credit;
+  final AppColors colors;
+  final String language;
+  final void Function(String url) onLinkTap;
+
+  const _CreditCard({
+    required this.credit,
+    required this.colors,
+    required this.language,
+    required this.onLinkTap,
+  });
+
+  String _displayName() {
+    if (language == 'ar' &&
+        credit.nameAr.isNotEmpty) {
+      return credit.nameAr;
+    }
+    if (credit.nameEn.isNotEmpty) {
+      return credit.nameEn;
+    }
+    return credit.nameAr;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final name = _displayName();
+    final isArabic =
+        RegExp(r'[\u0600-\u06FF]').hasMatch(name);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: c.surface2,
+        borderRadius: AppRadius.listItemRadius,
+        border: Border.all(color: c.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Name row
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color:
+                      c.goldText.withOpacity(0.12),
+                  borderRadius: AppRadius.pillRadius,
+                  border: Border.all(
+                    color: c.goldText
+                        .withOpacity(0.3),
+                  ),
+                ),
+                child: Icon(
+                  Icons.person_rounded,
+                  size: 16,
+                  color: c.goldText,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  name,
+                  textDirection: isArabic
+                      ? TextDirection.rtl
+                      : TextDirection.ltr,
+                  textAlign: isArabic
+                      ? TextAlign.right
+                      : TextAlign.left,
+                  style: isArabic
+                      ? AppText.arabic(
+                          color: c.textPrimary,
+                          size: 14,
+                          weight: FontWeight.w700,
+                        )
+                      : AppText.latin(
+                          color: c.textPrimary,
+                          size: 14,
+                          weight: FontWeight.w700,
+                        ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppSpacing.sm),
+
+          // Second-language name if different
+          if (credit.nameAr.isNotEmpty &&
+              credit.nameEn.isNotEmpty &&
+              name != credit.nameAr) ...[
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: 40),
+              child: Text(
+                credit.nameAr,
+                textDirection: TextDirection.rtl,
+                textAlign: TextAlign.right,
+                style: AppText.arabic(
+                  color: c.textMuted,
+                  size: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ] else if (credit.nameAr.isNotEmpty &&
+              credit.nameEn.isNotEmpty &&
+              name != credit.nameEn) ...[
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: 40),
+              child: Text(
+                credit.nameEn,
+                style: AppText.latin(
+                  color: c.textMuted,
+                  size: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+
+          // Links
+          if (credit.links.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: 40),
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: credit.links
+                    .map((link) => _CreditLinkChip(
+                          link: link,
+                          colors: c,
+                          onTap: () =>
+                              onLinkTap(link.url),
+                        ))
+                    .toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Credit Link Chip ─────────────────────────────────────
+
+class _CreditLinkChip extends StatelessWidget {
+  final SettingsLink link;
+  final AppColors colors;
+  final VoidCallback onTap;
+
+  const _CreditLinkChip({
+    required this.link,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final platform =
+        _PlatformStyle.forPlatform(link.platform);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm + 2,
+          vertical: AppSpacing.xs + 3,
+        ),
+        decoration: BoxDecoration(
+          color: platform.color.withOpacity(0.1),
+          borderRadius: AppRadius.pillRadius,
+          border: Border.all(
+            color: platform.color.withOpacity(0.35),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              platform.icon,
+              size: 13,
+              color: platform.color,
+            ),
+            const SizedBox(width: AppSpacing.xs + 1),
+            Text(
+              platform.label,
+              style: AppText.latin(
+                color: platform.color,
+                size: 11,
+                weight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Platform Style Helper ────────────────────────────────
+
+class _PlatformStyle {
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  const _PlatformStyle({
+    required this.icon,
+    required this.color,
+    required this.label,
+  });
+
+  static _PlatformStyle forPlatform(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'telegram':
+        return const _PlatformStyle(
+          icon: Icons.send_rounded,
+          color: Color(0xFF229ED9),
+          label: 'Telegram',
+        );
+      case 'youtube':
+        return const _PlatformStyle(
+          icon: Icons.play_circle_fill_rounded,
+          color: Color(0xFFFF0000),
+          label: 'YouTube',
+        );
+      case 'instagram':
+        return const _PlatformStyle(
+          icon: Icons.camera_alt_rounded,
+          color: Color(0xFFE1306C),
+          label: 'Instagram',
+        );
+      case 'twitter':
+      case 'x':
+        return const _PlatformStyle(
+          icon: Icons.alternate_email_rounded,
+          color: Color(0xFF000000),
+          label: 'X',
+        );
+      case 'facebook':
+        return const _PlatformStyle(
+          icon: Icons.facebook_rounded,
+          color: Color(0xFF1877F2),
+          label: 'Facebook',
+        );
+      case 'tiktok':
+        return const _PlatformStyle(
+          icon: Icons.music_note_rounded,
+          color: Color(0xFF010101),
+          label: 'TikTok',
+        );
+      case 'whatsapp':
+        return const _PlatformStyle(
+          icon: Icons.chat_rounded,
+          color: Color(0xFF25D366),
+          label: 'WhatsApp',
+        );
+      case 'website':
+      default:
+        return const _PlatformStyle(
+          icon: Icons.language_rounded,
+          color: Color(0xFF6B7280),
+          label: 'Website',
+        );
     }
   }
 }
@@ -457,7 +867,6 @@ class _ProfileCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // ── Identity row ──
           Padding(
             padding:
                 const EdgeInsets.all(AppSpacing.base),
@@ -487,7 +896,8 @@ class _ProfileCard extends StatelessWidget {
                         )
                       : Text(
                           userName.isNotEmpty
-                              ? userName[0].toUpperCase()
+                              ? userName[0]
+                                  .toUpperCase()
                               : 'U',
                           style: AppText.latin(
                             color: c.brand,
@@ -496,9 +906,7 @@ class _ProfileCard extends StatelessWidget {
                           ),
                         ),
                 ),
-
                 const SizedBox(width: AppSpacing.md),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
@@ -539,7 +947,6 @@ class _ProfileCard extends StatelessWidget {
 
           Divider(color: c.divider, height: 1),
 
-          // ── Action row: Sign In (guest) or Sign Out ──
           GestureDetector(
             onTap: isGuest ? onSignIn : onSignOut,
             child: Padding(
@@ -564,15 +971,18 @@ class _ProfileCard extends StatelessWidget {
                           ? Icons.login_rounded
                           : Icons.logout_rounded,
                       size: 16,
-                      color: isGuest ? c.brand : c.danger,
+                      color: isGuest
+                          ? c.brand
+                          : c.danger,
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Text(
                     isGuest ? 'Sign In' : 'Sign Out',
                     style: AppText.latin(
-                      color:
-                          isGuest ? c.brand : c.danger,
+                      color: isGuest
+                          ? c.brand
+                          : c.danger,
                       size: 14,
                       weight: FontWeight.w600,
                     ),
@@ -595,7 +1005,7 @@ class _ProfileCard extends StatelessWidget {
   }
 }
 
-// ─── All other classes unchanged ─────────────────────────
+// ─── Settings Toggle Row ──────────────────────────────────
 
 class _SettingsToggleRow extends StatelessWidget {
   final IconData icon;
@@ -645,10 +1055,12 @@ class _SettingsToggleRow extends StatelessWidget {
                         color: c.textPrimary,
                         size: 14,
                         weight: FontWeight.w600)),
-                const SizedBox(height: AppSpacing.xs),
+                const SizedBox(
+                    height: AppSpacing.xs),
                 Text(subtitle,
                     style: AppText.latin(
-                        color: c.textFaint, size: 11)),
+                        color: c.textFaint,
+                        size: 11)),
               ],
             ),
           ),
@@ -661,6 +1073,8 @@ class _SettingsToggleRow extends StatelessWidget {
     );
   }
 }
+
+// ─── Language Row ─────────────────────────────────────────
 
 class _LanguageRow extends StatelessWidget {
   final AppColors colors;
@@ -694,28 +1108,51 @@ class _LanguageRow extends StatelessWidget {
                     size: 14,
                     weight: FontWeight.w600)),
           ),
-          _LangButton(code: 'ar', label: 'ع', colors: c),
+          _LangButton(
+              code: 'ar', label: 'ع', colors: c),
           const SizedBox(width: AppSpacing.sm),
-          _LangButton(code: 'en', label: 'A', colors: c),
+          _LangButton(
+              code: 'en', label: 'A', colors: c),
           const SizedBox(width: AppSpacing.sm),
-          _LangButton(code: 'am', label: 'አ', colors: c),
+          _LangButton(
+              code: 'am', label: 'አ', colors: c),
         ],
       ),
     );
   }
 }
 
+// ─── About Card ───────────────────────────────────────────
+
 class _AboutCard extends StatelessWidget {
   final AppColors colors;
-  const _AboutCard({required this.colors});
+  final String aboutDescription;
+
+  const _AboutCard({
+    required this.colors,
+    required this.aboutDescription,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = colors;
     final state = AppState.of(context);
-    final bookCount = state.catalogService.books.length;
+    final bookCount =
+        state.catalogService.books.length;
     final downloadCount =
         state.downloadService.downloadedCount;
+    final teacherCount =
+        state.catalogService.teachers.length;
+
+    final versionLabel = state.appVersion.isNotEmpty
+        ? 'v${state.appVersion}'
+        : 'v1.0.2';
+
+    final description = aboutDescription.isNotEmpty
+        ? aboutDescription
+        : 'مكتبة الروضة is a free Islamic learning app '
+            'built to make authentic knowledge accessible to '
+            'every Muslim student.';
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -730,7 +1167,8 @@ class _AboutCard extends StatelessWidget {
             width: 68,
             height: 68,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius:
+                  BorderRadius.circular(18),
               border: Border.all(
                   color: c.goldLine, width: 1.5),
               boxShadow: [
@@ -741,12 +1179,14 @@ class _AboutCard extends StatelessWidget {
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius:
+                  BorderRadius.circular(16),
               child: Image.asset('assets/icon.png',
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) =>
                       Container(
-                        color: c.brand.withOpacity(0.15),
+                        color: c.brand
+                            .withOpacity(0.15),
                         child: Icon(
                             Icons.menu_book_rounded,
                             size: 30,
@@ -775,7 +1215,7 @@ class _AboutCard extends StatelessWidget {
               borderRadius: AppRadius.pillRadius,
               border: Border.all(color: c.divider),
             ),
-            child: Text('v1.0.0 · Free · No ads',
+            child: Text('$versionLabel · Free · No ads',
                 style: AppText.latin(
                     color: c.textMuted,
                     size: 11,
@@ -785,10 +1225,12 @@ class _AboutCard extends StatelessWidget {
           Divider(color: c.divider, height: 1),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'مكتبة الروضة is a free Islamic learning app built to make authentic knowledge accessible to every Muslim student. Browse verified PDF books, listen to scholar explanations, and track your learning — all offline after download.',
+            description,
             textAlign: TextAlign.center,
             style: AppText.latin(
-                color: c.textMuted, size: 12, height: 1.6),
+                color: c.textMuted,
+                size: 12,
+                height: 1.6),
           ),
           const SizedBox(height: AppSpacing.lg),
           Divider(color: c.divider, height: 1),
@@ -808,10 +1250,12 @@ class _AboutCard extends StatelessWidget {
                 children: [
                   Icon(Icons.menu_book_rounded,
                       size: 13, color: c.textMuted),
-                  const SizedBox(width: AppSpacing.xs),
+                  const SizedBox(
+                      width: AppSpacing.xs),
                   Text('Books in library',
                       style: AppText.latin(
-                          color: c.textMuted, size: 12)),
+                          color: c.textMuted,
+                          size: 12)),
                 ],
               ),
             ],
@@ -822,12 +1266,14 @@ class _AboutCard extends StatelessWidget {
               Expanded(
                 child: _SecondaryStatCell(
                     icon: Icons.headphones_rounded,
-                    value: '7',
+                    value: '$teacherCount',
                     label: 'Teachers',
                     colors: c),
               ),
               Container(
-                  width: 1, height: 40, color: c.divider),
+                  width: 1,
+                  height: 40,
+                  color: c.divider),
               Expanded(
                 child: _SecondaryStatCell(
                     icon: Icons.download_rounded,
@@ -886,9 +1332,11 @@ class _SecondaryStatCell extends StatelessWidget {
                 height: 1.0)),
         const SizedBox(height: AppSpacing.xs),
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment:
+              MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 11, color: c.textFaint),
+            Icon(icon,
+                size: 11, color: c.textFaint),
             const SizedBox(width: AppSpacing.xs),
             Text(label,
                 style: AppText.latin(
@@ -924,7 +1372,8 @@ class _FooterPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: c.textFaint),
+          Icon(icon,
+              size: 11, color: c.textFaint),
           const SizedBox(width: AppSpacing.xs),
           Text(label,
               style: AppText.latin(
@@ -939,7 +1388,8 @@ class _SectionLabel extends StatelessWidget {
   final String label;
   final AppColors colors;
   const _SectionLabel(
-      {required this.label, required this.colors});
+      {required this.label,
+      required this.colors});
 
   @override
   Widget build(BuildContext context) {
@@ -970,7 +1420,8 @@ class _LangButton extends StatelessWidget {
     return GestureDetector(
       onTap: () => state.setLanguage(code),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration:
+            const Duration(milliseconds: 200),
         width: 32,
         height: 32,
         decoration: BoxDecoration(
@@ -982,14 +1433,17 @@ class _LangButton extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(label,
             style: TextStyle(
-                color:
-                    active ? Colors.white : c.textMuted,
+                color: active
+                    ? Colors.white
+                    : c.textMuted,
                 fontSize: 13,
                 fontWeight: FontWeight.w700)),
       ),
     );
   }
 }
+
+// ─── FAQ Item ─────────────────────────────────────────────
 
 class _FaqItem extends StatefulWidget {
   final int number;
@@ -1023,8 +1477,8 @@ class _FaqItemState extends State<_FaqItem> {
               indent: AppSpacing.base,
               endIndent: AppSpacing.base),
         GestureDetector(
-          onTap: () =>
-              setState(() => _expanded = !_expanded),
+          onTap: () => setState(
+              () => _expanded = !_expanded),
           child: Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.base,
@@ -1041,9 +1495,11 @@ class _FaqItemState extends State<_FaqItem> {
                       width: 22,
                       height: 22,
                       margin: const EdgeInsets.only(
-                          top: 1, right: AppSpacing.sm),
+                          top: 1,
+                          right: AppSpacing.sm),
                       decoration: BoxDecoration(
-                        color: c.brand.withOpacity(0.1),
+                        color: c.brand
+                            .withOpacity(0.1),
                         borderRadius:
                             AppRadius.pillRadius,
                       ),
@@ -1052,30 +1508,36 @@ class _FaqItemState extends State<_FaqItem> {
                           style: AppText.latin(
                               color: c.brand,
                               size: 10,
-                              weight: FontWeight.w700)),
+                              weight:
+                                  FontWeight.w700)),
                     ),
                     Expanded(
-                        child: Text(widget.question,
+                        child: Text(
+                            widget.question,
                             style: AppText.latin(
-                                color: c.textPrimary,
+                                color:
+                                    c.textPrimary,
                                 size: 13,
-                                weight:
-                                    FontWeight.w600))),
+                                weight: FontWeight
+                                    .w600))),
                     const SizedBox(
                         width: AppSpacing.sm),
                     AnimatedRotation(
-                      turns: _expanded ? 0.25 : 0,
+                      turns:
+                          _expanded ? 0.25 : 0,
                       duration: const Duration(
                           milliseconds: 200),
                       child: Icon(
-                          Icons.chevron_right_rounded,
+                          Icons
+                              .chevron_right_rounded,
                           size: 18,
                           color: c.textFaint),
                     ),
                   ],
                 ),
                 if (_expanded) ...[
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(
+                      height: AppSpacing.sm),
                   Container(
                     padding: const EdgeInsets.only(
                         left: AppSpacing.md,
@@ -1084,8 +1546,8 @@ class _FaqItemState extends State<_FaqItem> {
                     decoration: BoxDecoration(
                       border: Border(
                         left: BorderSide(
-                            color:
-                                c.brand.withOpacity(0.4),
+                            color: c.brand
+                                .withOpacity(0.4),
                             width: 2),
                       ),
                     ),
@@ -1104,6 +1566,8 @@ class _FaqItemState extends State<_FaqItem> {
     );
   }
 }
+
+// ─── Privacy Item ─────────────────────────────────────────
 
 class _PrivacyItem extends StatefulWidget {
   final String title;
@@ -1136,8 +1600,8 @@ class _PrivacyItemState extends State<_PrivacyItem> {
               indent: AppSpacing.base,
               endIndent: AppSpacing.base),
         GestureDetector(
-          onTap: () =>
-              setState(() => _expanded = !_expanded),
+          onTap: () => setState(
+              () => _expanded = !_expanded),
           child: Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.base,
@@ -1150,27 +1614,32 @@ class _PrivacyItemState extends State<_PrivacyItem> {
                   children: [
                     Icon(Icons.shield_outlined,
                         size: 14, color: c.brand),
-                    const SizedBox(width: AppSpacing.sm),
+                    const SizedBox(
+                        width: AppSpacing.sm),
                     Expanded(
                         child: Text(widget.title,
                             style: AppText.latin(
-                                color: c.textPrimary,
+                                color:
+                                    c.textPrimary,
                                 size: 13,
-                                weight:
-                                    FontWeight.w600))),
+                                weight: FontWeight
+                                    .w600))),
                     AnimatedRotation(
-                      turns: _expanded ? 0.25 : 0,
+                      turns:
+                          _expanded ? 0.25 : 0,
                       duration: const Duration(
                           milliseconds: 200),
                       child: Icon(
-                          Icons.chevron_right_rounded,
+                          Icons
+                              .chevron_right_rounded,
                           size: 18,
                           color: c.textFaint),
                     ),
                   ],
                 ),
                 if (_expanded) ...[
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(
+                      height: AppSpacing.sm),
                   Container(
                     padding: const EdgeInsets.only(
                         left: AppSpacing.md,
@@ -1179,8 +1648,8 @@ class _PrivacyItemState extends State<_PrivacyItem> {
                     decoration: BoxDecoration(
                       border: Border(
                         left: BorderSide(
-                            color:
-                                c.brand.withOpacity(0.4),
+                            color: c.brand
+                                .withOpacity(0.4),
                             width: 2),
                       ),
                     ),
