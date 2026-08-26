@@ -8,7 +8,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Handles all file downloads — PDFs, audio files,
 /// and teacher/reciter photos.
+///
+/// Features:
+///   - Max 2 concurrent user downloads (queue system)
+///   - Silent downloads (photos, TOCs) bypass the queue
+///   - Pausing an active download frees a slot for queued items
+///   - Real-time speed and MB tracking
 class DownloadService extends ChangeNotifier {
+  static const int maxConcurrentDownloads = 2;
+
   final Map<String, double> _progress = {};
   final Map<String, bool> _downloading = {};
   final Set<String> _downloaded = {};
@@ -20,6 +28,9 @@ class DownloadService extends ChangeNotifier {
   final Map<String, StreamSubscription<List<int>>> _activeSubs = {};
   final Map<String, IOSink> _activeSinks = {};
   final Map<String, http.Client> _activeClients = {};
+
+  /// Queue for user downloads waiting to start
+  final List<String> _downloadQueue = [];
 
   final Set<String> _downloadedPhotos = {};
   final Set<String> _downloadingPhotos = {};
@@ -82,7 +93,7 @@ class DownloadService extends ChangeNotifier {
     return null;
   }
 
-  // ─── Photo download ────────────────────────────────
+  // ─── Photo download (Silent — Bypasses Queue) ────────
 
   Future<void> downloadPhoto({
     required String personId,
@@ -151,6 +162,8 @@ class DownloadService extends ChangeNotifier {
 
   bool isDownloaded(String fileId) => _downloaded.contains(fileId);
   bool isDownloading(String fileId) => _downloading[fileId] == true;
+  bool isQueued(String fileId) =>
+      _activeDownloads[fileId]?['status'] == 'queued';
   bool isPaused(String fileId) => _paused[fileId] == true;
   bool isAwaitingNetwork(String fileId) => _awaitingNetwork[fileId] == true;
   double progress(String fileId) => _progress[fileId] ?? 0;
@@ -159,7 +172,15 @@ class DownloadService extends ChangeNotifier {
   List<Map<String, dynamic>> get activeDownloads =>
       List<Map<String, dynamic>>.from(_activeDownloads.values);
 
-  // ─── Download ──────────────────────────────────────
+  /// Number of user downloads currently actively streaming
+  int get _activeUserDownloadCount {
+    return _activeDownloads.values.where((d) {
+      final status = d['status'] as String? ?? '';
+      return status == 'downloading';
+    }).length;
+  }
+
+  // ─── User Download Entry Point ──────────────────────
 
   Future<void> download({
     required String fileId,
@@ -171,7 +192,7 @@ class DownloadService extends ChangeNotifier {
     String? personId,
     String? personPhotoUrl,
   }) async {
-    if (_downloading[fileId] == true) return;
+    if (_activeDownloads.containsKey(fileId)) return;
     if (_downloaded.contains(fileId)) {
       onComplete();
       return;
@@ -194,22 +215,7 @@ class DownloadService extends ChangeNotifier {
 
     _paused[fileId] = false;
     _awaitingNetwork[fileId] = false;
-    _downloading[fileId] = true;
     _progress[fileId] = 0;
-
-    _activeDownloads[fileId] = {
-      'fileId': fileId,
-      'displayName': displayName ?? fileId,
-      'bookId': bookId ?? '',
-      'progress': 0.0,
-      'speedKbps': 0.0,
-      'paused': false,
-      'awaitingNetwork': false,
-      'startedAt': DateTime.now(),
-      // Task 2: file size tracking fields
-      'downloadedMb': 0.0,
-      'totalMb': null, // null = unknown until first response
-    };
 
     _retryParams[fileId] = _RetryParams(
       fileId: fileId,
@@ -219,8 +225,7 @@ class DownloadService extends ChangeNotifier {
       onComplete: onComplete,
     );
 
-    notifyListeners();
-
+    // Pre-fetch related metadata (photos, TOC)
     if (fileId.startsWith('pdf_') && onPdfDownloadStarted != null) {
       onPdfDownloadStarted!(fileId).catchError((_) {});
     }
@@ -232,16 +237,77 @@ class DownloadService extends ChangeNotifier {
       downloadPhoto(personId: personId, photoUrl: personPhotoUrl);
     }
 
-    await _executeDownload(
-      fileId: fileId,
-      uri: uri,
-      bookId: bookId,
-      onError: onError,
-      onComplete: onComplete,
-    );
+    // Check concurrency slot
+    if (_activeUserDownloadCount < maxConcurrentDownloads) {
+      // Start immediately
+      _downloading[fileId] = true;
+      _activeDownloads[fileId] = {
+        'fileId': fileId,
+        'displayName': displayName ?? fileId,
+        'bookId': bookId ?? '',
+        'progress': 0.0,
+        'speedKbps': 0.0,
+        'paused': false,
+        'awaitingNetwork': false,
+        'status': 'downloading',
+        'startedAt': DateTime.now(),
+        'downloadedMb': 0.0,
+        'totalMb': null,
+      };
+      notifyListeners();
+
+      await _executeDownload(
+        fileId: fileId,
+        uri: uri,
+        bookId: bookId,
+        onError: onError,
+        onComplete: onComplete,
+      );
+    } else {
+      // Add to queue
+      _downloading[fileId] = false;
+      _downloadQueue.add(fileId);
+      _activeDownloads[fileId] = {
+        'fileId': fileId,
+        'displayName': displayName ?? fileId,
+        'bookId': bookId ?? '',
+        'progress': 0.0,
+        'speedKbps': 0.0,
+        'paused': false,
+        'awaitingNetwork': false,
+        'status': 'queued',
+        'startedAt': DateTime.now(),
+        'downloadedMb': 0.0,
+        'totalMb': null,
+      };
+      notifyListeners();
+    }
   }
 
-  // ─── Execute ───────────────────────────────────────
+  // ─── Queue Processor ────────────────────────────────
+
+  void _processQueue() {
+    while (_activeUserDownloadCount < maxConcurrentDownloads &&
+        _downloadQueue.isNotEmpty) {
+      final nextId = _downloadQueue.removeAt(0);
+      final params = _retryParams[nextId];
+      if (params != null && _activeDownloads.containsKey(nextId)) {
+        _downloading[nextId] = true;
+        _activeDownloads[nextId]!['status'] = 'downloading';
+        notifyListeners();
+
+        _executeDownload(
+          fileId: nextId,
+          uri: params.uri,
+          bookId: params.bookId,
+          onError: params.onError,
+          onComplete: params.onComplete,
+        );
+      }
+    }
+  }
+
+  // ─── Execute Stream Download ────────────────────────
 
   Future<void> _executeDownload({
     required String fileId,
@@ -255,7 +321,7 @@ class DownloadService extends ChangeNotifier {
     if (await file.exists()) startByte = await file.length();
     final savedOffset = await _readPartialOffset(fileId);
     if (savedOffset > 0 && savedOffset == startByte) {
-      // Resume
+      // Valid resume position
     } else {
       startByte = 0;
       if (await file.exists()) {
@@ -315,10 +381,8 @@ class DownloadService extends ChangeNotifier {
           ? startByte + contentLength
           : contentLength;
 
-      // Task 2: set totalMb in active downloads entry
       if (total > 0 && _activeDownloads.containsKey(fileId)) {
-        _activeDownloads[fileId]!['totalMb'] =
-            total / (1024 * 1024);
+        _activeDownloads[fileId]!['totalMb'] = total / (1024 * 1024);
       }
 
       var received = startByte;
@@ -328,6 +392,7 @@ class DownloadService extends ChangeNotifier {
       _awaitingNetwork[fileId] = false;
       if (_activeDownloads.containsKey(fileId)) {
         _activeDownloads[fileId]!['awaitingNetwork'] = false;
+        _activeDownloads[fileId]!['status'] = 'downloading';
       }
       notifyListeners();
 
@@ -360,7 +425,6 @@ class DownloadService extends ChangeNotifier {
           }
 
           if (_activeDownloads.containsKey(fileId)) {
-            // Task 2: update downloadedMb in real time
             _activeDownloads[fileId]!['downloadedMb'] =
                 received / (1024 * 1024);
           }
@@ -393,7 +457,6 @@ class DownloadService extends ChangeNotifier {
           await _saveDownloaded();
           _retryParams.remove(fileId);
           _completeCleanup(fileId);
-          notifyListeners();
 
           if (fileId.startsWith('pdf_') && onPdfDownloadComplete != null) {
             final pdfPath = (await _fileFor(fileId)).path;
@@ -421,6 +484,7 @@ class DownloadService extends ChangeNotifier {
           _awaitingNetwork[fileId] = true;
           if (_activeDownloads.containsKey(fileId)) {
             _activeDownloads[fileId]!['awaitingNetwork'] = true;
+            _activeDownloads[fileId]!['status'] = 'awaitingNetwork';
             _activeDownloads[fileId]!['speedKbps'] = 0.0;
           }
           notifyListeners();
@@ -450,6 +514,7 @@ class DownloadService extends ChangeNotifier {
         _awaitingNetwork[fileId] = true;
         if (_activeDownloads.containsKey(fileId)) {
           _activeDownloads[fileId]!['awaitingNetwork'] = true;
+          _activeDownloads[fileId]!['status'] = 'awaitingNetwork';
           _activeDownloads[fileId]!['speedKbps'] = 0.0;
         }
         notifyListeners();
@@ -479,6 +544,7 @@ class DownloadService extends ChangeNotifier {
     _awaitingNetwork[fileId] = false;
     if (_activeDownloads.containsKey(fileId)) {
       _activeDownloads[fileId]!['awaitingNetwork'] = false;
+      _activeDownloads[fileId]!['status'] = 'downloading';
     }
     notifyListeners();
 
@@ -497,20 +563,22 @@ class DownloadService extends ChangeNotifier {
     _retryTimers[fileId]?.cancel();
     _retryTimers.remove(fileId);
     _retryParams.remove(fileId);
+    _downloadQueue.remove(fileId);
 
-    if (_downloading[fileId] != true &&
-        _awaitingNetwork[fileId] != true) return;
+    if (_downloading[fileId] == true || _awaitingNetwork[fileId] == true) {
+      final sub = _activeSubs.remove(fileId);
+      try { await sub?.cancel(); } catch (_) {}
+      _activeClients.remove(fileId)?.close();
+      try { await _activeSinks.remove(fileId)?.close(); } catch (_) {}
+      try {
+        final file = await _fileFor(fileId);
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+      await _clearPartialOffset(fileId);
+    }
 
-    final sub = _activeSubs.remove(fileId);
-    try { await sub?.cancel(); } catch (_) {}
-    _activeClients.remove(fileId)?.close();
-    try { await _activeSinks.remove(fileId)?.close(); } catch (_) {}
-    try {
-      final file = await _fileFor(fileId);
-      if (await file.exists()) await file.delete();
-    } catch (_) {}
-    await _clearPartialOffset(fileId);
     _cancelCleanup(fileId);
+    _processQueue();
   }
 
   void _cancelCleanup(String fileId) {
@@ -529,6 +597,7 @@ class DownloadService extends ChangeNotifier {
     _retryTimers[fileId]?.cancel();
     _retryTimers.remove(fileId);
     _activeDownloads.remove(fileId);
+    _processQueue();
   }
 
   void _failDownload(String fileId) {
@@ -539,34 +608,64 @@ class DownloadService extends ChangeNotifier {
     _retryTimers.remove(fileId);
     _progress.remove(fileId);
     _activeDownloads.remove(fileId);
+    _processQueue();
     notifyListeners();
   }
 
   // ─── Pause / Resume ────────────────────────────────
 
   void pauseDownload(String fileId) {
-    if (_downloading[fileId] != true) return;
+    if (_activeDownloads[fileId] == null) return;
     _paused[fileId] = true;
+    _downloading[fileId] = false;
     if (_activeDownloads.containsKey(fileId)) {
       _activeDownloads[fileId]!['paused'] = true;
+      _activeDownloads[fileId]!['status'] = 'paused';
     }
     notifyListeners();
+    _processQueue(); // Freed a slot!
   }
 
   void resumeDownload(String fileId) {
-    if (_downloading[fileId] != true) return;
+    final task = _activeDownloads[fileId];
+    if (task == null) return;
+
     _paused[fileId] = false;
     if (_activeDownloads.containsKey(fileId)) {
       _activeDownloads[fileId]!['paused'] = false;
     }
-    notifyListeners();
+
+    if (_activeUserDownloadCount < maxConcurrentDownloads) {
+      _downloading[fileId] = true;
+      _activeDownloads[fileId]!['status'] = 'downloading';
+      notifyListeners();
+
+      final params = _retryParams[fileId];
+      if (params != null) {
+        _executeDownload(
+          fileId: fileId,
+          uri: params.uri,
+          bookId: params.bookId,
+          onError: params.onError,
+          onComplete: params.onComplete,
+        );
+      }
+    } else {
+      // Put back into queue
+      _activeDownloads[fileId]!['status'] = 'queued';
+      if (!_downloadQueue.contains(fileId)) {
+        _downloadQueue.add(fileId);
+      }
+      notifyListeners();
+    }
   }
 
   // ─── Delete ────────────────────────────────────────
 
   Future<void> deleteFile(String fileId) async {
     if (_downloading[fileId] == true ||
-        _awaitingNetwork[fileId] == true) {
+        _awaitingNetwork[fileId] == true ||
+        _activeDownloads.containsKey(fileId)) {
       await cancelDownload(fileId);
     }
     try {
@@ -587,10 +686,7 @@ class DownloadService extends ChangeNotifier {
   }
 
   Future<void> deleteAll() async {
-    final activeIds = <String>{
-      ..._downloading.keys,
-      ..._awaitingNetwork.keys,
-    }.toList();
+    final activeIds = List<String>.from(_activeDownloads.keys);
     for (final id in activeIds) await cancelDownload(id);
 
     final dir = await _downloadsDir();
@@ -610,6 +706,7 @@ class DownloadService extends ChangeNotifier {
     _paused.clear();
     _awaitingNetwork.clear();
     _activeDownloads.clear();
+    _downloadQueue.clear();
     await _saveDownloaded();
     notifyListeners();
   }
@@ -726,8 +823,6 @@ class DownloadService extends ChangeNotifier {
     return '${kbps.toStringAsFixed(0)} KB/s';
   }
 
-  /// Formats a size in MB for display.
-  /// Shows KB if under 1 MB, MB with 1 decimal otherwise.
   static String formatMb(double mb) {
     if (mb < 1) {
       return '${(mb * 1024).toStringAsFixed(0)} KB';
@@ -735,8 +830,6 @@ class DownloadService extends ChangeNotifier {
     return '${mb.toStringAsFixed(1)} MB';
   }
 }
-
-// ─── Internal retry params ─────────────────────────────
 
 class _RetryParams {
   final String fileId;
