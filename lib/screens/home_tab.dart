@@ -100,18 +100,6 @@ class HomeTab extends StatelessWidget {
 }
 
 // ─── Update Banner ────────────────────────────────────────
-//
-// A special banner for type='update' announcements.
-// Not dismissible. Shows download progress inside the
-// banner. After download completes, shows Install button.
-//
-// The APK is saved to the cache directory (temp dir) so
-// that FileProvider can share it with the Android
-// package installer. Cache dir is the universally-
-// supported FileProvider path on all Android versions.
-//
-// On app restart, checks if APK already exists on disk
-// and skips straight to Install Now if found.
 
 enum _UpdateState { idle, downloading, done, error }
 
@@ -131,7 +119,6 @@ class _UpdateBanner extends StatefulWidget {
 
 class _UpdateBannerState
     extends State<_UpdateBanner> {
-  // MethodChannel matching the one in MainActivity.kt
   static const _installChannel =
       MethodChannel('com.rawda.library/install');
 
@@ -148,17 +135,11 @@ class _UpdateBannerState
     _checkExistingApk();
   }
 
-  /// Returns the target APK file location.
-  /// Uses cache directory so that FileProvider can
-  /// share it with the Android package installer.
   Future<File> _apkTargetFile() async {
     final cacheDir = await getTemporaryDirectory();
     return File('${cacheDir.path}/rawdah_update.apk');
   }
 
-  /// Checks if a previously downloaded APK still
-  /// exists on disk. If it is large enough to be a
-  /// real APK (> 1 MB), goes straight to done state.
   Future<void> _checkExistingApk() async {
     try {
       final apkFile = await _apkTargetFile();
@@ -618,16 +599,120 @@ class _AnnouncementBanner extends StatelessWidget {
   }
 }
 
-// ─── Top Bar ─────────────────────────────────────────────
+// ─── Top Bar with Refresh Button ──────────────────────────
 
-class _TopBar extends StatelessWidget {
+class _TopBar extends StatefulWidget {
   final AppColors colors;
   const _TopBar({required this.colors});
 
   @override
+  State<_TopBar> createState() => _TopBarState();
+}
+
+class _TopBarState extends State<_TopBar> {
+  bool _isRefreshing = false;
+
+  Future<void> _handleRefresh(
+      BuildContext context, AppState state) async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+
+    final c = widget.colors;
+
+    try {
+      // 1. Check Internet connection
+      bool hasConnection = false;
+      try {
+        final result = await InternetAddress.lookup(
+                'raw.githubusercontent.com')
+            .timeout(const Duration(seconds: 4));
+        if (result.isNotEmpty &&
+            result[0].rawAddress.isNotEmpty) {
+          hasConnection = true;
+        }
+      } catch (_) {
+        hasConnection = false;
+      }
+
+      if (!hasConnection) {
+        if (context.mounted) {
+          _showToast(
+            context,
+            'Please connect to the internet',
+            c.dangerBg,
+            c.danger,
+          );
+        }
+        return;
+      }
+
+      // 2. Trigger force refresh of catalog
+      await state.catalogService.refresh();
+
+      // 3. Evaluate outcome
+      if (!context.mounted) return;
+
+      if (state.catalogService.error != null) {
+        _showToast(
+          context,
+          'Network is busy, please try again later',
+          c.dangerBg,
+          c.danger,
+        );
+      } else {
+        _showToast(
+          context,
+          'Successfully refreshed',
+          c.goldLine,
+          c.goldText,
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        _showToast(
+          context,
+          'Network is busy, please try again later',
+          c.dangerBg,
+          c.danger,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
+    }
+  }
+
+  void _showToast(BuildContext context, String message,
+      Color bgColor, Color textColor) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: AppText.latin(
+            color: textColor,
+            size: 13,
+            weight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: bgColor,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(AppSpacing.base),
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.cardRadius,
+          side: BorderSide(color: textColor.withOpacity(0.3)),
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = AppState.of(context);
-    final c = colors;
+    final c = widget.colors;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -639,6 +724,7 @@ class _TopBar extends StatelessWidget {
         mainAxisAlignment:
             MainAxisAlignment.spaceBetween,
         children: [
+          // Theme Toggle
           GestureDetector(
             onTap: () => state.toggleTheme(),
             child: Container(
@@ -659,6 +745,8 @@ class _TopBar extends StatelessWidget {
               ),
             ),
           ),
+
+          // Title
           Text(
             'مكتبة الروضة',
             textDirection: TextDirection.rtl,
@@ -668,7 +756,34 @@ class _TopBar extends StatelessWidget {
               weight: FontWeight.w700,
             ),
           ),
-          const SizedBox(width: 38),
+
+          // Force Refresh Button
+          GestureDetector(
+            onTap: () => _handleRefresh(context, state),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: c.surface2,
+                borderRadius: AppRadius.buttonRadius,
+                border:
+                    Border.all(color: c.divider),
+              ),
+              child: _isRefreshing
+                  ? Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: c.goldText,
+                      ),
+                    )
+                  : Icon(
+                      Icons.refresh_rounded,
+                      size: 18,
+                      color: c.textMuted,
+                    ),
+            ),
+          ),
         ],
       ),
     );
