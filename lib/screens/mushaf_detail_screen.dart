@@ -100,7 +100,6 @@ class MushafDetailScreen extends StatelessWidget {
                     const SizedBox(
                         height: AppSpacing.lg),
 
-                    // ── Editions section ──
                     if (editions.isNotEmpty) ...[
                       _SectionHeader(
                         titleEn: editions.length > 1
@@ -131,7 +130,6 @@ class MushafDetailScreen extends StatelessWidget {
                       _NoEditions(colors: c),
                     ],
 
-                    // ── Bonus books ──
                     if (books.isNotEmpty) ...[
                       const SizedBox(
                           height: AppSpacing.lg),
@@ -155,7 +153,6 @@ class MushafDetailScreen extends StatelessWidget {
                           )),
                     ],
 
-                    // ── File size warning ──
                     if (editions.isNotEmpty) ...[
                       const SizedBox(
                           height: AppSpacing.sm),
@@ -566,16 +563,50 @@ class _EditionCardState extends State<_EditionCard> {
         final isDownloading =
             widget.downloadService
                 .isDownloading(_fileId);
+        final isQueued = widget.downloadService.isQueued(_fileId);
+        final isPaused = widget.downloadService.isPaused(_fileId);
+        final isAwaiting = widget.downloadService.isAwaitingNetwork(_fileId);
         final progress =
             widget.downloadService.progress(_fileId);
         final hasUrl =
             widget.edition.pdfUrl.isNotEmpty;
 
+        final activeList = widget.downloadService.activeDownloads;
+        final activeData = activeList.firstWhere(
+          (d) => d['fileId'] == _fileId,
+          orElse: () => <String, dynamic>{},
+        );
+        final speedKbps = (activeData['speedKbps'] as double?) ?? 0.0;
+        final downloadedMb = (activeData['downloadedMb'] as double?) ?? 0.0;
+        final totalMb = activeData['totalMb'] as double?;
+
+        final isActive = isDownloading || isQueued || isPaused || isAwaiting;
+
+        final percent = (progress * 100).toInt();
+        final String statusLabel = isQueued
+            ? 'Waiting in queue…'
+            : isAwaiting
+                ? 'Waiting for network…'
+                : isPaused
+                    ? 'Paused'
+                    : progress > 0
+                        ? '$percent% downloaded'
+                        : 'Connecting…';
+
+        String sizeLabel = '';
+        if (downloadedMb > 0) {
+          if (totalMb != null && totalMb > 0) {
+            sizeLabel = '${DownloadService.formatMb(downloadedMb)} / ${DownloadService.formatMb(totalMb)}';
+          } else {
+            sizeLabel = DownloadService.formatMb(downloadedMb);
+          }
+        }
+
         return GestureDetector(
           onTap: () {
-            if (isDownloaded && !isDownloading) {
+            if (isDownloaded && !isActive) {
               _openReader(context);
-            } else if (!isDownloading && hasUrl) {
+            } else if (!isActive && hasUrl) {
               _startDownload();
             }
           },
@@ -617,14 +648,14 @@ class _EditionCardState extends State<_EditionCard> {
                           width: 1.5,
                         ),
                       ),
-                      child: isDownloading
+                      child: isActive
                           ? Padding(
                               padding:
                                   const EdgeInsets.all(
                                       14),
                               child:
                                   CircularProgressIndicator(
-                                value: progress > 0
+                                value: (progress > 0 && !isQueued && !isAwaiting)
                                     ? progress
                                     : null,
                                 strokeWidth: 2,
@@ -674,8 +705,8 @@ class _EditionCardState extends State<_EditionCard> {
                           Text(
                             isDownloaded
                                 ? 'Tap to Open'
-                                : isDownloading
-                                    ? 'Downloading...'
+                                : isActive
+                                    ? statusLabel
                                     : !hasUrl
                                         ? 'Coming Soon'
                                         : 'Tap to Download',
@@ -687,79 +718,108 @@ class _EditionCardState extends State<_EditionCard> {
                               weight: FontWeight.w600,
                             ),
                           ),
+                          if (isActive && speedKbps > 0 && !isPaused && !isQueued && !isAwaiting) ...[
+                            const SizedBox(height: 2),
+                            Text(DownloadService.formatSpeed(speedKbps), style: AppText.latin(color: c.brand, size: 11, weight: FontWeight.w600)),
+                          ],
                         ],
                       ),
                     ),
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: AppSpacing.xs,
-                      ),
-                      decoration: BoxDecoration(
-                        color: c.brand.withOpacity(0.1),
-                        borderRadius:
-                            AppRadius.pillRadius,
-                        border: Border.all(
-                          color: c.brand
-                              .withOpacity(0.25),
+                    if (isActive) ...[
+                      if (!isQueued && !isAwaiting)
+                        GestureDetector(
+                          onTap: () {
+                            if (isPaused) {
+                              widget.downloadService.resumeDownload(_fileId);
+                            } else {
+                              widget.downloadService.pauseDownload(_fileId);
+                            }
+                          },
+                          child: Container(
+                            width: 34, height: 34,
+                            decoration: BoxDecoration(color: c.surface2, borderRadius: AppRadius.buttonRadius, border: Border.all(color: c.divider)),
+                            child: Icon(isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded, size: 18, color: c.textPrimary),
+                          ),
+                        ),
+                      const SizedBox(width: AppSpacing.sm),
+                      GestureDetector(
+                        onTap: () => widget
+                            .downloadService
+                            .cancelDownload(_fileId),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: c.dangerBg,
+                            borderRadius: AppRadius.buttonRadius,
+                            border: Border.all(color: c.danger.withOpacity(0.3)),
+                          ),
+                          child: Icon(Icons.close_rounded, size: 16, color: c.danger),
                         ),
                       ),
-                      child: Text(
-                        'Free',
-                        style: AppText.latin(
-                          color: c.brand,
-                          size: 12,
-                          weight: FontWeight.w700,
+                    ] else
+                      Container(
+                        padding:
+                            const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xs,
+                        ),
+                        decoration: BoxDecoration(
+                          color: c.brand.withOpacity(0.1),
+                          borderRadius:
+                              AppRadius.pillRadius,
+                          border: Border.all(
+                            color: c.brand
+                                .withOpacity(0.25),
+                          ),
+                        ),
+                        child: Text(
+                          'Free',
+                          style: AppText.latin(
+                            color: c.brand,
+                            size: 12,
+                            weight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
 
-                if (isDownloading) ...[
+                if (isActive) ...[
                   const SizedBox(height: AppSpacing.md),
                   ClipRRect(
                     borderRadius: AppRadius.pillRadius,
                     child: LinearProgressIndicator(
-                      value:
-                          progress > 0 ? progress : null,
+                      value: (progress > 0 && !isQueued && !isAwaiting)
+                          ? progress
+                          : null,
                       backgroundColor: c.surface2,
                       valueColor:
-                          AlwaysStoppedAnimation<Color>(
-                              c.brand),
+                          AlwaysStoppedAnimation<Color>(isPaused ? c.goldText : c.brand),
                       minHeight: 4,
                     ),
                   ),
-                  const SizedBox(
-                      height: AppSpacing.sm - 2),
+                  const SizedBox(height: AppSpacing.sm - 2),
                   Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        progress > 0
-                            ? '${(progress * 100).toInt()}%'
-                            : 'Connecting...',
+                        statusLabel,
                         style: AppText.latin(
-                          color: c.brand,
+                          color: isPaused ? c.goldText : c.brand,
                           size: 11,
                           weight: FontWeight.w600,
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () => widget
-                            .downloadService
-                            .cancelDownload(_fileId),
-                        child: Text(
-                          'Cancel',
+                      if (sizeLabel.isNotEmpty)
+                        Text(
+                          sizeLabel,
                           style: AppText.latin(
-                            color: c.danger,
-                            size: 11,
-                            weight: FontWeight.w600,
+                            color: c.textFaint,
+                            size: 10,
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ],
