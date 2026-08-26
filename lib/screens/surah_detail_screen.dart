@@ -387,8 +387,42 @@ class _PdfSectionState extends State<_PdfSection> {
             widget.downloadService.isDownloaded(_fileId);
         final isDownloading =
             widget.downloadService.isDownloading(_fileId);
+        final isQueued = widget.downloadService.isQueued(_fileId);
+        final isPaused = widget.downloadService.isPaused(_fileId);
+        final isAwaiting = widget.downloadService.isAwaitingNetwork(_fileId);
         final progress =
             widget.downloadService.progress(_fileId);
+
+        final activeList = widget.downloadService.activeDownloads;
+        final activeData = activeList.firstWhere(
+          (d) => d['fileId'] == _fileId,
+          orElse: () => <String, dynamic>{},
+        );
+        final speedKbps = (activeData['speedKbps'] as double?) ?? 0.0;
+        final downloadedMb = (activeData['downloadedMb'] as double?) ?? 0.0;
+        final totalMb = activeData['totalMb'] as double?;
+
+        final isActive = isDownloading || isQueued || isPaused || isAwaiting;
+
+        final percent = (progress * 100).toInt();
+        final String statusLabel = isQueued
+            ? 'Waiting in queue…'
+            : isAwaiting
+                ? 'Waiting for network…'
+                : isPaused
+                    ? 'Paused'
+                    : progress > 0
+                        ? '$percent% downloaded'
+                        : 'Connecting…';
+
+        String sizeLabel = '';
+        if (downloadedMb > 0) {
+          if (totalMb != null && totalMb > 0) {
+            sizeLabel = '${DownloadService.formatMb(downloadedMb)} / ${DownloadService.formatMb(totalMb)}';
+          } else {
+            sizeLabel = DownloadService.formatMb(downloadedMb);
+          }
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,9 +435,9 @@ class _PdfSectionState extends State<_PdfSection> {
             const SizedBox(height: AppSpacing.sm),
             GestureDetector(
               onTap: () {
-                if (isDownloaded && !isDownloading) {
+                if (isDownloaded && !isActive) {
                   _openPdf(context);
-                } else if (!isDownloading &&
+                } else if (!isActive &&
                     widget.surah.hasPdf) {
                   _startDownload();
                 }
@@ -446,14 +480,14 @@ class _PdfSectionState extends State<_PdfSection> {
                               width: 1.5,
                             ),
                           ),
-                          child: isDownloading
+                          child: isActive
                               ? Padding(
                                   padding:
                                       const EdgeInsets.all(
                                           14),
                                   child:
                                       CircularProgressIndicator(
-                                    value: progress > 0
+                                    value: (progress > 0 && !isQueued && !isAwaiting)
                                         ? progress
                                         : null,
                                     strokeWidth: 2,
@@ -487,10 +521,9 @@ class _PdfSectionState extends State<_PdfSection> {
                               Text(
                                 isDownloaded
                                     ? 'Tap to Open'
-                                    : isDownloading
-                                        ? 'Downloading...'
-                                        : widget
-                                                .surah.hasPdf
+                                    : isActive
+                                        ? statusLabel
+                                        : widget.surah.hasPdf
                                             ? 'Tap to Download'
                                             : 'Coming Soon',
                                 style: AppText.latin(
@@ -511,32 +544,30 @@ class _PdfSectionState extends State<_PdfSection> {
                                     color: c.textMuted,
                                     size: 12),
                               ),
+                              if (isActive && speedKbps > 0 && !isPaused && !isQueued && !isAwaiting) ...[
+                                const SizedBox(height: 2),
+                                Text(DownloadService.formatSpeed(speedKbps), style: AppText.latin(color: c.brand, size: 11, weight: FontWeight.w600)),
+                              ],
                             ],
                           ),
                         ),
-                        if (!isDownloading)
-                          Container(
-                            padding: const EdgeInsets
-                                .symmetric(
-                                horizontal: AppSpacing.sm,
-                                vertical: AppSpacing.xs),
-                            decoration: BoxDecoration(
-                              color: c.brand
-                                  .withOpacity(0.1),
-                              borderRadius:
-                                  AppRadius.pillRadius,
-                              border: Border.all(
-                                  color: c.brand
-                                      .withOpacity(0.25)),
+                        if (isActive) ...[
+                          if (!isQueued && !isAwaiting)
+                            GestureDetector(
+                              onTap: () {
+                                if (isPaused) {
+                                  widget.downloadService.resumeDownload(_fileId);
+                                } else {
+                                  widget.downloadService.pauseDownload(_fileId);
+                                }
+                              },
+                              child: Container(
+                                width: 34, height: 34,
+                                decoration: BoxDecoration(color: c.surface2, borderRadius: AppRadius.buttonRadius, border: Border.all(color: c.divider)),
+                                child: Icon(isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded, size: 18, color: c.textPrimary),
+                              ),
                             ),
-                            child: Text('Free',
-                                style: AppText.latin(
-                                    color: c.brand,
-                                    size: 12,
-                                    weight:
-                                        FontWeight.w700)),
-                          ),
-                        if (isDownloading)
+                          const SizedBox(width: AppSpacing.sm),
                           GestureDetector(
                             onTap: () => widget
                                 .downloadService
@@ -558,24 +589,54 @@ class _PdfSectionState extends State<_PdfSection> {
                                   color: c.danger),
                             ),
                           ),
+                        ] else
+                          Container(
+                            padding: const EdgeInsets
+                                .symmetric(
+                                horizontal: AppSpacing.sm,
+                                vertical: AppSpacing.xs),
+                            decoration: BoxDecoration(
+                              color: c.brand
+                                  .withOpacity(0.1),
+                              borderRadius:
+                                  AppRadius.pillRadius,
+                              border: Border.all(
+                                  color: c.brand
+                                      .withOpacity(0.25)),
+                            ),
+                            child: Text('Free',
+                                style: AppText.latin(
+                                    color: c.brand,
+                                    size: 12,
+                                    weight:
+                                        FontWeight.w700)),
+                          ),
                       ],
                     ),
-                    if (isDownloading) ...[
+                    if (isActive) ...[
                       const SizedBox(
                           height: AppSpacing.md),
                       ClipRRect(
                         borderRadius:
                             AppRadius.pillRadius,
                         child: LinearProgressIndicator(
-                          value: progress > 0
+                          value: (progress > 0 && !isQueued && !isAwaiting)
                               ? progress
                               : null,
                           backgroundColor: c.surface2,
                           valueColor:
                               AlwaysStoppedAnimation<Color>(
-                                  c.brand),
-                          minHeight: 4,
+                                  isPaused ? c.goldText : c.brand),
+                          minHeight: 5,
                         ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm - 2),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(statusLabel, style: AppText.latin(color: isPaused ? c.goldText : c.brand, size: 11, weight: FontWeight.w600)),
+                          if (sizeLabel.isNotEmpty) Text(sizeLabel, style: AppText.latin(color: c.textFaint, size: 10)),
+                        ],
                       ),
                     ],
                     if (_errorMessage != null) ...[
@@ -632,8 +693,6 @@ class _PdfSectionState extends State<_PdfSection> {
 }
 
 // ─── fakeBookForSurah (public top-level) ─────────────────
-// Used by _PdfSection above AND imported by
-// surah_audio_player_screen.dart.
 
 Book fakeBookForSurah(SurahMeta m) {
   return Book(
@@ -753,8 +812,42 @@ class _ReciterCard extends StatelessWidget {
             downloadService.isDownloaded(fileId);
         final isDownloading =
             downloadService.isDownloading(fileId);
+        final isQueued = downloadService.isQueued(fileId);
+        final isPaused = downloadService.isPaused(fileId);
+        final isAwaiting = downloadService.isAwaitingNetwork(fileId);
         final progress =
             downloadService.progress(fileId);
+
+        final activeList = downloadService.activeDownloads;
+        final activeData = activeList.firstWhere(
+          (d) => d['fileId'] == fileId,
+          orElse: () => <String, dynamic>{},
+        );
+        final speedKbps = (activeData['speedKbps'] as double?) ?? 0.0;
+        final downloadedMb = (activeData['downloadedMb'] as double?) ?? 0.0;
+        final totalMb = activeData['totalMb'] as double?;
+
+        final isActive = isDownloading || isQueued || isPaused || isAwaiting;
+
+        final percent = (progress * 100).toInt();
+        final String statusLabel = isQueued
+            ? 'Waiting in queue…'
+            : isAwaiting
+                ? 'Waiting for network…'
+                : isPaused
+                    ? 'Paused'
+                    : progress > 0
+                        ? '$percent%'
+                        : 'Connecting…';
+
+        String sizeLabel = '';
+        if (downloadedMb > 0) {
+          if (totalMb != null && totalMb > 0) {
+            sizeLabel = '${DownloadService.formatMb(downloadedMb)} / ${DownloadService.formatMb(totalMb)}';
+          } else {
+            sizeLabel = DownloadService.formatMb(downloadedMb);
+          }
+        }
 
         return GestureDetector(
           onTap: isDownloaded
@@ -804,107 +897,146 @@ class _ReciterCard extends StatelessWidget {
                           const SizedBox(
                               height: AppSpacing.xs),
                           Text(
-                              reciter.nameFor(language),
+                              isActive ? statusLabel : reciter.nameFor(language),
                               style: AppText.latin(
-                                  color: c.textMuted,
-                                  size: 12)),
+                                  color: isActive ? (isPaused ? c.goldText : c.brand) : c.textMuted,
+                                  size: 12,
+                                  weight: isActive ? FontWeight.w600 : FontWeight.normal)),
                         ],
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
-                    GestureDetector(
-                      onTap: () {
-                        if (isDownloading) {
-                          downloadService
-                              .cancelDownload(fileId);
-                        } else if (isDownloaded) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  SurahAudioPlayerScreen
-                                      .reciter(
-                                meta: meta,
-                                reciter: reciter,
-                                reciterAudio: audio,
-                                initialPartIndex: 0,
-                              ),
-                            ),
-                          );
-                        } else {
-                          final url = catalogService
-                              .surahReciterUrlFor(
-                            surahNumber: meta.number,
-                            reciterAudio: audio,
-                            partNumber: part,
-                          );
-                          downloadService.download(
-                            fileId: fileId,
-                            url: url,
-                            displayName:
-                                '${meta.nameAr} - Recitation',
-                            bookId:
-                                'surah_${meta.number}',
-                            personId: reciter.id,
-                            personPhotoUrl:
-                                reciter.photoUrl,
-                            onError: (_) {},
-                            onComplete: () {},
-                          );
-                        }
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(
-                            milliseconds: 200),
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isDownloading
-                              ? c.dangerBg
-                              : isDownloaded
-                                  ? c.goldText
-                                  : c.goldText
-                                      .withOpacity(0.12),
-                          border: Border.all(
-                            color: isDownloading
-                                ? c.danger.withOpacity(0.3)
-                                : isDownloaded
-                                    ? c.goldText
-                                    : c.goldText
-                                        .withOpacity(0.3),
+                    if (isActive) ...[
+                      if (!isQueued && !isAwaiting)
+                        GestureDetector(
+                          onTap: () {
+                            if (isPaused) {
+                              downloadService.resumeDownload(fileId);
+                            } else {
+                              downloadService.pauseDownload(fileId);
+                            }
+                          },
+                          child: Container(
+                            width: 34, height: 34,
+                            decoration: BoxDecoration(color: c.surface2, borderRadius: AppRadius.buttonRadius, border: Border.all(color: c.divider)),
+                            child: Icon(isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded, size: 16, color: c.textPrimary),
                           ),
                         ),
-                        child: isDownloading
-                            ? Icon(Icons.close_rounded,
-                                size: 18, color: c.danger)
-                            : Icon(
-                                isDownloaded
-                                    ? Icons
-                                        .play_arrow_rounded
-                                    : Icons
-                                        .download_rounded,
-                                size: 20,
-                                color: isDownloaded
-                                    ? Colors.white
-                                    : c.goldText,
-                              ),
+                      const SizedBox(width: AppSpacing.xs),
+                      GestureDetector(
+                        onTap: () => downloadService.cancelDownload(fileId),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: c.dangerBg,
+                            borderRadius: AppRadius.buttonRadius,
+                            border: Border.all(color: c.danger.withOpacity(0.3)),
+                          ),
+                          child: Icon(Icons.close_rounded, size: 16, color: c.danger),
+                        ),
                       ),
-                    ),
+                    ] else
+                      GestureDetector(
+                        onTap: () {
+                          if (isDownloaded) {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    SurahAudioPlayerScreen
+                                        .reciter(
+                                  meta: meta,
+                                  reciter: reciter,
+                                  reciterAudio: audio,
+                                  initialPartIndex: 0,
+                                ),
+                              ),
+                            );
+                          } else {
+                            final url = catalogService
+                                .surahReciterUrlFor(
+                              surahNumber: meta.number,
+                              reciterAudio: audio,
+                              partNumber: part,
+                            );
+                            downloadService.download(
+                              fileId: fileId,
+                              url: url,
+                              displayName:
+                                  '${meta.nameAr} - Recitation',
+                              bookId:
+                                  'surah_${meta.number}',
+                              personId: reciter.id,
+                              personPhotoUrl:
+                                  reciter.photoUrl,
+                              onError: (_) {},
+                              onComplete: () {},
+                            );
+                          }
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(
+                              milliseconds: 200),
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDownloaded
+                                    ? c.goldText
+                                    : c.goldText
+                                        .withOpacity(0.12),
+                            border: Border.all(
+                              color: isDownloaded
+                                      ? c.goldText
+                                      : c.goldText
+                                          .withOpacity(0.3),
+                            ),
+                          ),
+                          child: Icon(
+                            isDownloaded
+                                ? Icons
+                                    .play_arrow_rounded
+                                : Icons
+                                    .download_rounded,
+                            size: 20,
+                            color: isDownloaded
+                                ? Colors.white
+                                : c.goldText,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
-                if (isDownloading) ...[
+                if (isActive) ...[
                   const SizedBox(height: AppSpacing.sm),
                   ClipRRect(
                     borderRadius: AppRadius.pillRadius,
                     child: LinearProgressIndicator(
                       value:
-                          progress > 0 ? progress : null,
+                          (progress > 0 && !isQueued && !isAwaiting) ? progress : null,
                       backgroundColor: c.surface2,
                       valueColor:
                           AlwaysStoppedAnimation<Color>(
-                              c.goldText),
+                              isPaused ? c.goldText : c.brand),
                       minHeight: 3,
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        (speedKbps > 0 && !isPaused && !isQueued && !isAwaiting)
+                            ? DownloadService.formatSpeed(speedKbps)
+                            : statusLabel,
+                        style: AppText.latin(color: c.textMuted, size: 10),
+                      ),
+                      if (sizeLabel.isNotEmpty)
+                        Text(
+                          sizeLabel,
+                          style: AppText.latin(color: c.textFaint, size: 10),
+                        ),
+                    ],
                   ),
                 ],
               ],
