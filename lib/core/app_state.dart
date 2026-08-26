@@ -32,7 +32,6 @@ class AppState extends ChangeNotifier {
       'mushaf_last_page_';
 
   // MethodChannel for querying Android app version.
-  // Uses the same channel as the APK installer.
   static const _installChannel =
       MethodChannel('com.rawda.library/install');
 
@@ -40,6 +39,7 @@ class AppState extends ChangeNotifier {
   String _appDocsPath = '';
   String _appVersion = '';
 
+  // Fresh install default: always light mode (false)
   bool _isDark = false;
   String _language = 'en';
   bool _isFirstLaunch = true;
@@ -95,17 +95,16 @@ class AppState extends ChangeNotifier {
     final docs = await getApplicationDocumentsDirectory();
     _appDocsPath = docs.path;
 
-    // Fetch the current app version from Android's
-    // package manager via MethodChannel.
     await _loadAppVersion();
 
+    // Fresh install default is Light mode (false).
+    // System dark mode is ignored on fresh install unless
+    // explicitly saved by the user previously.
     final savedTheme = _prefs.getString(_keyThemeMode);
     if (savedTheme != null) {
       _isDark = savedTheme == 'dark';
     } else {
-      _isDark = WidgetsBinding.instance
-              .platformDispatcher.platformBrightness ==
-          Brightness.dark;
+      _isDark = false;
     }
 
     _language =
@@ -217,9 +216,6 @@ class AppState extends ChangeNotifier {
     if (_isSignedIn && !_isGuest) _syncFromCloud();
   }
 
-  /// Fetches the current app version from Android via
-  /// MethodChannel and injects it into catalogService
-  /// for announcement version filtering.
   Future<void> _loadAppVersion() async {
     try {
       final v = await _installChannel
@@ -259,18 +255,9 @@ class AppState extends ChangeNotifier {
     _downloadMissingPhotos();
     _cleanOrphanedFiles();
     _downloadMissingTocs();
-    // Delete the cached APK if the user has already
-    // updated past the announced version.
     _cleanupApkIfUpdated();
   }
 
-  /// Deletes the cached rawdah_update.apk file when the
-  /// current app version is greater than or equal to the
-  /// announcement's maxVersionToShow (meaning: the user
-  /// has already installed this update or a newer one).
-  ///
-  /// Also deletes when there is no active update
-  /// announcement at all — the APK is stale.
   Future<void> _cleanupApkIfUpdated() async {
     try {
       final cacheDir = await getTemporaryDirectory();
@@ -288,14 +275,9 @@ class AppState extends ChangeNotifier {
       bool shouldDelete = false;
 
       if (!isActiveUpdate) {
-        // No update announcement in the catalog.
-        // The APK is stale — delete it.
         shouldDelete = true;
       } else if (_appVersion.isNotEmpty &&
           rawAnnouncement!.maxVersionToShow.isNotEmpty) {
-        // Compare current version with maxVersionToShow.
-        // If current > max, user has updated past this
-        // announcement — safe to delete.
         final cmp = catalogService.compareVersions(
             _appVersion, rawAnnouncement.maxVersionToShow);
         if (cmp > 0) {
