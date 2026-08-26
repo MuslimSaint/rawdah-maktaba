@@ -7,7 +7,7 @@ import '../core/download_service.dart';
 import '../widgets/book_cover.dart';
 import 'book_detail_screen.dart';
 
-/// Downloads tab — active downloads + completed downloads.
+/// Downloads tab — active & queued downloads + completed downloads.
 class DownloadsTab extends StatefulWidget {
   const DownloadsTab({super.key});
 
@@ -110,7 +110,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
 
     if (confirm != true) return;
 
-    // Collect PDF book IDs before deletion to clean up covers/TOCs
     final downloaded = await state.downloadService.downloadedFiles();
     final pdfBookIds = <String>[];
 
@@ -127,7 +126,6 @@ class _DownloadsTabState extends State<DownloadsTab> {
 
     await state.downloadService.deleteAll();
 
-    // Cleanup covers and TOC files manually
     for (final bookId in pdfBookIds) {
       await state.coverService.clearFor(bookId);
       await state.contentTableService.deleteToc(bookId);
@@ -438,6 +436,10 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                     active['awaitingNetwork']
                                         as bool? ??
                                     false;
+                                final status =
+                                    active['status']
+                                        as String? ??
+                                    'downloading';
                                 final downloadedMb =
                                     active['downloadedMb']
                                         as double? ??
@@ -473,6 +475,7 @@ class _DownloadsTabState extends State<DownloadsTab> {
                                     speedKbps: speed,
                                     isPaused: paused,
                                     isAwaitingNetwork: awaiting,
+                                    isQueued: status == 'queued',
                                     downloadedMb: downloadedMb,
                                     totalMb: totalMb,
                                     colors: c,
@@ -589,6 +592,7 @@ class _ActiveDownloadCard extends StatelessWidget {
   final double speedKbps;
   final bool isPaused;
   final bool isAwaitingNetwork;
+  final bool isQueued;
   final double downloadedMb;
   final double? totalMb;
   final AppColors colors;
@@ -604,6 +608,7 @@ class _ActiveDownloadCard extends StatelessWidget {
     required this.speedKbps,
     required this.isPaused,
     required this.isAwaitingNetwork,
+    required this.isQueued,
     required this.downloadedMb,
     required this.totalMb,
     required this.colors,
@@ -623,25 +628,31 @@ class _ActiveDownloadCard extends StatelessWidget {
         fileId.startsWith('saudio_r_') ||
         fileId.startsWith('saudio_t_');
 
-    final Color statusColor = isAwaitingNetwork
+    final Color statusColor = isQueued
         ? c.textMuted
-        : isPaused
-            ? c.goldText
-            : c.brand;
+        : isAwaitingNetwork
+            ? c.textMuted
+            : isPaused
+                ? c.goldText
+                : c.brand;
 
-    final String statusLabel = isAwaitingNetwork
-        ? 'Waiting for network…'
-        : isPaused
-            ? 'Paused'
-            : progress > 0
-                ? '$percent% downloaded'
-                : 'Connecting…';
+    final String statusLabel = isQueued
+        ? 'Waiting in queue…'
+        : isAwaitingNetwork
+            ? 'Waiting for network…'
+            : isPaused
+                ? 'Paused'
+                : progress > 0
+                    ? '$percent% downloaded'
+                    : 'Connecting…';
 
-    final String hintLabel = isAwaitingNetwork
-        ? 'Will resume automatically · × to cancel'
-        : isPaused
-            ? 'Tap ▶ to resume'
-            : 'Tap ∥ to pause · × to cancel';
+    final String hintLabel = isQueued
+        ? 'Will start automatically'
+        : isAwaitingNetwork
+            ? 'Will resume automatically · × to cancel'
+            : isPaused
+                ? 'Tap ▶ to resume'
+                : 'Tap ∥ to pause · × to cancel';
 
     final String sizeLabel = _buildSizeLabel();
 
@@ -651,11 +662,13 @@ class _ActiveDownloadCard extends StatelessWidget {
         color: c.card,
         borderRadius: AppRadius.cardRadius,
         border: Border.all(
-          color: isAwaitingNetwork
-              ? c.textFaint.withOpacity(0.3)
-              : isPaused
-                  ? c.goldText.withOpacity(0.4)
-                  : c.brand.withOpacity(0.3),
+          color: isQueued
+              ? c.divider
+              : isAwaitingNetwork
+                  ? c.textFaint.withOpacity(0.3)
+                  : isPaused
+                      ? c.goldText.withOpacity(0.4)
+                      : c.brand.withOpacity(0.3),
         ),
       ),
       child: Column(
@@ -723,7 +736,7 @@ class _ActiveDownloadCard extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: isAwaitingNetwork
+                            color: isQueued || isAwaitingNetwork
                                 ? c.surface2
                                 : isQuran
                                     ? c.goldLine
@@ -733,15 +746,17 @@ class _ActiveDownloadCard extends StatelessWidget {
                                 AppRadius.pillRadius,
                           ),
                           child: Text(
-                            isAwaitingNetwork
-                                ? 'Offline'
-                                : isQuran
-                                    ? 'Quran'
-                                    : isPdf
-                                        ? 'PDF'
-                                        : 'Audio',
+                            isQueued
+                                ? 'Queued'
+                                : isAwaitingNetwork
+                                    ? 'Offline'
+                                    : isQuran
+                                        ? 'Quran'
+                                        : isPdf
+                                            ? 'PDF'
+                                            : 'Audio',
                             style: AppText.latin(
-                              color: isAwaitingNetwork
+                              color: isQueued || isAwaitingNetwork
                                   ? c.textMuted
                                   : isQuran
                                       ? c.goldText
@@ -753,6 +768,7 @@ class _ActiveDownloadCard extends StatelessWidget {
                         ),
                         if (speedKbps > 0 &&
                             !isPaused &&
+                            !isQueued &&
                             !isAwaitingNetwork) ...[
                           const SizedBox(
                               width: AppSpacing.sm),
@@ -769,7 +785,7 @@ class _ActiveDownloadCard extends StatelessWidget {
                                 size: 11),
                           ),
                         ],
-                        if (isAwaitingNetwork) ...[
+                        if (isAwaitingNetwork || isQueued) ...[
                           const SizedBox(
                               width: AppSpacing.sm),
                           SizedBox(
@@ -788,7 +804,7 @@ class _ActiveDownloadCard extends StatelessWidget {
                 ),
               ),
 
-              if (!isAwaitingNetwork) ...[
+              if (!isAwaitingNetwork && !isQueued) ...[
                 GestureDetector(
                   onTap: isPaused ? onResume : onPause,
                   child: Container(
@@ -835,14 +851,14 @@ class _ActiveDownloadCard extends StatelessWidget {
           ClipRRect(
             borderRadius: AppRadius.pillRadius,
             child: LinearProgressIndicator(
-              value: isAwaitingNetwork
+              value: isAwaitingNetwork || isQueued
                   ? null
                   : progress > 0
                       ? progress
                       : null,
               backgroundColor: c.surface2,
               valueColor: AlwaysStoppedAnimation<Color>(
-                isAwaitingNetwork
+                isQueued || isAwaitingNetwork
                     ? c.textFaint
                     : isPaused
                         ? c.goldText
@@ -865,7 +881,7 @@ class _ActiveDownloadCard extends StatelessWidget {
                   weight: FontWeight.w600,
                 ),
               ),
-              if (sizeLabel.isNotEmpty && !isAwaitingNetwork)
+              if (sizeLabel.isNotEmpty && !isAwaitingNetwork && !isQueued)
                 Text(
                   sizeLabel,
                   style: AppText.latin(
