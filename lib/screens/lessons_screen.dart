@@ -444,9 +444,6 @@ class _LessonRowState extends State<_LessonRow> {
   @override
   Widget build(BuildContext context) {
     final c = widget.colors;
-
-    // FIX Task 1: use nameForPart() which returns custom
-    // name if set, falls back to Arabic ordinal if not.
     final lessonTitle =
         widget.teacherAudio.nameForPart(widget.partNumber);
 
@@ -457,8 +454,42 @@ class _LessonRowState extends State<_LessonRow> {
             widget.downloadService.isDownloaded(_fileId);
         final isDownloading =
             widget.downloadService.isDownloading(_fileId);
+        final isQueued = widget.downloadService.isQueued(_fileId);
+        final isPaused = widget.downloadService.isPaused(_fileId);
+        final isAwaiting = widget.downloadService.isAwaitingNetwork(_fileId);
         final progress =
             widget.downloadService.progress(_fileId);
+
+        final activeList = widget.downloadService.activeDownloads;
+        final activeData = activeList.firstWhere(
+          (d) => d['fileId'] == _fileId,
+          orElse: () => <String, dynamic>{},
+        );
+        final speedKbps = (activeData['speedKbps'] as double?) ?? 0.0;
+        final downloadedMb = (activeData['downloadedMb'] as double?) ?? 0.0;
+        final totalMb = activeData['totalMb'] as double?;
+
+        final isActive = isDownloading || isQueued || isPaused || isAwaiting;
+
+        final percent = (progress * 100).toInt();
+        final String statusLabel = isQueued
+            ? 'Waiting in queue…'
+            : isAwaiting
+                ? 'Waiting for network…'
+                : isPaused
+                    ? 'Paused'
+                    : progress > 0
+                        ? '$percent%'
+                        : 'Connecting…';
+
+        String sizeLabel = '';
+        if (downloadedMb > 0) {
+          if (totalMb != null && totalMb > 0) {
+            sizeLabel = '${DownloadService.formatMb(downloadedMb)} / ${DownloadService.formatMb(totalMb)}';
+          } else {
+            sizeLabel = DownloadService.formatMb(downloadedMb);
+          }
+        }
 
         return GestureDetector(
           onTap: isDownloaded ? widget.onTap : null,
@@ -534,10 +565,15 @@ class _LessonRowState extends State<_LessonRow> {
                           const SizedBox(
                               height: AppSpacing.xs),
                           Text(
-                            '${widget.displayIndex} of ${widget.totalParts}',
+                            isActive
+                                ? statusLabel
+                                : '${widget.displayIndex} of ${widget.totalParts}',
                             style: AppText.latin(
-                                color: c.textFaint,
-                                size: 11),
+                                color: isActive
+                                    ? (isPaused ? c.goldText : c.brand)
+                                    : c.textFaint,
+                                size: 11,
+                                weight: isActive ? FontWeight.w600 : FontWeight.normal),
                           ),
                         ],
                       ),
@@ -545,83 +581,127 @@ class _LessonRowState extends State<_LessonRow> {
 
                     const SizedBox(width: AppSpacing.md),
 
-                    GestureDetector(
-                      onTap: () {
-                        if (isDownloading) {
-                          widget.downloadService
-                              .cancelDownload(_fileId);
-                        } else if (isDownloaded) {
-                          widget.onTap();
-                        } else {
-                          widget.downloadService.download(
-                            fileId: _fileId,
-                            url: _audioUrl,
-                            displayName:
-                                '${widget.book.titleAr} - $lessonTitle',
-                            bookId: widget.book.id,
-                            personId: widget.teacher.id,
-                            personPhotoUrl:
-                                widget.teacher.photoUrl,
-                            onError: (_) {},
-                            onComplete: () {},
-                          );
-                        }
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(
-                            milliseconds: 200),
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isDownloading
-                              ? c.dangerBg
-                              : isDownloaded
-                                  ? c.brand
-                                  : c.brand
-                                      .withOpacity(0.1),
-                          border: Border.all(
-                            color: isDownloading
-                                ? c.danger
-                                    .withOpacity(0.3)
-                                : isDownloaded
-                                    ? c.brand
-                                    : c.brand
-                                        .withOpacity(0.3),
+                    if (isActive) ...[
+                      if (!isQueued && !isAwaiting)
+                        GestureDetector(
+                          onTap: () {
+                            if (isPaused) {
+                              widget.downloadService.resumeDownload(_fileId);
+                            } else {
+                              widget.downloadService.pauseDownload(_fileId);
+                            }
+                          },
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: c.surface2,
+                              borderRadius: AppRadius.buttonRadius,
+                              border: Border.all(color: c.divider),
+                            ),
+                            child: Icon(
+                              isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                              size: 16,
+                              color: c.textPrimary,
+                            ),
                           ),
                         ),
-                        child: isDownloading
-                            ? Icon(Icons.close_rounded,
-                                size: 18, color: c.danger)
-                            : Icon(
-                                isDownloaded
-                                    ? Icons
-                                        .play_arrow_rounded
-                                    : Icons
-                                        .download_rounded,
-                                size: 20,
-                                color: isDownloaded
-                                    ? Colors.white
-                                    : c.brand,
-                              ),
+                      const SizedBox(width: AppSpacing.xs),
+                      GestureDetector(
+                        onTap: () => widget.downloadService.cancelDownload(_fileId),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: c.dangerBg,
+                            borderRadius: AppRadius.buttonRadius,
+                            border: Border.all(color: c.danger.withOpacity(0.3)),
+                          ),
+                          child: Icon(Icons.close_rounded, size: 16, color: c.danger),
+                        ),
                       ),
-                    ),
+                    ] else
+                      GestureDetector(
+                        onTap: () {
+                          if (isDownloaded) {
+                            widget.onTap();
+                          } else {
+                            widget.downloadService.download(
+                              fileId: _fileId,
+                              url: _audioUrl,
+                              displayName:
+                                  '${widget.book.titleAr} - $lessonTitle',
+                              bookId: widget.book.id,
+                              personId: widget.teacher.id,
+                              personPhotoUrl:
+                                  widget.teacher.photoUrl,
+                              onError: (_) {},
+                              onComplete: () {},
+                            );
+                          }
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(
+                              milliseconds: 200),
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDownloaded
+                                ? c.brand
+                                : c.brand
+                                    .withOpacity(0.1),
+                            border: Border.all(
+                              color: isDownloaded
+                                  ? c.brand
+                                  : c.brand
+                                      .withOpacity(0.3),
+                            ),
+                          ),
+                          child: Icon(
+                            isDownloaded
+                                ? Icons
+                                    .play_arrow_rounded
+                                : Icons
+                                    .download_rounded,
+                            size: 20,
+                            color: isDownloaded
+                                ? Colors.white
+                                : c.brand,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
 
-                if (isDownloading) ...[
+                if (isActive) ...[
                   const SizedBox(height: AppSpacing.sm),
                   ClipRRect(
                     borderRadius: AppRadius.pillRadius,
                     child: LinearProgressIndicator(
-                      value:
-                          progress > 0 ? progress : null,
+                      value: (progress > 0 && !isQueued && !isAwaiting) ? progress : null,
                       backgroundColor: c.surface2,
                       valueColor:
-                          AlwaysStoppedAnimation<Color>(
-                              c.brand),
-                      minHeight: 3,
+                          AlwaysStoppedAnimation<Color>(isPaused ? c.goldText : c.brand),
+                      minHeight: 4,
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        (speedKbps > 0 && !isPaused && !isQueued && !isAwaiting)
+                            ? DownloadService.formatSpeed(speedKbps)
+                            : statusLabel,
+                        style: AppText.latin(color: c.textMuted, size: 10),
+                      ),
+                      if (sizeLabel.isNotEmpty)
+                        Text(
+                          sizeLabel,
+                          style: AppText.latin(color: c.textFaint, size: 10),
+                        ),
+                    ],
                   ),
                 ],
               ],
